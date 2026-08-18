@@ -1,0 +1,30 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam roundcorner 10
+skinparam actorStyle awesome
+
+' Define Actors
+actor "Reader" as reader
+actor "Admin" as admin
+
+' Define Module & Use Cases
+rectangle "Session Management Module" {
+    usecase "Verify Library Card" as UC_ScanCard
+    usecase "Tap to Login" as UC_TapLogin
+    usecase "Scan book to start session" as UC_ScanBook
+    usecase "Pick a seat from the kisok" as UC_PickSeat
+    usecase "Settle session\n(Check-Out)" as UC_SettleSession
+    usecase "Top up reading time" as UC_TopUp
+}
+
+' Connections
+reader --> UC_ScanCard
+reader --> UC_TapLogin
+reader --> UC_ScanBook
+reader --> UC_PickSeat
+reader --> UC_SettleSession
+
+admin --> UC_TopUp
+
+@enduml
