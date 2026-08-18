@@ -1,0 +1,37 @@
+@startuml SORA_C4_L3_ManageQuests
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram (C4 Level 3) \n Manage Quests
+
+Container(kiosk, "User Kiosk", "Web App")
+Container(dashboard, "Admin Dashboard", "Web App")
+System_Ext(extAI, "External AI System")
+ContainerDb(db, "Database", "Data Store")
+
+Container_Boundary(manageQuests, "Manage Quests") {
+    Component(questProgress, "Quest Progress Tracker", "Component", "Serves active quest progress (UC-14)")
+    Component(questComplete, "Quest Completion Handler", "Component", "Detects completion and credits points (UC-15)")
+    Component(rewards, "Rewards Redemption Service", "Component", "Deducts points and confirms redemption (UC-16)")
+    Component(questGenAdapter, "Quest Generation Adapter", "Component", "Requests AI-generated quests; supports librarian refinement (UC-17)")
+    Component(rankService, "Rank Advancement Service", "Component", "Evaluates and applies membership rank changes (UC-18)")
+}
+
+Rel(kiosk, questProgress, "Views quest progress")
+Rel(kiosk, rewards, "Redeems points")
+
+Rel(dashboard, questGenAdapter, "Configures / refines the quests")
+Rel(dashboard, rankService, "Reviews rank changes")
+
+Rel(questComplete, rankService, "Triggers rank check")
+Rel(questComplete, questProgress, "Updates progress")
+
+Rel(questGenAdapter, extAI, "Fetches the AI quests")
+
+Rel(questProgress, db, "Reads/writes points and quest data")
+Rel(questComplete, db, "Reads/writes points and quest data")
+Rel(rewards, db, "Reads/writes points and quest data")
+Rel(questGenAdapter, db, "Reads/writes points and quest data")
+Rel(rankService, db, "Reads/writes points and quest data")
+
+SHOW_LEGEND()
+@enduml
