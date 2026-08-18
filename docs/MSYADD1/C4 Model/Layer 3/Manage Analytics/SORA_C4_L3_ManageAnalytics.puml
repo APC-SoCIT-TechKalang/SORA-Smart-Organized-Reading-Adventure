@@ -1,0 +1,32 @@
+@startuml SORA_C4_L3_ManageAnalytics
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram (C4 Level 3) \n Manage Analytics
+
+Container(kiosk, "User Kiosk", "Web App")
+Container(dashboard, "Admin Dashboard", "Web App")
+System_Ext(extAI, "External AI System")
+ContainerDb(db, "Database", "Data Store")
+
+Container_Boundary(manageAnalytics, "Manage Analytics") {
+    Component(overview, "Dashboard Overview Service", "Component", "Builds the live snapshot of library activity (UC-19)")
+    Component(reportGen, "Usage Report Generator", "Component", "Compiles circulation and quest data into reports (UC-20)")
+    Component(chatbotAdapter, "Analytics Chatbot Adapter", "Component", "Handles librarian natural-language analytics queries (UC-21)")
+    Component(recoAdapter, "Book Recommendation Adapter", "Component", "Handles reader-facing AI book recommendations (UC-22)")
+}
+
+Rel(kiosk, recoAdapter, "Chats for book recommendations")
+
+Rel(dashboard, overview, "Views dashboard overview")
+Rel(dashboard, reportGen, "Views usage reports & statistics")
+Rel(dashboard, chatbotAdapter, "Queries analytics chatbot")
+
+Rel(chatbotAdapter, extAI, "Sends data for insights & analytics")
+Rel(recoAdapter, extAI, "Sends data for insights & analytics")
+
+Rel(overview, db, "Queries aggregate data")
+Rel(reportGen, db, "Queries aggregate data")
+Rel(chatbotAdapter, db, "Queries aggregate data")
+
+SHOW_LEGEND()
+@enduml
