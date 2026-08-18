@@ -1,0 +1,59 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_WITH_LEGEND()
+
+' People / Actors
+Person(reader, "Library Reader", "Browses catalog, reads manga, checks session status")
+Person(admin, "Library Admin", "Manages readers, inventory, reading sessions, top-ups, and views operational analytics")
+
+' S.O.R.A System Boundary
+System_Boundary(c1, "S.O.R.A System Boundary") {
+    
+    ' Frontends / Apps
+    Container(kiosk, "User Kiosk", "Web App", "Allows readers to browse the 4,000+ title catalog, view shelf locations before retrieving books, track session timers, and interact with the AI recommendation chatbot")
+    Container(dashboard, "Admin Dashboard", "Web App", "Enables staff to process session top-ups, scan patron RFID cards, manage real-time inventory states, track active readers, and view usage analytics reports")
+
+    ' Core Backend Components / Services
+    Container(session_ctrl, "Session & Access Controller", "Container / Component", "Manages user access, session limits, and check-in/check-out states")
+    Container(book_mgr, "Book & Inventory Manager", "Container / Component", "Handles book catalog metadata, shelf locations, and availability tracking")
+    Container(gamification, "Gamification & Quests", "Container / Component", "Controls user achievements, reading quests, and reward balances")
+    Container(analytics, "Analytics & Reporting Engine", "Container / Component", "Aggregates usage logs and generates operational analytics reports")
+    Container(ai_service, "AI Integration Service", "Container / Component", "Manages prompt orchestration and integration with the external AI system")
+
+    ' Internal Database
+    ContainerDb(db, "Database", "Relational / Document DB", "Stores user profiles, RFID card IDs, book catalog metadata (ISBNs), active reading sessions, quest logs, and points/rewards balance")
+}
+
+' External Systems & Devices
+System_Ext(rfid_hw, "RFID Reader & Barcode Scanner", "Scans readers RFID library cards for check-in/out and ISBN barcodes on physical manga volumes")
+System_Ext(external_ai, "External AI System", "Third-party API used to power quest generation, book recommendations, and analytics queries")
+
+' User Interactivity
+Rel(reader, kiosk, "Interacts with", "HTTPS")
+Rel(admin, dashboard, "Manages system via", "HTTPS")
+
+' Kiosk to Services
+Rel(kiosk, session_ctrl, "Checks session timer & status", "JSON/HTTPS")
+Rel(kiosk, book_mgr, "Searches catalog & shelf locations", "JSON/HTTPS")
+Rel(kiosk, gamification, "Views and completes quests", "JSON/HTTPS")
+
+' Admin Dashboard to Services
+Rel(dashboard, session_ctrl, "Processes top-ups & session states", "JSON/HTTPS")
+Rel(dashboard, gamification, "Manages rewards & quest parameters", "JSON/HTTPS")
+Rel(dashboard, analytics, "Views usage reports & statistics", "JSON/HTTPS")
+Rel(dashboard, ai_service, "Queries AI recommendations & analytics", "JSON/HTTPS")
+
+' Services to Database
+Rel(session_ctrl, db, "Reads/Writes session data", "SQL/Driver")
+Rel(book_mgr, db, "Reads/Writes catalog metadata", "SQL/Driver")
+Rel(gamification, db, "Reads/Writes user points & quests", "SQL/Driver")
+Rel(analytics, db, "Queries aggregate data", "SQL/Driver")
+
+' Hardware & External API Connections
+Rel(session_ctrl, rfid_hw, "Receives card scan events", "Serial / WebUSB / Socket")
+Rel(book_mgr, rfid_hw, "Receives ISBN barcode inputs", "Serial / WebUSB / Socket")
+Rel(ai_service, external_ai, "Sends prompts & retrieves generation results", "REST API / HTTPS")
+Rel(analytics, external_ai, "Sends data for automated insight queries", "REST API / HTTPS")
+
+@enduml
