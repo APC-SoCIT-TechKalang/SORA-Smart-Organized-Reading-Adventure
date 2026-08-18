@@ -1,0 +1,33 @@
+@startuml SORA_C4_L3_ManageBooks
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram (C4 Level 3) \n Manage Books
+
+Container(kiosk, "User Kiosk", "Web App")
+Container(dashboard, "Admin Dashboard", "Web App")
+Container_Ext(rfid, "RFID Reader & Barcode Scanner", "Device")
+ContainerDb(db, "Database", "Data Store")
+
+Container_Boundary(manageBooks, "Manage Books") {
+    Component(catalogSearch, "Catalog Search Service", "Component", "Serves catalog browsing (UC-06)")
+    Component(shelfLocation, "Shelf Location Service", "Component", "Serves shelf-location lookups (UC-07)")
+    Component(bookReg, "Book Registration Handler", "Component", "Adds new titles/copies to the catalog (UC-08)")
+    Component(bookStatus, "Book Status Tracker", "Component", "Maintains real-time shelf/with-reader/return-cart status (UC-09)")
+}
+
+Rel(kiosk, catalogSearch, "Searches catalog")
+Rel(kiosk, shelfLocation, "Views shelf locations")
+
+Rel(dashboard, bookReg, "Updates catalog & book inventory")
+Rel(dashboard, bookStatus, "Updates catalog & book inventory")
+
+Rel(rfid, bookStatus, "Receives ISBN barcodes (borrow/return scans)")
+Rel(rfid, bookReg, "Receives ISBN barcodes (new copy scans)")
+
+Rel(catalogSearch, db, "Reads/writes book catalog data")
+Rel(shelfLocation, db, "Reads/writes book catalog data")
+Rel(bookReg, db, "Reads/writes book catalog data")
+Rel(bookStatus, db, "Reads/writes book catalog data")
+
+SHOW_LEGEND()
+@enduml
