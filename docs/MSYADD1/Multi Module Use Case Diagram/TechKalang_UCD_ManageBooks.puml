@@ -19,7 +19,6 @@ rectangle "Book Management Module" {
 ' Connections
 reader --> UC_Browse
 reader --> UC_ViewShelf
-reader --> UC_UpdateStatus
 
 admin --> UC_AddBooks
 admin --> UC_UpdateStatus
