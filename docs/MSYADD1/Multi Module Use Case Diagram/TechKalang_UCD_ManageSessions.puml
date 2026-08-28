@@ -13,7 +13,7 @@ rectangle "Session Management Module" {
     usecase "Verify Library Card" as UC_ScanCard
     usecase "Tap to Login" as UC_TapLogin
     usecase "Scan book to start session" as UC_ScanBook
-    usecase "Pick a seat from the kisok" as UC_PickSeat
+    usecase "Pick a seat from the kiosk" as UC_PickSeat
     usecase "Settle session\n(Check-Out)" as UC_SettleSession
     usecase "Top up reading time" as UC_TopUp
 }
