@@ -14,12 +14,12 @@ System_Boundary(c1, "S.O.R.A System Boundary") {
     Container(kiosk, "User Kiosk", "Web App", "Allows readers to browse the 4,000+ title catalog, view shelf locations before retrieving books, track session timers, and interact with the AI recommendation chatbot")
     Container(dashboard, "Admin Dashboard", "Web App", "Enables staff to process session top-ups, scan patron RFID cards, manage real-time inventory states, track active readers, and view usage analytics reports")
 
-    ' Core Backend Components / Services
-    Container(session_ctrl, "Session & Access Controller", "Container / Component", "Manages user access, session limits, and check-in/check-out states")
-    Container(book_mgr, "Book & Inventory Manager", "Container / Component", "Handles book catalog metadata, shelf locations, and availability tracking")
-    Container(gamification, "Gamification & Quests", "Container / Component", "Controls user achievements, reading quests, and reward balances")
-    Container(analytics, "Analytics & Reporting Engine", "Container / Component", "Aggregates usage logs and generates operational analytics reports")
-    Container(ai_service, "AI Integration Service", "Container / Component", "Manages prompt orchestration and integration with the external AI system")
+    ' Core Backend Containers (Matching Level 3 Modules)
+    Container(session_ctrl, "Manage Sessions", "Container / Component", "Handles reading session timers, access control, and check-in/check-out")
+    Container(book_mgr, "Manage Books", "Container / Component", "Handles book catalog metadata, shelf locations, and physical inventory tracking")
+    Container(manage_profile, "Manage Profile", "Container / Component", "Manages reader user profiles, RFID card associations, and credentials")
+    Container(gamification, "Manage Quests", "Container / Component", "Controls gamified quests, achievements, and points/reward balances")
+    Container(analytics, "Manage Analytics", "Container / Component", "Handles dashboard overview, usage report generation, and analytics queries")
 
     ' Internal Database
     ContainerDb(db, "Database", "Relational / Document DB", "Stores user profiles, RFID card IDs, book catalog metadata (ISBNs), active reading sessions, quest logs, and points/rewards balance")
@@ -30,30 +30,35 @@ System_Ext(rfid_hw, "RFID Reader & Barcode Scanner", "Scans readers RFID library
 System_Ext(external_ai, "External AI System", "Third-party API used to power quest generation, book recommendations, and analytics queries")
 
 ' User Interactivity
-Rel(reader, kiosk, "Interacts with", "HTTPS")
-Rel(admin, dashboard, "Manages system via", "HTTPS")
+Rel(reader, kiosk, "Interacts with")
+Rel(admin, dashboard, "Manages system via")
 
 ' Kiosk to Services
-Rel(kiosk, session_ctrl, "Checks session timer & status", "JSON/HTTPS")
-Rel(kiosk, book_mgr, "Searches catalog & shelf locations", "JSON/HTTPS")
-Rel(kiosk, gamification, "Views and completes quests", "JSON/HTTPS")
+Rel(kiosk, session_ctrl, "Checks session timer & status")
+Rel(kiosk, book_mgr, "Searches catalog & shelf locations")
+Rel(kiosk, manage_profile, "Views reading stats & edits account")
+Rel(kiosk, gamification, "Views and completes quests")
+Rel(kiosk, analytics, "Chats for book recommendations")
 
 ' Admin Dashboard to Services
-Rel(dashboard, session_ctrl, "Processes top-ups & session states", "JSON/HTTPS")
-Rel(dashboard, gamification, "Manages rewards & quest parameters", "JSON/HTTPS")
-Rel(dashboard, analytics, "Views usage reports & statistics", "JSON/HTTPS")
-Rel(dashboard, ai_service, "Queries AI recommendations & analytics", "JSON/HTTPS")
+Rel(dashboard, session_ctrl, "Processes top-ups & session states")
+Rel(dashboard, book_mgr, "Updates catalog & book inventory")
+Rel(dashboard, manage_profile, "Manages reader accounts & encodes RFID")
+Rel(dashboard, gamification, "Configures rewards & refines quests")
+Rel(dashboard, analytics, "Views usage reports, dashboard overview & analytics chatbot")
 
 ' Services to Database
-Rel(session_ctrl, db, "Reads/Writes session data", "SQL/Driver")
-Rel(book_mgr, db, "Reads/Writes catalog metadata", "SQL/Driver")
-Rel(gamification, db, "Reads/Writes user points & quests", "SQL/Driver")
-Rel(analytics, db, "Queries aggregate data", "SQL/Driver")
+Rel(session_ctrl, db, "Reads/Writes session logs")
+Rel(book_mgr, db, "Reads/Writes book catalog data")
+Rel(manage_profile, db, "Reads/Writes reader profiles")
+Rel(gamification, db, "Reads/Writes points and quest data")
+Rel(analytics, db, "Queries aggregate data")
 
 ' Hardware & External API Connections
-Rel(session_ctrl, rfid_hw, "Receives card scan events", "Serial / WebUSB / Socket")
-Rel(book_mgr, rfid_hw, "Receives ISBN barcode inputs", "Serial / WebUSB / Socket")
-Rel(ai_service, external_ai, "Sends prompts & retrieves generation results", "REST API / HTTPS")
-Rel(analytics, external_ai, "Sends data for automated insight queries", "REST API / HTTPS")
+Rel(session_ctrl, rfid_hw, "Receives card scan events")
+Rel(book_mgr, rfid_hw, "Receives ISBN barcode inputs")
+Rel(manage_profile, rfid_hw, "Links newly encoded RFID cards")
+Rel(gamification, external_ai, "Fetches generated AI quests")
+Rel(analytics, external_ai, "Sends data for insights, chatbot & recommendations")
 
 @enduml
