@@ -10,7 +10,7 @@ actor "Reader" as reader
 actor "AI" as ai
 
 ' Define Module & Use Cases
-rectangle "Analytics & AI Module" {
+rectangle "Manage Analytics" {
     usecase "View dashboard overview" as UC_Overview
     usecase "Generate usage report" as UC_GenReport
     usecase "Ask analytics chatbot" as UC_AskChatbot
