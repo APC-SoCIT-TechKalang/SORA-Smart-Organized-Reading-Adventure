@@ -10,7 +10,7 @@ actor "Admin" as admin
 actor "AI" as ai
 
 ' Define Module & Use Cases
-rectangle "Gamification Module" {
+rectangle "Manage Quests" {
     usecase "View quest progress" as UC_ViewProgress
     usecase "Complete reading quest" as UC_CompleteQuest
     usecase "Redeem points for rewards" as UC_RedeemPoints
