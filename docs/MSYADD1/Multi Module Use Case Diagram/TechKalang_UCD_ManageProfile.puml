@@ -9,7 +9,7 @@ actor "Reader" as reader
 actor "Admin" as admin
 
 ' Define Module & Use Cases
-rectangle "Membership Management Module" {
+rectangle "Manage Profile" {
     usecase "Register new member" as UC_Register
     usecase "Print RFID card" as UC_PrintRFID
     usecase "Edit reader account" as UC_EditAccount
