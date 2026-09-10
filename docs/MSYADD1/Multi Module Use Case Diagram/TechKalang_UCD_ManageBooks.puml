@@ -7,9 +7,10 @@ skinparam actorStyle awesome
 ' Define Actors
 actor "Reader" as reader
 actor "Admin" as admin
+actor "Scanner" as scanner
 
 ' Define Module & Use Cases
-rectangle "Book Management Module" {
+rectangle "Manage Books" {
     usecase "Browse book catalog" as UC_Browse
     usecase "View book shelf location" as UC_ViewShelf
     usecase "Add new books" as UC_AddBooks
@@ -23,4 +24,5 @@ reader --> UC_ViewShelf
 admin --> UC_AddBooks
 admin --> UC_UpdateStatus
 
+UC_UpdateStatus <-- scanner
 @enduml
