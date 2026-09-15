@@ -1,283 +1,129 @@
-import React, {
-  createContext,
-  useCallback,
-  useContext,
-  useMemo,
-  useState } from
-'react';
-import type {
-  BorrowedVolume,
-  Commission,
-  SectionId,
-  Toast } from
-'../types/library';
-import { volumeById } from '../data/manga';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import type { Commission, SectionId, Toast, Volume } from '../types/library';
+import { database, errorMessage, readRows, setupMessage, supabase } from '../lib/supabase';
 
-const XP_PER_RANK = 500;
-
-interface GameState {
-  rank: number;
-  xp: number;
-  xpPercent: number;
-  coins: number;
-  lanterns: number;
-  maxLanterns: number;
-  streak: number;
-  section: SectionId;
-  borrowed: BorrowedVolume[];
-  claimed: string[];
-  joinedEvents: string[];
-  joinedClubs: string[];
-  toasts: Toast[];
-  setSection: (section: SectionId) => void;
-  isBorrowed: (volumeId: string) => boolean;
-  borrow: (volumeId: string) => void;
-  giveBack: (volumeId: string) => void;
-  logSession: (volumeId: string) => void;
-  claim: (commission: Commission) => void;
-  toggleEvent: (id: string, name: string, xp: number) => void;
-  toggleClub: (id: string, name: string) => void;
-  dismissToast: (id: string) => void;
+export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
+export interface ReadingLog { reading_log_id: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null; }
+interface BookRow { book_id: number; title: string; author: string | null; volume_number: string | null; description: string | null; cover_image_url: string | null; isbn: string | null; publisher: string | null; original_title: string | null; book_genres: { genre: string }[]; book_copies: { status: string }[]; }
+interface Quest { quest_id: number; name: string; description: string; quest_type: string; points_reward: number; badge_name: string | null; }
+interface QuestProgress { quest_id: number; status: string; }
+interface Progress { total_points: number; current_streak_days: number; membership_ranks: { name: string } | null; }
+interface LibraryState {
+  volumes: Volume[]; commissions: Commission[]; profile: Profile | null; logs: ReadingLog[];
+  rank: string; coins: number; streak: number; claimed: string[]; enrolled: string[];
 }
+const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', coins: 0, streak: 0, claimed: [], enrolled: [] };
 
-const GameContext = createContext<GameState | null>(null);
-
-export function GameProvider({ children }: {children: React.ReactNode;}) {
-  const [rank, setRank] = useState(32);
-  const [xp, setXp] = useState(240);
-  const [coins, setCoins] = useState(1280);
-  const [lanterns, setLanterns] = useState(6);
-  const [streak] = useState(7);
+function useLibraryState() {
+  const [state, setState] = useState<LibraryState>(empty);
+  const [session, setSession] = useState<Session | null>(null);
   const [section, setSection] = useState<SectionId>('archive');
-  const [claimed, setClaimed] = useState<string[]>([]);
-  const [joinedEvents, setJoinedEvents] = useState<string[]>(['e1']);
-  const [joinedClubs, setJoinedClubs] = useState<string[]>(['c1']);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
   const [toasts, setToasts] = useState<Toast[]>([]);
-  const [borrowed, setBorrowed] = useState<BorrowedVolume[]>([
-  { volumeId: 'one-piece', dueInDays: 4, progress: 82 },
-  { volumeId: 'frieren', dueInDays: 9, progress: 34 },
-  { volumeId: 'dungeon-meshi', dueInDays: 2, progress: 61 }]
-  );
-
-  const pushToast = useCallback((toast: Omit<Toast, 'id'>) => {
-    const id = `t-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`;
-    setToasts((current) => [...current.slice(-2), { ...toast, id }]);
-    window.setTimeout(() => {
-      setToasts((current) => current.filter((item) => item.id !== id));
-    }, 4200);
+  const generation = useRef(0);
+  const mutation = useRef(false);
+  useEffect(() => {
+    if (!supabase) { setLoading(false); setError(setupMessage); return; }
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+      generation.current++;
+      setState(empty);
+      setSession(next);
+    });
+    return () => { data.subscription.unsubscribe(); generation.current++; };
   }, []);
 
-  const grant = useCallback(
-    (gainedXp: number, gainedCoins: number) => {
-      setCoins((current) => current + gainedCoins);
-      setXp((current) => {
-        const total = current + gainedXp;
-        if (total >= XP_PER_RANK) {
-          setRank((value) => {
-            const next = value + Math.floor(total / XP_PER_RANK);
-            pushToast({
-              kind: 'level',
-              title: `Archivist Rank ${next}`,
-              detail: 'New shelf permissions unlocked in the vault.'
-            });
-            return next;
-          });
-          return total % XP_PER_RANK;
-        }
-        return total;
-      });
-    },
-    [pushToast]
-  );
-
-  const isBorrowed = useCallback(
-    (volumeId: string) => borrowed.some((item) => item.volumeId === volumeId),
-    [borrowed]
-  );
-
-  const borrow = useCallback(
-    (volumeId: string) => {
-      const volume = volumeById(volumeId);
-      if (!volume) return;
-      if (borrowed.some((item) => item.volumeId === volumeId)) {
-        pushToast({
-          kind: 'info',
-          title: 'Already on your shelf',
-          detail: `${volume.title} Vol. ${volume.volume} is checked out to you.`
-        });
-        return;
+  const refresh = useCallback(async () => {
+    if (!supabase) return;
+    const current = ++generation.current;
+    setLoading(true);
+    try {
+      const books = await readRows<BookRow>('books', 'book_id,title,author,volume_number,description,cover_image_url,isbn,publisher,original_title,book_genres(genre),book_copies(status)', 'book_id');
+      let next: LibraryState = { ...empty, volumes: books.map(book => ({
+        id: String(book.book_id), title: book.title, author: book.author ?? 'Unknown author',
+        volume: Number(book.volume_number) || 0, genre: book.book_genres.map(g => g.genre).join(', ') || 'Uncategorized',
+        synopsis: book.description ?? 'No description recorded.', copies: session ? book.book_copies.filter(c => c.status === 'IN_SHELF').length : -1,
+        rating: 0, rarity: 3, chapters: 0, plate: [book.title], plateColor: '#59351e', plateInk: '#fff9ef',
+        coverImage: book.cover_image_url ?? undefined, isbn: book.isbn, publisher: book.publisher, originalTitle: book.original_title,
+      })) };
+      if (session) {
+        const results = await Promise.all([
+          supabase.from('profiles').select('user_id,first_name,last_name,birthday,bio').eq('user_id', session.user.id).maybeSingle(),
+          supabase.from('reader_progress').select('total_points,current_streak_days,membership_ranks(name)').eq('user_id', session.user.id).maybeSingle(),
+          readRows<ReadingLog>('reading_logs', 'reading_log_id,book_id,started_at,returned_at,total_reading_minutes', 'reading_log_id'),
+          readRows<Quest>('quests', 'quest_id,name,description,quest_type,points_reward,badge_name', 'quest_id'),
+          readRows<QuestProgress>('quest_progress', 'quest_id,status', 'quest_progress_id'),
+          readRows<{ reason_type: string; reference_id: string }>('points_ledger', 'reason_type,reference_id', 'ledger_id'),
+        ]);
+        if (results[0].error) throw results[0].error;
+        if (results[1].error) throw results[1].error;
+        const progress = results[1].data as unknown as Progress | null;
+        next = { ...next, profile: results[0].data, logs: results[2],
+          rank: progress?.membership_ranks?.name ?? 'F', coins: progress?.total_points ?? 0, streak: progress?.current_streak_days ?? 0,
+          claimed: results[5].filter(p => p.reason_type === 'QUEST_REWARD').map(p => p.reference_id),
+          enrolled: results[4].map(p => String(p.quest_id)),
+          commissions: results[3].map(q => ({ id: String(q.quest_id), name: q.name, detail: q.description,
+            track: q.quest_type === 'WEEKLY' ? 'weekly' : q.quest_type === 'EVENT' ? 'seasonal' : 'daily',
+            seal: q.badge_name ?? 'Quest', coins: q.points_reward, xp: 0, participants: 0,
+            progress: results[4].some(p => p.quest_id === q.quest_id && p.status === 'COMPLETED') ? 100 : 0 })) };
       }
-      if (volume.copies === 0) {
-        pushToast({
-          kind: 'info',
-          title: 'All copies on loan',
-          detail: `You are now queued for ${volume.title} Vol. ${volume.volume}.`
-        });
-        return;
-      }
-      setBorrowed((current) => [
-      ...current,
-      { volumeId, dueInDays: 14, progress: 0 }]
-      );
-      grant(50, 30);
-      pushToast({
-        kind: 'reward',
-        title: `${volume.title} borrowed`,
-        detail: 'Due in 14 days · +50 XP · +30 coins'
-      });
+      if (current === generation.current) { setState(next); setError(''); }
+    } catch (err) { if (current === generation.current) setError(errorMessage(err)); }
+    finally { if (current === generation.current) setLoading(false); }
+  }, [session]);
+
+  useEffect(() => {
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 30000);
+    const focus = () => void refresh();
+    window.addEventListener('focus', focus);
+    return () => { clearInterval(timer); window.removeEventListener('focus', focus); generation.current++; };
+  }, [refresh]);
+
+  const message = (title: string, detail: string) => {
+    setToasts(items => [...items.slice(-2), { id: crypto.randomUUID(), title, detail, kind: 'info' }]);
+  };
+  async function run(action: () => PromiseLike<{ error: unknown }>, success: string) {
+    if (mutation.current) return false;
+    mutation.current = true; setBusy(true);
+    try { const result = await action(); if (result.error) throw result.error; await refresh(); message(success, 'Saved to your library account.'); return true; }
+    catch (err) { message('Action could not be completed', errorMessage(err)); return false; }
+    finally { mutation.current = false; setBusy(false); }
+  }
+  const borrowed = state.logs.filter(log => !log.returned_at).map(log => ({ volumeId: String(log.book_id), dueInDays: 0, progress: 0 }));
+  return {
+    ...state, session, section, setSection, loading, error, busy, refresh, borrowed, toasts,
+    xp: 0, xpPercent: 0, lanterns: Math.max(0, 3 - borrowed.length), maxLanterns: 3,
+    joinedEvents: [] as string[], joinedClubs: [] as string[],
+    volumeById: (id: string) => state.volumes.find(v => v.id === id),
+    isBorrowed: (id: string) => borrowed.some(v => v.volumeId === id),
+    borrow: (id: string) => run(() => database().rpc('start_reading', { p_book_id: Number(id) }), 'Reading started'),
+    giveBack: (id: string) => {
+      const log = state.logs.find(l => String(l.book_id) === id && !l.returned_at);
+      return log ? run(() => database().rpc('finish_reading', { p_log_id: log.reading_log_id }), 'Reading finished — place the book on the return cart') : Promise.resolve(false);
     },
-    [borrowed, grant, pushToast]
-  );
-
-  const giveBack = useCallback(
-    (volumeId: string) => {
-      const volume = volumeById(volumeId);
-      setBorrowed((current) =>
-      current.filter((item) => item.volumeId !== volumeId)
-      );
-      grant(80, 45);
-      pushToast({
-        kind: 'reward',
-        title: `${volume?.title ?? 'Volume'} returned`,
-        detail: 'Shelf space restored · +80 XP · +45 coins'
-      });
-    },
-    [grant, pushToast]
-  );
-
-  const logSession = useCallback(
-    (volumeId: string) => {
-      if (lanterns === 0) {
-        pushToast({
-          kind: 'info',
-          title: 'Out of lantern oil',
-          detail: 'Reading lanterns refill at the daily reset.'
-        });
-        return;
-      }
-      const volume = volumeById(volumeId);
-      setLanterns((current) => Math.max(0, current - 1));
-      setBorrowed((current) =>
-      current.map((item) =>
-      item.volumeId === volumeId ?
-      { ...item, progress: Math.min(100, item.progress + 9) } :
-      item
-      )
-      );
-      grant(35, 15);
-      pushToast({
-        kind: 'reward',
-        title: 'Session logged',
-        detail: `${volume?.title ?? 'Volume'} +9% · +35 XP · −1 lantern`
-      });
-    },
-    [grant, lanterns, pushToast]
-  );
-
-  const claim = useCallback(
-    (commission: Commission) => {
-      if (claimed.includes(commission.id) || commission.progress < 100) return;
-      setClaimed((current) => [...current, commission.id]);
-      grant(commission.xp, commission.coins);
-      pushToast({
-        kind: 'reward',
-        title: `${commission.seal} earned`,
-        detail: `+${commission.xp} XP · +${commission.coins} coins`
-      });
-    },
-    [claimed, grant, pushToast]
-  );
-
-  const toggleEvent = useCallback(
-    (id: string, name: string, eventXp: number) => {
-      setJoinedEvents((current) => {
-        if (current.includes(id)) {
-          pushToast({ kind: 'info', title: 'Left the party', detail: name });
-          return current.filter((item) => item !== id);
-        }
-        grant(eventXp / 4, 0);
-        pushToast({
-          kind: 'reward',
-          title: 'Signed up',
-          detail: `${name} · reserve bonus +${Math.round(eventXp / 4)} XP`
-        });
-        return [...current, id];
-      });
-    },
-    [grant, pushToast]
-  );
-
-  const toggleClub = useCallback(
-    (id: string, name: string) => {
-      setJoinedClubs((current) =>
-      current.includes(id) ?
-      current.filter((item) => item !== id) :
-      [...current, id]
-      );
-      pushToast({ kind: 'info', title: 'Club updated', detail: name });
-    },
-    [pushToast]
-  );
-
-  const dismissToast = useCallback((id: string) => {
-    setToasts((current) => current.filter((item) => item.id !== id));
-  }, []);
-
-  const value = useMemo<GameState>(
-    () => ({
-      rank,
-      xp,
-      xpPercent: Math.round(xp / XP_PER_RANK * 100),
-      coins,
-      lanterns,
-      maxLanterns: 8,
-      streak,
-      section,
-      borrowed,
-      claimed,
-      joinedEvents,
-      joinedClubs,
-      toasts,
-      setSection,
-      isBorrowed,
-      borrow,
-      giveBack,
-      logSession,
-      claim,
-      toggleEvent,
-      toggleClub,
-      dismissToast
-    }),
-    [
-    rank,
-    xp,
-    coins,
-    lanterns,
-    streak,
-    section,
-    borrowed,
-    claimed,
-    joinedEvents,
-    joinedClubs,
-    toasts,
-    isBorrowed,
-    borrow,
-    giveBack,
-    logSession,
-    claim,
-    toggleEvent,
-    toggleClub,
-    dismissToast]
-
-  );
-
+    logSession: (_id: string) => { message('Reading time is recorded automatically', 'Finish reading and return the book to complete your session.'); },
+    claim: (q: Commission) => run(() => database().rpc('claim_quest', { p_quest_id: Number(q.id) }), 'Quest points claimed'),
+    joinQuest: (id: string) => run(() => database().rpc('join_quest', { p_quest_id: Number(id) }), 'Quest joined'),
+    toggleEvent: (_id: string, _name: string, _xp: number) => message('Event registration unavailable', 'Ask library staff about current events.'),
+    toggleClub: (_id: string, _name: string) => message('Club registration unavailable', 'Ask library staff about current clubs.'),
+    dismissToast: (id: string) => setToasts(items => items.filter(t => t.id !== id)),
+    signOut: () => run(() => database().auth.signOut(), 'Signed out'),
+    saveProfile: (profile: Pick<Profile, 'first_name' | 'last_name' | 'birthday' | 'bio'>) => run(() => {
+      if (!session) throw new Error('Sign in first');
+      return database().from('profiles').update(profile).eq('user_id', session.user.id).select().single();
+    }, 'Profile updated'),
+  };
+}
+const GameContext = createContext<ReturnType<typeof useLibraryState> | null>(null);
+export function GameProvider({ children }: { children: ReactNode }) {
+  const value = useLibraryState();
   return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
 }
-
-export function useGame(): GameState {
-  const context = useContext(GameContext);
-  if (!context) {
-    throw new Error('useGame must be used inside GameProvider');
-  }
-  return context;
+export function useGame() {
+  const value = useContext(GameContext);
+  if (!value) throw new Error('useGame must be used inside GameProvider');
+  return value;
 }

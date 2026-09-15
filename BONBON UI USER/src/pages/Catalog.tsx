@@ -3,14 +3,14 @@ import { ChevronDownIcon, LayoutGridIcon, ListIcon } from 'lucide-react';
 import { CatalogGrid } from '../components/CatalogGrid';
 import { VolumeDrawer } from '../components/VolumeDrawer';
 import { SectionHeading } from '../components/OrnatePanel';
-import { genres, volumes } from '../data/manga';
+import { useGame } from '../contexts/GameContext';
 import type { Volume } from '../types/library';
 
 type SortKey = 'popular' | 'rating' | 'newest';
 
 const SORTS: {id: SortKey;label: string;}[] = [
-{ id: 'popular', label: 'Popular' },
-{ id: 'rating', label: 'Top rated' },
+{ id: 'popular', label: 'Title' },
+
 { id: 'newest', label: 'Newest volume' }];
 
 
@@ -21,6 +21,8 @@ interface CatalogProps {
 }
 
 export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
+  const { volumes } = useGame();
+  const genres = ['All', ...new Set(volumes.map(v => v.genre))];
   const [genre, setGenre] = useState('All');
   const [layout, setLayout] = useState<'grid' | 'list'>(initialLayout);
   const [sort, setSort] = useState<SortKey>('popular');
@@ -42,13 +44,13 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
     return [...filtered].sort((a, b) => {
       if (sort === 'rating') return b.rating - a.rating;
       if (sort === 'newest') return b.volume - a.volume;
-      return b.rarity - a.rarity || b.rating - a.rating;
+      return a.title.localeCompare(b.title);
     });
-  }, [genre, query, sort]);
+  }, [genre, query, sort, volumes]);
 
   return (
     <div className="space-y-6">
-      <SectionHeading title="Catalog" meta={`${results.length} of 247 titles`} />
+      <SectionHeading title="Catalog" meta={`${results.length} of ${volumes.length} titles`} />
 
       <div className="flex flex-wrap items-center gap-3">
         <label className="sr-only" htmlFor="catalog-search">

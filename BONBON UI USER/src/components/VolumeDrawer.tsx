@@ -14,7 +14,8 @@ interface VolumeDrawerProps {
 }
 
 export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps) {
-  const { borrow, isBorrowed, setSection } = useGame();
+  coverImage = coverImage ?? volume?.coverImage;
+  const { borrow, isBorrowed, setSection, busy } = useGame();
 
   useEffect(() => {
     if (!volume) return;
@@ -44,22 +45,22 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
           </div>
 
           <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2 font-body text-[10px] font-800 uppercase tracking-[0.24em] text-gold"><span>{volume.genre} · Volume {volume.volume}</span><span className={`book-status ${volume.copies > 0 ? 'is-available' : 'is-loan'}`}>{volume.copies > 0 ? 'Available' : 'On loan'}</span></div>
+            <div className="flex flex-wrap items-center gap-2 font-body text-[10px] font-800 uppercase tracking-[0.24em] text-gold"><span>{volume.genre} · Volume {volume.volume}</span><span className={`book-status ${volume.copies > 0 ? 'is-available' : 'is-loan'}`}>{volume.copies < 0 ? 'Sign in for availability' : volume.copies > 0 ? 'Available' : 'Ask staff'}</span></div>
             <h2 className="mt-2 font-display text-[30px] font-900 uppercase leading-[1.05] text-umber sm:text-[38px]">{volume.title}</h2>
             <p className="mt-2 font-body text-[15px] font-600 text-umber/65">by {volume.author}</p>
             <div className="mt-5 flex flex-wrap gap-2">
-              <Badge icon={<StarIcon aria-hidden="true" className="h-3.5 w-3.5 fill-sun text-sun" />} label={`${volume.rating} reader rating`} />
-              <Badge icon={<Layers3Icon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />} label={`${volume.chapters} chapters`} />
+              <Badge icon={<StarIcon aria-hidden="true" className="h-3.5 w-3.5 fill-sun text-sun" />} label={volume.rating ? `${volume.rating} reader rating` : 'Not rated'} />
+              <Badge icon={<Layers3Icon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />} label={volume.chapters ? `${volume.chapters} chapters` : 'Chapter count not recorded'} />
               <Badge icon={<CalendarDaysIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />} label="Collection edition" />
             </div>
             <div className="book-record mt-6">
               <div className="book-record-heading"><span>Publication record</span><span>Tankobonbon archive</span></div>
               <BookRow label="Release" value="Collection record pending" />
-              <BookRow label="ISBN" value="Not yet recorded" />
-              <BookRow label="Original title" value="Not yet recorded" />
+              <BookRow label="ISBN" value={volume.isbn ?? "Not recorded"} />
+              <BookRow label="Original title" value={volume.originalTitle ?? "Not recorded"} />
               <BookRow label="Romanized title" value={volume.title} />
               <BookRow label="Author / Contributor" value={volume.author} />
-              <BookRow label="Publisher" value="Tankobonbon Archive" />
+              <BookRow label="Publisher" value={volume.publisher ?? "Not recorded"} />
               <BookRow label="Imprint" value="Manga library edition" />
               <BookRow label="Demography" value={volume.genre} />
               <BookRow label="Genres" value={volume.genre} />
@@ -68,7 +69,7 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
             </div>
             <div className="mt-5 border border-gold/35 bg-parch/15 p-4"><p className="font-body text-[10px] font-800 uppercase tracking-[0.2em] text-gold">Description</p><p className="mt-2 font-body text-[14px] font-600 leading-relaxed text-umber/75">{volume.synopsis}</p></div>
             <div className="mt-7 flex flex-wrap gap-3 border-t border-gold/30 pt-5">
-              <button type="button" onClick={() => { borrow(volume.id); onClose(); setSection('shelf'); }} className="tb-cut-sm inline-flex items-center justify-center gap-2 border border-gold bg-rust px-5 py-3 font-display text-[12px] font-700 uppercase tracking-[0.16em] text-sand transition-colors hover:bg-umber"><BookOpenIcon aria-hidden="true" className="h-4 w-4" />{isBorrowed(volume.id) ? 'On your shelf' : volume.copies > 0 ? 'Borrow volume' : 'Join the queue'}</button>
+              <button type="button" onClick={() => { void borrow(volume.id); onClose(); setSection('shelf'); }} className="tb-cut-sm inline-flex items-center justify-center gap-2 border border-gold bg-rust px-5 py-3 font-display text-[12px] font-700 uppercase tracking-[0.16em] text-sand transition-colors hover:bg-umber"><BookOpenIcon aria-hidden="true" className="h-4 w-4" />{isBorrowed(volume.id) ? 'On your shelf' : busy ? 'Saving…' : 'Start reading in library'}</button>
               <button type="button" onClick={onClose} className="tb-cut-sm border border-gold/55 bg-parch/20 px-5 py-3 font-display text-[12px] font-700 uppercase tracking-[0.16em] text-umber transition-colors hover:bg-parch/45">Back to arrivals</button>
             </div>
           </div>

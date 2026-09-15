@@ -5,24 +5,24 @@ import { HeroReading } from '../components/HeroReading';
 import { StatStrip } from '../components/StatStrip';
 import { CommissionCard } from '../components/CommissionCard';
 import { SectionHeading } from '../components/OrnatePanel';
-import { commissions } from '../data/commissions';
-import { volumes } from '../data/manga';
+
+
 import { useGame } from '../contexts/GameContext';
 import { ParallaxCarousel } from '../components/ParallaxCarousel';
 import { VolumeDrawer } from '../components/VolumeDrawer';
 import type { Volume } from '../types/library';
 
 export function Archive() {
-  const { setSection } = useGame();
-  const [activeArrivalIndex, setActiveArrivalIndex] = useState(1);
+  const { setSection, volumes, commissions } = useGame();
+  const [activeArrivalIndex, setActiveArrivalIndex] = useState(0);
   const [openedBook, setOpenedBook] = useState<{ volume: Volume; image: string } | null>(null);
   const dailies = commissions.filter((item) => item.track === 'daily');
   const arrivals = volumes.slice(-8);
-  const arrivalItems = arrivals.map((volume, index) => ({
+  const arrivalItems = arrivals.map((volume) => ({
     id: volume.id,
     title: volume.title,
-    subtitle: 'BORROW',
-    image: ['/6e74d0b1-981c-4e24-a41f-0448d6db3ac7.jpg', '/6ad15ba6-6115-4388-9841-28404d9788a5.jpg', '/6e74d0b1-981c-4e24-a41f-0448d6db3ac7.jpg', '/6ad15ba6-6115-4388-9841-28404d9788a5.jpg'][index % 4],
+    subtitle: 'READ IN LIBRARY',
+    image: volume.coverImage ?? '/book-placeholder.svg',
     color: volume.plateColor,
     ink: volume.plateInk,
     author: volume.author,
@@ -58,7 +58,7 @@ export function Archive() {
       <StatStrip />
 
       <section>
-        <SectionHeading title="Today's commissions" meta="Resets in 9h 12m" />
+        <SectionHeading title="Today's commissions" meta="Available quests" />
         <ul className="mt-5 grid gap-4 lg:grid-cols-3">
           {dailies.map((commission) =>
           <li key={commission.id}>

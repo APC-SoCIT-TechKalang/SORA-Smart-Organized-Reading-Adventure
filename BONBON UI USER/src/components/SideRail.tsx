@@ -1,4 +1,3 @@
-import React from 'react';
 import { motion } from 'framer-motion';
 import {
   CompassIcon,
@@ -20,13 +19,15 @@ const ICONS: Record<SectionId, typeof CompassIcon> = {
 };
 
 export function SideRail() {
-  const { section, setSection, borrowed, claimed } = useGame();
+  const { section, setSection, borrowed, claimed, commissions, volumes, loading } = useGame();
+  const catalogCount = loading ? 'Loading catalog…' : `${volumes.length} ${volumes.length === 1 ? 'title' : 'titles'}`;
+  const openQuestCount = commissions.filter((quest) => !claimed.includes(quest.id)).length;
 
   const counts: Record<SectionId, string> = {
     archive: 'Your reading hall',
-    catalog: '247 titles',
-    shelf: `${borrowed.length} borrowed`,
-    commissions: `${8 - claimed.length} open`,
+    catalog: catalogCount,
+    shelf: `${borrowed.length} reading`,
+    commissions: `${openQuestCount} ${openQuestCount === 1 ? 'quest' : 'quests'} open`,
     guide: 'Study space availability'
   };
 
@@ -92,10 +93,10 @@ export function SideRail() {
 
       <div className="mt-6 border-t border-gold/35 pt-4">
         <p className="font-body text-[10px] font-800 uppercase tracking-[0.26em] text-gold">
-          Season resets
+          Library status
         </p>
         <p className="mt-1 font-display text-[15px] font-700 text-umber">
-          6d 14h 22m
+          Live data
         </p>
         <p className="mt-3 font-body text-[11px] font-600 leading-relaxed text-umber/55">
           Press 1–5 to move between halls.

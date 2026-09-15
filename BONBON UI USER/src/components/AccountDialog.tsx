@@ -2,14 +2,41 @@ import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, CheckCircle2Icon, LockKeyholeIcon, XIcon } from 'lucide-react';
+import { database, errorMessage } from '../lib/supabase';
 
 type AccountMode = 'login' | 'preregister';
 
 export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onClose: () => void }) {
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [success, setSuccess] = useState('');
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const form = new FormData(event.currentTarget);
+    setBusy(true); setError('');
+    try {
+      const credentials = { email: String(form.get('identity')).trim(), password: String(form.get('password')) };
+      if (mode === 'login') {
+        const { error } = await database().auth.signInWithPassword(credentials);
+        if (error) throw error;
+        setSuccess('You are signed in.');
+      } else {
+        const { data, error } = await database().auth.signUp({ ...credentials, options: {
+          emailRedirectTo: window.location.origin,
+          data: { first_name: String(form.get('firstName')).trim(), last_name: String(form.get('lastName')).trim() },
+        } });
+        if (error) throw error;
+        setSuccess(data.session ? 'Account created. Save your birthday in My Shelf, then visit staff to activate your membership and physical card.' : 'Check your email to confirm your registration. After confirmation, sign in, save your birthday in My Shelf, and visit staff for membership activation.');
+      }
+      setSubmitted(true);
+    } catch (err) { setError(errorMessage(err)); }
+    finally { setBusy(false); }
+  }
 
   useEffect(() => {
     setSubmitted(false);
+    setError('');
     if (!mode) return;
     const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKeyDown);
@@ -30,16 +57,16 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
               <button type="button" aria-label="Close" onClick={onClose} className="rounded-full p-2 text-sun transition hover:bg-cream/10"><XIcon /></button>
             </div>
             {submitted ? (
-              <div className="px-6 py-12 text-center"><CheckCircle2Icon className="mx-auto h-12 w-12 text-gold" /><h3 className="mt-4 font-display text-2xl font-900 text-umber">Request recorded locally</h3><p className="mx-auto mt-2 max-w-sm font-body text-sm leading-6 text-umber/65">The database connection is not active yet. Your form is ready for Supabase integration by the backend team.</p><button type="button" onClick={onClose} className="tb-cut-sm mt-7 border border-rust bg-rust px-6 py-3 font-display text-xs font-800 uppercase tracking-[0.14em] text-cream">Return to archive</button></div>
+              <div className="px-6 py-12 text-center"><CheckCircle2Icon className="mx-auto h-12 w-12 text-gold" /><h3 className="mt-4 font-display text-2xl font-900 text-umber">Account update</h3><p className="mx-auto mt-2 max-w-sm font-body text-sm leading-6 text-umber/65">{success}</p><button type="button" onClick={onClose} className="tb-cut-sm mt-7 border border-rust bg-rust px-6 py-3 font-display text-xs font-800 uppercase tracking-[0.14em] text-cream">Return to archive</button></div>
             ) : (
-              <form onSubmit={(e) => { e.preventDefault(); setSubmitted(true); }} className="space-y-5 px-6 py-6">
+              <form onSubmit={submit} className="space-y-5 px-6 py-6">
                 {mode === 'preregister' && <div className="border border-gold/35 bg-parch/35 p-4 font-body text-sm leading-6 text-umber/75"><strong className="text-umber">Physical card activation:</strong> pre-register here, then visit the Tankobonbon location with valid ID. Staff will create and link your physical library card.</div>}
-                {mode === 'preregister' && <Field label="Full name" name="fullName" placeholder="Your name" />}
-                <Field label={mode === 'login' ? 'Physical card / member ID' : 'Email address'} name="identity" type={mode === 'login' ? 'text' : 'email'} placeholder={mode === 'login' ? 'e.g. TB-000124' : 'you@example.com'} />
-                {mode === 'preregister' && <Field label="Contact number (optional)" name="phone" placeholder="09xx xxx xxxx" required={false} />}
+                {mode === 'preregister' && <><Field label="First name" name="firstName" placeholder="First name" /><Field label="Last name" name="lastName" placeholder="Last name" /></>}
+                <Field label="Email address" name="identity" type="email" placeholder="you@example.com" />
+                
                 <Field label="Password" name="password" type="password" placeholder="Enter your password" />
                 {mode === 'preregister' && <label className="flex gap-2 font-body text-xs leading-5 text-umber/70"><input type="checkbox" required className="mt-1 accent-rust" />I understand that account activation happens in person after my physical card is issued.</label>}
-                <button type="submit" className="tb-cut-sm flex w-full items-center justify-center gap-2 bg-rust px-5 py-3 font-display text-sm font-800 uppercase tracking-[0.12em] text-cream transition hover:bg-umber"><LockKeyholeIcon className="h-4 w-4" />{mode === 'login' ? 'Continue to archive' : 'Save pre-registration'}</button>
+                {error && <p role="alert" className="text-sm text-rust">{error}</p>}<button disabled={busy} type="submit" className="tb-cut-sm flex w-full items-center justify-center gap-2 bg-rust px-5 py-3 font-display text-sm font-800 uppercase tracking-[0.12em] text-cream transition hover:bg-umber"><LockKeyholeIcon className="h-4 w-4" />{busy ? 'Please wait…' : mode === 'login' ? 'Continue to archive' : 'Save pre-registration'}</button>
                 <button type="button" onClick={onClose} className="mx-auto flex items-center gap-1 font-body text-xs font-700 text-umber/55 hover:text-rust"><ArrowLeftIcon className="h-3 w-3" />Back</button>
               </form>
             )}
@@ -50,5 +77,5 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
 }
 
 function Field({ label, name, type = 'text', placeholder, required = true }: { label: string; name: string; type?: string; placeholder: string; required?: boolean }) {
-  return <label className="block"><span className="mb-1.5 block font-body text-xs font-800 uppercase tracking-[0.14em] text-umber/70">{label}</span><input name={name} type={type} placeholder={placeholder} required={required} className="tb-cut-sm h-11 w-full border border-gold/50 bg-parch/20 px-3 font-body text-sm text-umber outline-none transition placeholder:text-umber/35 focus:border-rust focus:ring-2 focus:ring-gold/20" /></label>;
+  return <label className="block"><span className="mb-1.5 block font-body text-xs font-800 uppercase tracking-[0.14em] text-umber/70">{label}</span><input name={name} type={type} minLength={type === "password" ? 8 : undefined} placeholder={placeholder} required={required} className="tb-cut-sm h-11 w-full border border-gold/50 bg-parch/20 px-3 font-body text-sm text-umber outline-none transition placeholder:text-umber/35 focus:border-rust focus:ring-2 focus:ring-gold/20" /></label>;
 }

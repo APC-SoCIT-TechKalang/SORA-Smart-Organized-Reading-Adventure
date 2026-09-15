@@ -1,153 +1,19 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { BookOpenIcon, ClockIcon, UndoIcon } from 'lucide-react';
-import { OrnatePanel, SectionHeading } from '../components/OrnatePanel';
 import { useGame } from '../contexts/GameContext';
-import { volumeById } from '../data/manga';
-
-const HISTORY = [
-{ id: 'h1', title: 'Vinland Saga Vol. 26', finished: 'Two days ago', xp: 180 },
-{ id: 'h2', title: 'Haikyu!! Vol. 44', finished: 'Last week', xp: 150 },
-{ id: 'h3', title: 'Kaguya-sama Vol. 27', finished: 'Last week', xp: 160 }];
-
-
+import { SectionHeading } from '../components/OrnatePanel';
 export function Shelf() {
-  const { borrowed, logSession, giveBack, setSection, lanterns } = useGame();
-
-  return (
-    <div className="space-y-8">
-      <SectionHeading title="My Shelf" meta={`${borrowed.length} volumes checked out`} />
-
-      {borrowed.length === 0 ?
-      <OrnatePanel className="tb-cut">
-          <div className="flex flex-col items-start gap-4 p-8">
-            <p className="font-display text-[20px] font-700 uppercase text-umber">
-              Nothing borrowed yet
-            </p>
-            <button
-            type="button"
-            onClick={() => setSection('catalog')}
-            className="tb-cut-sm border border-gold bg-rust px-5 py-2.5 font-display text-[12px] font-700 uppercase tracking-[0.16em] text-sand transition-colors duration-150 ease-out hover:bg-umber">
-            
-              Browse the catalog
-            </button>
-          </div>
-        </OrnatePanel> :
-
-      <ul className="space-y-4">
-          {borrowed.map((entry) => {
-          const volume = volumeById(entry.volumeId);
-          if (!volume) return null;
-          const urgent = entry.dueInDays <= 3;
-          return (
-            <motion.li
-              key={entry.volumeId}
-              layout
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}>
-              
-                <OrnatePanel corners={false} className="tb-cut-sm">
-                  <div className="flex flex-wrap items-center gap-5 p-4">
-                    <span
-                    className="flex h-[92px] w-[64px] shrink-0 flex-col justify-end border-2 border-gold p-1.5"
-                    style={{ backgroundColor: volume.plateColor }}>
-                    
-                      <span
-                      className="font-display text-[10px] font-900 uppercase leading-tight"
-                      style={{ color: volume.plateInk }}>
-                      
-                        {volume.plate.map((line) =>
-                      <span key={line} className="block">
-                            {line}
-                          </span>
-                      )}
-                      </span>
-                    </span>
-
-                    <div className="min-w-[200px] flex-1">
-                      <p className="font-display text-[17px] font-700 text-umber">
-                        {volume.title}{' '}
-                        <span className="text-umber/50">Vol. {volume.volume}</span>
-                      </p>
-                      <p className="mt-0.5 font-body text-[12px] font-600 text-umber/60">
-                        {volume.author} · {volume.chapters} chapters
-                      </p>
-
-                      <div className="mt-3 max-w-[380px]">
-                        <div className="flex items-baseline justify-between font-body text-[10px] font-800 uppercase tracking-[0.2em]">
-                          <span className="text-gold">Progress</span>
-                          <span className="font-display text-[13px] tracking-normal text-umber">
-                            {entry.progress}%
-                          </span>
-                        </div>
-                        <div className="mt-1.5 h-[8px] border border-gold/50 bg-parch/30 p-[1px]">
-                          <motion.div
-                          className="h-full bg-rust"
-                          animate={{ width: `${entry.progress}%` }}
-                          transition={{ duration: 0.28, ease: [0.23, 1, 0.32, 1] }} />
-                        
-                        </div>
-                      </div>
-                    </div>
-
-                    <span
-                    className={`flex items-center gap-1.5 font-body text-[12px] font-800 uppercase tracking-[0.12em] ${
-                    urgent ? 'text-rust' : 'text-umber/55'}`
-                    }>
-                    
-                      <ClockIcon aria-hidden="true" className="h-3.5 w-3.5" />
-                      Due in {entry.dueInDays}d
-                    </span>
-
-                    <div className="flex gap-2">
-                      <button
-                      type="button"
-                      onClick={() => logSession(entry.volumeId)}
-                      disabled={lanterns === 0}
-                      className="tb-cut-sm inline-flex items-center gap-1.5 border border-gold bg-rust px-4 py-2.5 font-display text-[11px] font-700 uppercase tracking-[0.14em] text-sand transition-colors duration-150 ease-out hover:bg-umber disabled:opacity-40">
-                      
-                        <BookOpenIcon aria-hidden="true" className="h-3.5 w-3.5" />
-                        Read
-                      </button>
-                      <button
-                      type="button"
-                      onClick={() => giveBack(entry.volumeId)}
-                      className="tb-cut-sm inline-flex items-center gap-1.5 border border-gold/60 bg-parch/25 px-4 py-2.5 font-display text-[11px] font-700 uppercase tracking-[0.14em] text-umber transition-colors duration-150 ease-out hover:bg-parch/70">
-                      
-                        <UndoIcon aria-hidden="true" className="h-3.5 w-3.5" />
-                        Return
-                      </button>
-                    </div>
-                  </div>
-                </OrnatePanel>
-              </motion.li>);
-
-        })}
-        </ul>
-      }
-
-      <section>
-        <SectionHeading title="Recently cleared" level={3} />
-        <ul className="mt-4 grid gap-3 sm:grid-cols-3">
-          {HISTORY.map((entry) =>
-          <li
-            key={entry.id}
-            className="tb-cut-sm border border-gold/40 bg-parch/15 px-4 py-3">
-            
-              <p className="font-display text-[14px] font-700 text-umber">
-                {entry.title}
-              </p>
-              <p className="mt-1 font-body text-[12px] font-600 text-umber/60">
-                {entry.finished}
-              </p>
-              <p className="mt-2 font-body text-[12px] font-800 text-gold">
-                +{entry.xp} XP
-              </p>
-            </li>
-          )}
-        </ul>
-      </section>
-    </div>);
-
+  const { session, profile, logs, volumeById, giveBack, busy, saveProfile } = useGame();
+  if (!session) return <p>Sign in to view your reading shelf and profile.</p>;
+  const input = 'mt-1 w-full border border-gold/40 bg-cream p-2 text-sm';
+  return <div className="space-y-8"><SectionHeading title="My Shelf" meta="In-library reading"/>
+    <p className="text-sm text-umber/70">Reading time is recorded automatically. Return books to the cart before staff check you out.</p>
+    {!logs.some(l => !l.returned_at) && <p>You have no active reading sessions.</p>}
+    {logs.filter(l => !l.returned_at).map(log => <div key={log.reading_log_id} className="flex flex-wrap items-center justify-between gap-4 border border-gold/40 p-5"><div><h3 className="font-display text-xl">{volumeById(String(log.book_id))?.title ?? 'Book #' + log.book_id}</h3><p className="text-sm text-umber/60">Started {new Date(log.started_at).toLocaleString()}</p></div><button disabled={busy} onClick={() => void giveBack(String(log.book_id))} className="bg-rust px-4 py-2 text-cream disabled:opacity-50">Finish &amp; return to cart</button></div>)}
+    <section><h2 className="font-display text-xl">Reading history</h2><ul className="mt-4 space-y-2">{logs.filter(l => l.returned_at).reverse().map(log => <li key={log.reading_log_id} className="border-b border-gold/30 py-3 text-sm">{volumeById(String(log.book_id))?.title ?? 'Book #' + log.book_id} · {log.total_reading_minutes ?? 0} minutes · {new Date(log.returned_at!).toLocaleDateString()}</li>)}</ul></section>
+    {profile && <form key={profile.user_id} onSubmit={event => { event.preventDefault(); const form = new FormData(event.currentTarget); void saveProfile({ first_name: String(form.get('first_name')).trim(), last_name: String(form.get('last_name')).trim(), birthday: String(form.get('birthday')) || null, bio: String(form.get('bio')).trim() || null }); }} className="border border-gold/40 p-5">
+      <h2 className="font-display text-xl">Your profile</h2><p className="mt-2 text-sm text-umber/60">Save your birthday before staff activate an age-restricted membership.</p>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2"><label>First name<input className={input} name="first_name" required defaultValue={profile.first_name}/></label><label>Last name<input className={input} name="last_name" required defaultValue={profile.last_name}/></label><label>Birthday<input className={input} type="date" name="birthday" max={new Date().toISOString().slice(0,10)} defaultValue={profile.birthday ?? ''}/></label><label>Bio<textarea className={input} name="bio" maxLength={180} defaultValue={profile.bio ?? ''}/></label></div>
+      <button disabled={busy} className="mt-4 bg-rust px-4 py-2 text-cream disabled:opacity-50">Save profile</button>
+    </form>}
+  </div>;
 }
+

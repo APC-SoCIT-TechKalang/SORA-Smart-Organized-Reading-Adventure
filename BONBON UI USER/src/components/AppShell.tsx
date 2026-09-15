@@ -20,7 +20,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
-  const { section, setSection } = useGame();
+  const { section, setSection, loading, error, refresh, session } = useGame();
   const [query, setQuery] = useState('');
 
   useEffect(() => {
@@ -52,7 +52,7 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
         <SideRail />
 
         <div className="min-w-0 flex-1">
-          <AnimatePresence mode="wait">
+          <div className="mb-4 text-sm" role="status">{error ? <p role="alert">{error} <button onClick={() => void refresh()} className="underline">Retry</button></p> : loading ? "Loading library…" : !session ? "Browse the catalog, or sign in to see your membership and reading activity." : "Library connected · refreshes every 30 seconds"}</div><AnimatePresence mode="wait">
             <motion.div
               key={section}
               initial={{ opacity: 0, y: 10 }}

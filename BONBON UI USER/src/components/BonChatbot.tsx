@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircleIcon, SendIcon, XIcon } from 'lucide-react';
 import type { BonMessage, SectionId } from '../types/library';
 import { useGame } from '../contexts/GameContext';
-import { volumeById } from '../data/manga';
+
 
 // Pixel-art BON cutout with a transparent background.
 const BON_ART = "/bon-pixel.png";
@@ -25,13 +25,13 @@ const SUGGESTIONS: Suggestion[] = [
 {
   label: 'What should I read next?',
   reply:
-  'Dungeon Meshi Vol. 14 has one copy left and it fits your fantasy streak. Opening the catalog for you.',
+  'Opening the library catalog. Choose a title to see its details.',
   go: 'catalog'
 },
 {
   label: 'Any rewards ready?',
   reply:
-  'Two commissions are sitting at 100%. Claim them before the daily reset — that is free XP.',
+  'Opening your quest board. Completed quests show any points you can claim.',
   go: 'commissions'
 },
 {
@@ -47,7 +47,7 @@ interface BonChatbotProps {
 }
 
 export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
-  const { section, setSection, borrowed, rank, coins } = useGame();
+  const { section, setSection, borrowed, rank, coins, volumeById } = useGame();
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -181,8 +181,8 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
       reply(
         trimmed,
         volume ?
-        `${volume.title} Vol. ${volume.volume} is due in ${soonest.dueInDays} days at ${soonest.progress}% read.` :
-        'Your shelf is empty right now — borrow something from the catalog.',
+        `${volume.title} is on your in-library reading shelf. Return it before checking out.` :
+        'Your shelf is empty right now — choose a book from the catalog after checking in.',
         'shelf'
       );
       return;
@@ -190,7 +190,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     if (lower.includes('rank') || lower.includes('coin')) {
       reply(
         trimmed,
-        `You are Archivist Rank ${rank} with ${coins.toLocaleString()} bonbon coins banked.`
+        `You are Archivist Rank ${rank} with ${coins.toLocaleString()} library points.`
       );
       return;
     }

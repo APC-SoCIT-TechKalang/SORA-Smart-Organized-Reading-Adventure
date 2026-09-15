@@ -3,6 +3,10 @@ export type Rarity = 3 | 4 | 5;
 export type QuestTrack = 'daily' | 'weekly' | 'seasonal';
 
 export interface Volume {
+  coverImage?: string;
+  isbn?: string | null;
+  publisher?: string | null;
+  originalTitle?: string | null;
   id: string;
   title: string;
   author: string;
