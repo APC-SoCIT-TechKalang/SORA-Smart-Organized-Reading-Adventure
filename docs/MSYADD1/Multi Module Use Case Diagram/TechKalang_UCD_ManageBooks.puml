@@ -1,0 +1,28 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam roundcorner 10
+skinparam actorStyle awesome
+
+' Define Actors
+actor "Reader" as reader
+actor "Admin" as admin
+actor "Scanner" as scanner
+
+' Define Module & Use Cases
+rectangle "Manage Books" {
+    usecase "Browse book catalog" as UC_Browse
+    usecase "View book shelf location" as UC_ViewShelf
+    usecase "Add new books" as UC_AddBooks
+    usecase "Update book status" as UC_UpdateStatus
+}
+
+' Connections
+reader --> UC_Browse
+reader --> UC_ViewShelf
+
+admin --> UC_AddBooks
+admin --> UC_UpdateStatus
+
+UC_UpdateStatus <-- scanner
+@enduml

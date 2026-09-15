@@ -1,0 +1,31 @@
+@startuml SORA_C4_L3_ManageProfile
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram (C4 Level 3) \n Manage Profile
+
+Container(kiosk, "User Kiosk", "Web App")
+Container(dashboard, "Admin Dashboard", "Web App")
+ContainerDb(db, "Database", "Data Store")
+
+Container_Boundary(manageProfile, "Manage Profile") {
+    Component(memberReg, "Member Registration Handler", "Component", "Creates new reader accounts (UC-10)")
+    Component(cardIssue, "RFID Card Issuance Handler", "Component", "Encodes and links RFID cards to accounts (UC-11)")
+    Component(acctEdit, "Account Edit Service", "Component", "Updates reader account details (UC-12)")
+    Component(readingStats, "Reading Stats Service", "Component", "Serves personal reading statistics (UC-13)")
+}
+
+Rel(kiosk, acctEdit, "Edits own account")
+Rel(kiosk, readingStats, "Views own reading stats")
+
+Rel(dashboard, memberReg, "Manages reader accounts")
+Rel(dashboard, cardIssue, "Manages reader accounts")
+Rel(dashboard, acctEdit, "Manages reader accounts")
+Rel(dashboard, readingStats, "Manages reader accounts")
+
+Rel(memberReg, db, "Reads/writes reader profiles")
+Rel(cardIssue, db, "Reads/writes reader profiles")
+Rel(acctEdit, db, "Reads/writes reader profiles")
+Rel(readingStats, db, "Reads/writes reader profiles")
+
+SHOW_LEGEND()
+@enduml

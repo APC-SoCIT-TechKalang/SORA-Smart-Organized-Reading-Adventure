@@ -1,0 +1,41 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam roundcorner 10
+skinparam actorStyle awesome
+
+' Define Actors
+actor "Reader" as reader
+actor "Admin" as admin
+actor "AI" as ai
+
+' Define Module & Use Cases
+rectangle "Manage Quests" {
+    usecase "View quest progress" as UC_ViewProgress
+    usecase "Complete reading quest" as UC_CompleteQuest
+    usecase "Redeem points for rewards" as UC_RedeemPoints
+    usecase "View All Generated Quest" as UC_ViewAllQuests
+    usecase "Generate quest" as UC_GenerateQuest
+    usecase "Refine Quest Generation" as UC_RefineQuest
+    usecase "Advance rank membership" as UC_AdvanceRank
+}
+
+' Reader Connections
+reader --> UC_ViewProgress
+reader --> UC_CompleteQuest
+reader --> UC_RedeemPoints
+reader --> UC_AdvanceRank
+
+' Admin Connections
+admin --> UC_ViewProgress
+admin --> UC_ViewAllQuests
+admin --> UC_GenerateQuest
+admin --> UC_RefineQuest
+admin --> UC_AdvanceRank
+
+' AI Connections
+UC_ViewAllQuests <-- ai
+UC_GenerateQuest <-- ai
+UC_RefineQuest <-- ai
+
+@enduml

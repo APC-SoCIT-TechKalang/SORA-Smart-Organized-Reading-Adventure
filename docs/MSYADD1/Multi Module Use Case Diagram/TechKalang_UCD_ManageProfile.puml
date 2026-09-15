@@ -1,0 +1,29 @@
+@startuml
+left to right direction
+skinparam packageStyle rectangle
+skinparam roundcorner 10
+skinparam actorStyle awesome
+
+' Define Actors
+actor "Reader" as reader
+actor "Admin" as admin
+
+' Define Module & Use Cases
+rectangle "Manage Profile" {
+    usecase "Register new member" as UC_Register
+    usecase "Print RFID card" as UC_PrintRFID
+    usecase "Edit reader account" as UC_EditAccount
+    usecase "View personal reading stats" as UC_ViewStats
+}
+
+' Reader Connections
+reader --> UC_Register
+reader --> UC_ViewStats
+
+' Admin Connections
+admin --> UC_Register
+admin --> UC_PrintRFID
+admin --> UC_EditAccount
+admin --> UC_ViewStats
+
+@enduml

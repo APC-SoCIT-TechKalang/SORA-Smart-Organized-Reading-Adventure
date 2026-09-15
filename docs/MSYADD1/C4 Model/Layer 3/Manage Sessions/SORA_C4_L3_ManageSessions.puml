@@ -1,0 +1,35 @@
+@startuml SORA_C4_L3_ManageSessions
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+title Component Diagram (C4 Level 3) \n Manage Sessions
+
+Container(kiosk, "User Kiosk", "Web App")
+Container(dashboard, "Admin Dashboard", "Web App")
+Container_Ext(rfid, "RFID Reader & Barcode Scanner", "Device")
+ContainerDb(db, "Database", "Data Store")
+
+Container_Boundary(manageSessions, "Manage Sessions") {
+    Component(checkIn, "Check-In/Out Handler", "Component", "Processes RFID card taps to start/end a reader's visit (UC-01, UC-04)")
+    Component(bookScanStart, "Book Scan-to-Start Handler", "Component", "Links a scanned book to the session and starts the timer (UC-02)")
+    Component(seatAssign, "Seat Assignment Handler", "Component", "Assigns and releases lounge seats from the kiosk (UC-03)")
+    Component(topUp, "Time Top-Up Handler", "Component", "Applies staff-processed reading-time top-ups (UC-05)")
+}
+
+Rel(kiosk, checkIn, "Checks in/out")
+Rel(kiosk, bookScanStart, "Scans book to start session")
+Rel(kiosk, seatAssign, "Picks/changes seat")
+
+Rel(dashboard, topUp, "Processes top-ups & session states")
+Rel(dashboard, checkIn, "Scans patron RFID cards")
+
+Rel(rfid, checkIn, "Receives RFID session taps")
+
+Rel(checkIn, bookScanStart, "Starts timer on")
+
+Rel(checkIn, db, "Reads/writes session logs")
+Rel(bookScanStart, db, "Reads/writes session logs")
+Rel(seatAssign, db, "Reads/writes session logs")
+Rel(topUp, db, "Reads/writes session logs")
+
+SHOW_LEGEND()
+@enduml
