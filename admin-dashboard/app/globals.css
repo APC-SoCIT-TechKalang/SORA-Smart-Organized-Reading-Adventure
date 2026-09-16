@@ -10,6 +10,68 @@ body { margin: 0; background: #f8f8fc; color: #24223a; }
 button { font: inherit; }
 ::selection { background: #ffd5e7; color: #52254b; }
 
+.admin-shell { position: relative; isolation: isolate; overflow-x: clip; background: #f3d793; background-image: radial-gradient(circle at 88% 8%, rgba(249,210,25,.38), transparent 26rem), radial-gradient(circle at 8% 80%, rgba(196,128,12,.16), transparent 24rem), repeating-linear-gradient(0deg, rgba(84,56,34,.025) 0 1px, transparent 1px 5px), linear-gradient(135deg, #fefefd 0%, #f3d793 100%); }
+.admin-shell::before { content: ""; position: fixed; inset: -25%; z-index: -1; pointer-events: none; opacity: .22; background: repeating-linear-gradient(115deg, transparent 0 110px, rgba(149,52,16,.12) 111px 113px, transparent 114px 230px); animation: archive-drift 32s linear infinite; }
+.admin-sidebar { align-self: flex-start; color: #543822; background: linear-gradient(165deg, #efce8e 0%, #c4800c 62%, #953410 145%); box-shadow: 10px 0 30px rgba(84,56,34,.13); }
+.admin-sidebar nav button { color: #543822; }
+.admin-sidebar nav button:hover { color: #543822; background: rgba(254,254,253,.34); }
+.admin-sidebar nav button.bg-\[\#fffaf3\] { color: #fefefd; background: #953410; }
+.admin-sidebar > div:last-child button { color: #543822; }
+.admin-sidebar > div:last-child button:hover { color: #953410; background: rgba(254,254,253,.34); }
+.admin-logo { width: 250px; height: 58px; flex: 0 0 250px; overflow: hidden; display: flex; align-items: center; background: transparent; padding: 0; }
+.admin-logo img { display: block; width: 250px; height: auto; max-width: none; object-fit: contain; }
+.admin-logo img { mix-blend-mode: multiply; }
+.admin-logo.is-compact { width: 39px; height: 42px; flex-basis: 39px; padding: 3px; }
+.admin-logo.is-compact img { width: 200px; max-width: none; object-position: left center; }
+.admin-workspace > header { border-bottom: 1px solid rgba(196,128,12,.28); background: rgba(254,254,253,.78); backdrop-filter: blur(18px); }
+.admin-workspace > div { animation: room-arrive .45s ease-out; }
+.admin-workspace section { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
+.admin-workspace section:hover { border-color: rgba(196,128,12,.42); box-shadow: 0 14px 32px rgba(84,56,34,.08); }
+@keyframes archive-drift { from { transform: rotate(0deg) translate3d(0,0,0); } to { transform: rotate(2deg) translate3d(80px,40px,0); } }
+@keyframes room-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .admin-shell::before, .admin-workspace > div { animation: none; } }
+
+/* Keep the reading room usable when browser zoom reduces the CSS viewport. */
+@media (max-width: 1100px) {
+  .admin-sidebar { width: 76px !important; }
+  .admin-sidebar .max-md\:hidden { display: none; }
+  .admin-sidebar nav button { justify-content: center; gap: 0; }
+  .admin-sidebar nav p { display: none; }
+  .admin-sidebar > div:first-child { padding-inline: 18px; }
+  .admin-sidebar > div:first-child button { margin-left: 0; }
+  .admin-logo { width: 39px; flex-basis: 39px; }
+  .admin-logo img { width: 200px; }
+  .admin-workspace > header { min-height: 78px; height: auto; gap: 14px; padding-block: 16px; }
+  .admin-content { padding: 28px; }
+}
+
+@media (max-width: 760px) {
+  .admin-shell > div { display: block; }
+  .admin-sidebar { position: fixed; z-index: 40; height: 64px; width: 100% !important; flex-direction: row; align-items: center; overflow: visible; box-shadow: 0 5px 22px rgba(84,56,34,.18); }
+  .admin-sidebar > div:first-child { height: 64px; width: 76px; border-bottom: 0; padding: 12px 18px; }
+  .admin-sidebar nav { display: flex; flex: 1; gap: 4px; overflow-x: auto; padding: 8px 10px; }
+  .admin-sidebar nav button { min-width: 42px; padding: 10px; }
+  .admin-sidebar nav button svg { height: 17px; width: 17px; }
+  .admin-sidebar > div:last-child { display: none; }
+  .admin-workspace { padding-top: 64px; }
+  .admin-workspace > header { padding-inline: 18px; }
+  .admin-content { padding: 22px 16px 130px; }
+  .admin-content > div:first-child { align-items: flex-start; }
+  .admin-content h1 { font-size: clamp(1.8rem, 8vw, 2.4rem); }
+  .admin-content section { min-width: 0; }
+  .admin-content table { min-width: 620px; }
+}
+
+@media (max-width: 480px) {
+  .admin-header button { padding: 9px 10px; }
+  .admin-header button svg { margin: 0; }
+  .admin-header button { font-size: 0; }
+  .admin-header button svg { width: 16px; }
+  .admin-content { padding-inline: 12px; }
+  .admin-content .grid { min-width: 0; }
+  .mascot-chat-bubble { display: none; }
+}
+
 .lock-screen { isolation: isolate; background: radial-gradient(circle at 50% 42%, #5d301d 0%, #351b11 42%, #1e100b 100%); }
 .lock-screen::before { content: ""; position: absolute; inset: 0; opacity: .18; background-image: linear-gradient(115deg, transparent 0 48%, rgba(245,200,34,.12) 48.2% 48.5%, transparent 48.7%), linear-gradient(65deg, transparent 0 68%, rgba(255,255,255,.08) 68.2% 68.4%, transparent 68.6%); background-size: 280px 280px, 340px 340px; animation: shelf-drift 24s linear infinite; }
 .lock-noise { position: absolute; inset: 0; pointer-events: none; opacity: .06; background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.6'/%3E%3C/svg%3E"); }
