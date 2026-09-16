@@ -16,7 +16,7 @@ export function OrnatePanel({
 }: OrnatePanelProps) {
   return (
     <Tag
-      className={`relative border border-gold/45 bg-cream shadow-plate ${className}`}>
+      className={`tb-ornate-panel relative border border-gold/45 bg-cream shadow-plate ${className}`}>
       
       <span
         aria-hidden="true"
@@ -62,13 +62,13 @@ export function SectionHeading({
 }: SectionHeadingProps) {
   const Tag = level === 2 ? 'h2' : 'h3';
   return (
-    <div className={`flex items-end gap-4 ${className}`}>
+    <div className={`tb-section-heading flex items-end gap-4 ${className}`}>
       <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
           className="h-[10px] w-[10px] rotate-45 border border-umber bg-rust" />
         
-        <Tag className="font-display text-[22px] font-700 uppercase leading-none tracking-[0.14em] text-umber">
+        <Tag className="font-display text-[clamp(1.05rem,2vw,1.35rem)] font-700 uppercase leading-none tracking-[0.12em] text-umber">
           {title}
         </Tag>
       </div>

@@ -1,4 +1,3 @@
-import React from 'react';
 import { GameProvider } from './contexts/GameContext';
 import { AppShell } from './components/AppShell';
 

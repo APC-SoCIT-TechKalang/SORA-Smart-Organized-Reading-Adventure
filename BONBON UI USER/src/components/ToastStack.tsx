@@ -1,4 +1,4 @@
-import React from 'react';
+import { useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { InfoIcon, SparklesIcon, TrophyIcon, XIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
@@ -11,6 +11,11 @@ const ICONS = {
 
 export function ToastStack() {
   const { toasts, dismissToast } = useGame();
+
+  useEffect(() => {
+    const timers = toasts.map((toast) => window.setTimeout(() => dismissToast(toast.id), 3500));
+    return () => timers.forEach(window.clearTimeout);
+  }, [toasts, dismissToast]);
 
   return (
     <div

@@ -3,10 +3,12 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, CheckCircle2Icon, LockKeyholeIcon, XIcon } from 'lucide-react';
 import { database, errorMessage } from '../lib/supabase';
+import { useGame } from '../contexts/GameContext';
 
 type AccountMode = 'login' | 'preregister';
 
 export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onClose: () => void }) {
+  const { signIn, session } = useGame();
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -18,9 +20,10 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
     try {
       const credentials = { email: String(form.get('identity')).trim(), password: String(form.get('password')) };
       if (mode === 'login') {
-        const { error } = await database().auth.signInWithPassword(credentials);
-        if (error) throw error;
-        setSuccess('You are signed in.');
+        const signedIn = await signIn(credentials.email, credentials.password);
+        if (!signedIn) return;
+        onClose();
+        return;
       } else {
         const { data, error } = await database().auth.signUp({ ...credentials, options: {
           emailRedirectTo: window.location.origin,
@@ -47,6 +50,10 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
     };
   }, [mode, onClose]);
 
+  useEffect(() => {
+    if (mode === 'login' && session) onClose();
+  }, [mode, onClose, session]);
+
   return createPortal(
     <AnimatePresence>
       {mode && (
@@ -62,7 +69,7 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
               <form onSubmit={submit} className="space-y-5 px-6 py-6">
                 {mode === 'preregister' && <div className="border border-gold/35 bg-parch/35 p-4 font-body text-sm leading-6 text-umber/75"><strong className="text-umber">Physical card activation:</strong> pre-register here, then visit the Tankobonbon location with valid ID. Staff will create and link your physical library card.</div>}
                 {mode === 'preregister' && <><Field label="First name" name="firstName" placeholder="First name" /><Field label="Last name" name="lastName" placeholder="Last name" /></>}
-                <Field label="Email address" name="identity" type="email" placeholder="you@example.com" />
+                <Field label="Email address" name="identity" type="email" placeholder="you@example.com" autoFocus />
                 
                 <Field label="Password" name="password" type="password" placeholder="Enter your password" />
                 {mode === 'preregister' && <label className="flex gap-2 font-body text-xs leading-5 text-umber/70"><input type="checkbox" required className="mt-1 accent-rust" />I understand that account activation happens in person after my physical card is issued.</label>}
@@ -76,6 +83,6 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
     </AnimatePresence>, document.body);
 }
 
-function Field({ label, name, type = 'text', placeholder, required = true }: { label: string; name: string; type?: string; placeholder: string; required?: boolean }) {
-  return <label className="block"><span className="mb-1.5 block font-body text-xs font-800 uppercase tracking-[0.14em] text-umber/70">{label}</span><input name={name} type={type} minLength={type === "password" ? 8 : undefined} placeholder={placeholder} required={required} className="tb-cut-sm h-11 w-full border border-gold/50 bg-parch/20 px-3 font-body text-sm text-umber outline-none transition placeholder:text-umber/35 focus:border-rust focus:ring-2 focus:ring-gold/20" /></label>;
+function Field({ label, name, type = 'text', placeholder, required = true, autoFocus = false }: { label: string; name: string; type?: string; placeholder: string; required?: boolean; autoFocus?: boolean }) {
+  return <label className="block"><span className="mb-1.5 block text-xs font-800 text-umber/70">{label}</span><input name={name} type={type} autoFocus={autoFocus} minLength={type === "password" ? 8 : undefined} placeholder={placeholder} required={required} className="tb-input tb-cut-sm h-11 w-full px-3 text-sm placeholder:text-umber/35" /></label>;
 }

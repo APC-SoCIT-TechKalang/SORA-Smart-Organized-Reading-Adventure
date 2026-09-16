@@ -1,60 +1,39 @@
-import { ArmchairIcon, InfoIcon, UsersIcon } from 'lucide-react';
-import { OrnatePanel, SectionHeading } from '../components/OrnatePanel';
+import { ArmchairIcon, InfoIcon } from 'lucide-react';
+import { SectionHeading } from '../components/OrnatePanel';
 
-type Seat = { id: string; taken: boolean };
-
-const INITIAL_SEATS: Seat[] = Array.from({ length: 24 }, (_, index) => ({
-  id: `${String.fromCharCode(65 + Math.floor(index / 6))}${index % 6 + 1}`,
-  taken: [1, 4, 7, 8, 13, 17, 20, 22].includes(index),
+const SEATS = Array.from({ length: 20 }, (_, index) => ({
+  id: `${String.fromCharCode(65 + Math.floor(index / 5))}${index % 5 + 1}`,
+  taken: [1, 4, 7, 11, 15, 18].includes(index),
 }));
 
 export function VisitorGuide() {
-  const seats = INITIAL_SEATS;
-  const openSeats = seats.filter((seat) => !seat.taken).length;
-
-  return <div className="space-y-8">
-    <SectionHeading title="View Available Seats" meta={`${openSeats} seats open`} />
-
-    <OrnatePanel as="section" className="tb-cut">
-      <div className="p-5 sm:p-7">
+  const available = SEATS.filter((seat) => !seat.taken).length;
+  return (
+    <div className="space-y-6">
+      <SectionHeading title="Reading hall seats" meta={`${available} seats open`} />
+      <section className="tb-surface tb-cut-lg p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="font-body text-[10px] font-800 uppercase tracking-[0.26em] text-gold">Quiet Reading Hall</p>
-            <h1 className="mt-1 font-display text-[25px] font-900 uppercase text-umber">Study seat availability</h1>
-            <p className="mt-2 max-w-xl font-body text-[13px] font-600 leading-relaxed text-umber/60">View each chair's current status. This is a visual placeholder until live occupancy data is connected.</p>
-          </div>
-          <div className="flex items-center gap-3 font-body text-[11px] font-800 uppercase tracking-[0.12em]">
-            <span className="flex items-center gap-1.5 text-umber/60"><span className="h-3 w-3 border border-gold bg-cream" />Available</span>
-            <span className="flex items-center gap-1.5 text-umber/60"><span className="h-3 w-3 border border-umber bg-umber" />Taken</span>
-          </div>
+          <div className="max-w-2xl"><p className="tb-eyebrow">Quiet reading hall</p><h1 className="mt-2 font-display text-2xl font-900 text-umber sm:text-3xl">Find a comfortable reading spot</h1><p className="mt-3 text-sm font-600 leading-6 text-umber/65">Preview the 20-seat Tankobonbon reading hall before you arrive. Live occupancy will appear here when the RFID system is connected.</p></div>
+          <span className="rounded-full border border-gold/35 bg-parch/25 px-3 py-2 text-[10px] font-800 uppercase tracking-[.12em] text-rust">Demo preview</span>
         </div>
 
-        <div className="mt-7 overflow-x-auto rounded-sm border border-gold/35 bg-parch/15 p-4 sm:p-7">
-          <div className="mx-auto min-w-[500px] max-w-[720px]">
-            <div className="mb-6 h-10 border border-gold/35 bg-cream/70 text-center font-display text-[12px] font-700 uppercase leading-10 tracking-[0.2em] text-umber/60">Windows & reading lamps</div>
-            <div className="grid grid-cols-6 gap-3 sm:gap-5" aria-label="Quiet Reading Hall seat map">
-              {seats.map((seat) => <div key={seat.id} aria-label={`Seat ${seat.id}: ${seat.taken ? 'Taken' : 'Available'}`} className={`tb-cut-sm relative flex min-h-24 flex-col items-center justify-center border p-2 ${seat.taken ? 'border-umber bg-umber text-sand opacity-75' : 'border-gold/55 bg-cream text-umber'}`}>
-                  <ArmchairIcon aria-hidden="true" className={`h-6 w-6 ${seat.taken ? 'text-sand/65' : 'text-gold'}`} />
-                  <span className="mt-2 font-display text-[13px] font-900">{seat.id}</span>
-                  <span className="mt-1 font-body text-[9px] font-800 uppercase tracking-[0.1em]">{seat.taken ? 'Taken' : 'Available'}</span>
-                </div>)}
+        <div className="mt-6 rounded-xl border border-gold/25 bg-parch/15 p-3 sm:p-6">
+          <div className="mx-auto max-w-[680px]">
+            <div className="mb-4 rounded-lg border border-gold/25 bg-cream/75 px-4 py-2.5 text-center text-[10px] font-800 uppercase tracking-[.16em] text-umber/55">Windows and reading lamps</div>
+            <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 sm:gap-3" aria-label="Seat map preview">
+              {SEATS.map((seat) => <div key={seat.id} aria-label={`Seat ${seat.id}: ${seat.taken ? 'taken' : 'open'}`} className={`tb-seat flex min-h-[76px] flex-col items-center justify-center rounded-lg border p-2 sm:min-h-[92px] ${seat.taken ? 'is-taken border-umber bg-umber text-sand' : 'border-gold/40 bg-cream text-umber'}`}><ArmchairIcon aria-hidden="true" className={`h-5 w-5 sm:h-6 sm:w-6 ${seat.taken ? 'text-sand/65' : 'text-gold'}`} /><strong className="mt-1.5 font-display text-xs font-900 sm:text-sm">{seat.id}</strong><span className={`mt-0.5 text-[8px] font-800 uppercase tracking-[.08em] ${seat.taken ? 'text-sand/60' : 'text-emerald-700'}`}>{seat.taken ? 'Taken' : 'Open'}</span></div>)}
             </div>
-            <div className="mt-6 h-9 border border-gold/35 bg-cream/70 text-center font-display text-[11px] font-700 uppercase leading-9 tracking-[0.18em] text-umber/60">Archive stacks</div>
+            <div className="mt-4 rounded-lg border border-gold/25 bg-cream/75 px-4 py-2.5 text-center text-[10px] font-800 uppercase tracking-[.16em] text-umber/55">Archive stacks</div>
           </div>
         </div>
 
-        <p className="mt-5 flex items-center gap-2 border-t border-gold/30 pt-5 font-body text-[12px] font-700 text-umber/60"><InfoIcon aria-hidden="true" className="h-4 w-4 text-gold" />Seat availability is view-only for now.</p>
-      </div>
-    </OrnatePanel>
-
-    <div className="grid gap-4 sm:grid-cols-3">
-      <SeatStat label="Available now" value={`${openSeats}`} detail="Quiet Reading Hall" />
-      <SeatStat label="Taken" value={`${seats.length - openSeats}`} detail="Currently occupied" />
-      <SeatStat label="Capacity" value={`${seats.length}`} detail="Individual study seats" />
+        <div className="mt-4 grid grid-cols-3 gap-2 sm:gap-3"><SeatSummary label="Open now" value={available} /><SeatSummary label="Taken" value={SEATS.length - available} /><SeatSummary label="Capacity" value={SEATS.length} /></div>
+        <p className="mt-5 flex items-start gap-2 border-t border-gold/25 pt-4 text-xs font-700 leading-5 text-umber/55"><InfoIcon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-gold" />Seat selection is view-only. Ask library staff about reservations.</p>
+      </section>
     </div>
-  </div>;
+  );
 }
 
-function SeatStat({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <div className="tb-cut-sm flex items-center gap-4 border border-gold/40 bg-parch/15 p-4"><span className="flex h-10 w-10 items-center justify-center border border-gold/50 bg-cream text-gold"><UsersIcon aria-hidden="true" className="h-5 w-5" /></span><span><span className="block font-body text-[10px] font-800 uppercase tracking-[0.17em] text-gold">{label}</span><strong className="mt-1 block font-display text-[22px] font-900 text-umber">{value}</strong><span className="block font-body text-[11px] font-600 text-umber/55">{detail}</span></span></div>;
+function SeatSummary({ label, value }: { label: string; value: number }) {
+  return <div className="rounded-lg border border-gold/25 bg-cream/70 px-2 py-3 text-center sm:px-4 sm:text-left"><span className="text-[8px] font-800 uppercase tracking-[.1em] text-umber/50 sm:text-[10px]">{label}</span><strong className="mt-1 block font-display text-xl font-900 text-umber sm:text-2xl">{value}</strong></div>;
 }

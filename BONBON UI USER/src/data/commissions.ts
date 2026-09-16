@@ -6,5 +6,5 @@ export const navItems: NavItem[] = [
   { id: 'catalog', label: 'Browse Books', hint: 'Catalog', shortcut: '2' },
   { id: 'shelf', label: 'My Shelf', hint: 'Reading activity', shortcut: '3' },
   { id: 'commissions', label: 'View Quests', hint: 'Quest board', shortcut: '4' },
-  { id: 'guide', label: 'View Available Seats', hint: 'Study space availability', shortcut: '5' },
+  { id: 'guide', label: 'View Seats', hint: 'Study space availability', shortcut: '5' },
 ];

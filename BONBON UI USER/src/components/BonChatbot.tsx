@@ -313,14 +313,14 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
 
         <div className="pointer-events-none relative flex items-end">
           <AnimatePresence>
-            {hovered && peeking && !open ?
+            {false && hovered && peeking && !open ?
             <motion.div
               aria-hidden="true"
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
               transition={{ duration: 0.22, ease: EASE }}
-              className="absolute bottom-[86px] right-[50px] h-[92px] w-[92px]">
+              className="absolute bottom-[129px] right-[75px] h-[138px] w-[138px]">
               <motion.span
                 animate={{ y: [4, -6, 4], rotate: [0, 12, 0], opacity: [0.4, 1, 0.4] }}
                 transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut' }}
@@ -357,12 +357,10 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             transition={hovered ?
             { y: { duration: 1.45, repeat: Infinity, ease: 'easeInOut' }, scale: { duration: 1.45, repeat: Infinity, ease: 'easeInOut' }, opacity: { duration: 0.2, ease: EASE, delay: 0.18 }, x: { duration: 0.2, ease: EASE, delay: 0.18 } } :
             { duration: 0.2, ease: EASE, delay: 0.18 }}
-            className="pointer-events-auto absolute bottom-[122px] right-[18px] flex items-center gap-2 whitespace-nowrap rounded-full border border-gold/90 bg-cream/95 px-4 py-2 shadow-[0_4px_10px_rgba(84,56,34,0.12)] md:bottom-[142px] md:right-[24px]">
+            className="bon-dialogue-trigger pointer-events-auto absolute bottom-[151px] right-[9px] flex w-[130px] min-w-[130px] items-center justify-center gap-1.5 whitespace-nowrap border border-gold/90 bg-cream/95 px-2 py-2 shadow-[0_8px_18px_rgba(84,56,34,0.16)] md:bottom-[156px] md:right-[9px]">
             
               <MessageCircleIcon aria-hidden="true" className="h-4 w-4 text-rust" />
-              <span className="font-display text-[13px] font-700 uppercase tracking-[0.16em] text-umber">
-                Ask BON
-              </span>
+              <span className="font-display text-[13px] font-700 uppercase tracking-[0.11em] text-umber">Ask BON</span>
               <span
               aria-hidden="true"
               className="absolute -bottom-[5px] left-1/2 h-[9px] w-[9px] rotate-45 border-b border-r border-gold bg-cream" />
@@ -395,13 +393,13 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             filter: { duration: hovered ? 1.45 : 0.3, repeat: hovered ? Infinity : 0, ease: 'easeInOut' }
           }}
           whileTap={{ scale: 0.96 }}
-          className="pointer-events-auto relative block h-[118px] w-[118px] rounded-full drop-shadow-[0_3px_6px_rgba(84,56,34,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rust md:h-[138px] md:w-[138px]">
+          className="pointer-events-auto relative block h-[142px] w-[142px] rounded-full drop-shadow-[0_3px_6px_rgba(84,56,34,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rust md:h-[146px] md:w-[146px]">
           
           <img
             src={hovered ? BON_EXCITED_FRAMES[excitedFrame] : blinking ? BON_BLINK : BON_ART}
             alt="BON, the Tankobonbon archive guide, waving hello"
             draggable={false}
-            className="absolute bottom-0 left-1/2 h-[118px] w-auto max-w-none -translate-x-1/2 select-none md:h-[138px]" />
+            className="absolute bottom-0 left-1/2 h-[142px] w-auto max-w-none -translate-x-1/2 select-none md:h-[146px]" />
           
         </motion.button>
       </div>

@@ -17,6 +17,7 @@ const ICONS: Record<SectionId, typeof CompassIcon> = {
   commissions: SwordsIcon,
   guide: MapPinnedIcon
 };
+const MOBILE_LABELS: Record<SectionId, string> = { archive: 'Home', catalog: 'Catalog', shelf: 'Shelf', commissions: 'Quests', guide: 'Seats' };
 
 /** Bottom tab bar shown below the lg breakpoint, mirroring the SideRail. */
 export function MobileNav() {
@@ -25,7 +26,7 @@ export function MobileNav() {
   return (
     <nav
       aria-label="Archive sections"
-      className="fixed inset-x-0 bottom-0 z-40 border-t-2 border-gold bg-cream/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-gold/40 bg-cream/95 pb-[env(safe-area-inset-bottom)] shadow-[0_-12px_32px_rgba(84,56,34,.1)] backdrop-blur-xl lg:hidden">
       
       <ul className="mx-auto flex max-w-[640px] items-stretch">
         {navItems.map((item) => {
@@ -37,14 +38,14 @@ export function MobileNav() {
               <motion.span
                 layoutId="mobile-nav-active"
                 transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
-                className="absolute inset-x-1.5 inset-y-1 border border-gold bg-umber" /> :
+                className="absolute inset-x-1.5 inset-y-1.5 rounded-xl bg-umber shadow-sm" /> :
 
               null}
               <button
                 type="button"
                 onClick={() => setSection(item.id)}
                 aria-current={isActive ? 'page' : undefined}
-                className={`relative flex w-full flex-col items-center gap-1 px-1 py-2.5 transition-colors duration-150 ease-out ${
+                className={`relative flex min-h-[64px] w-full flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-150 ease-out ${
                 isActive ? 'text-sand' : 'text-umber/70'}`
                 }>
                 
@@ -57,7 +58,7 @@ export function MobileNav() {
                   isActive ? 'text-sand' : 'text-umber/70'}`
                   }>
                   
-                  {item.label}
+                  {MOBILE_LABELS[item.id]}
                 </span>
               </button>
             </li>);

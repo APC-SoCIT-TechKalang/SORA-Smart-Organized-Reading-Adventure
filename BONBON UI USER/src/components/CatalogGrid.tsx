@@ -1,6 +1,5 @@
-import React from 'react';
 import { motion } from 'framer-motion';
-import { StarIcon } from 'lucide-react';
+import { BookOpenIcon, StarIcon } from 'lucide-react';
 import type { Volume } from '../types/library';
 import { useGame } from '../contexts/GameContext';
 
@@ -11,158 +10,64 @@ interface CatalogGridProps {
 }
 
 export function CatalogGrid({ items, layout, onSelect }: CatalogGridProps) {
-  const { isBorrowed, borrow } = useGame();
+  const { isBorrowed, borrow, session, busy } = useGame();
+  const startReading = (id: string) => {
+    if (!session) {
+      window.dispatchEvent(new Event('tankobonbon:open-auth'));
+      return;
+    }
+    void borrow(id);
+  };
+  const actionLabel = (volume: Volume) => !session ? 'Sign in to read' : isBorrowed(volume.id) ? 'On your shelf' : volume.copies > 0 ? 'Start reading' : 'Ask staff';
 
   if (items.length === 0) {
-    return (
-      <p className="border border-dashed border-gold/50 px-6 py-14 text-center font-body text-sm font-600 text-umber/60">
-        No volumes match that search. Try another title, author, or genre.
-      </p>);
-
+    return <div className="tb-state tb-cut-sm"><BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" /><h3 className="mt-3 font-display text-lg font-800 text-umber">No matching books</h3><p className="mx-auto mt-2 max-w-md text-sm font-600 leading-6 text-umber/60">Try a different title, author, genre, or clear your filters.</p></div>;
   }
 
   if (layout === 'list') {
     return (
-      <ul className="divide-y divide-gold/25 border border-gold/40 bg-cream">
-        {items.map((volume) =>
-        <li
-          key={volume.id}
-          className="flex items-center gap-4 px-4 py-3 transition-colors duration-150 ease-out hover:bg-parch/25">
-          
-            <button
-            type="button"
-            onClick={() => onSelect(volume)}
-            className="flex min-w-0 flex-1 items-center gap-4 text-left">
-            
-              <span
-              className="flex h-14 w-10 shrink-0 items-center justify-center border border-gold/70 font-display text-[10px] font-900 leading-none"
-              style={{ backgroundColor: volume.plateColor, color: volume.plateInk }}>
-              
-                {volume.volume}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-display text-[15px] font-700 text-umber">
-                  {volume.title}
-                </span>
-                <span className="block truncate font-body text-[12px] font-600 text-umber/60">
-                  {volume.author} · {volume.genre}
-                </span>
-              </span>
+      <ul className="tb-list-panel overflow-hidden rounded-xl border border-gold/30 bg-cream/85 shadow-sm">
+        {items.map((volume) => (
+          <li key={volume.id} className="tb-list-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/20 px-3 py-3 last:border-b-0 sm:gap-4 sm:px-4">
+            <button type="button" onClick={() => onSelect(volume)} className="col-span-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-left sm:gap-4">
+              <Cover volume={volume} compact />
+              <span className="min-w-0 text-left"><span className="block truncate font-display text-sm font-800 text-umber sm:text-base">{volume.title}</span><span className="mt-0.5 block truncate text-xs font-600 text-umber/55">{volume.author} · {volume.genre}</span><span className="mt-1 flex items-center gap-1 text-[11px] font-800 text-gold"><StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />{volume.rating || 'New'}</span></span>
             </button>
-            <Rarity value={volume.rarity} />
-            <span className="hidden items-center gap-1 font-body text-[12px] font-800 text-gold sm:flex">
-              <StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />
-              {volume.rating}
-            </span>
-            <button
-            type="button"
-            onClick={() => borrow(volume.id)}
-            className="tb-cut-sm border border-gold bg-parch/40 px-4 py-2 font-display text-[11px] font-700 uppercase tracking-[0.14em] text-umber transition-colors duration-150 ease-out hover:bg-rust hover:text-sand">
-            
-              {isBorrowed(volume.id) ?
-            'On shelf' :
-            volume.copies > 0 ?
-            'Borrow' :
-            'Queue'}
-            </button>
+            <button type="button" disabled={busy || isBorrowed(volume.id) || Boolean(session && volume.copies <= 0)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm min-h-10 px-3 text-[10px] uppercase tracking-[.08em] sm:px-4 sm:text-xs">{actionLabel(volume)}</button>
           </li>
-        )}
-      </ul>);
-
+        ))}
+      </ul>
+    );
   }
 
   return (
-    <ul className="grid grid-cols-2 gap-5 sm:grid-cols-3 xl:grid-cols-4">
-      {items.map((volume, index) =>
-      <motion.li
-        key={volume.id}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{
-          duration: 0.24,
-          delay: Math.min(index * 0.03, 0.2),
-          ease: [0.23, 1, 0.32, 1]
-        }}
-        className="flex flex-col">
-        
-          <button
-          type="button"
-          onClick={() => onSelect(volume)}
-          className="group flex flex-1 flex-col text-left">
-          
-            <span className="relative block border-2 border-gold bg-cream p-[3px] transition-transform duration-200 ease-out group-hover:-translate-y-1">
-              <span
-              className="relative flex h-[218px] flex-col justify-end p-3"
-              style={{ backgroundColor: volume.plateColor }}>
-              
-                <span
-                aria-hidden="true"
-                className="absolute inset-2 border border-current opacity-30"
-                style={{ color: volume.plateInk }} />
-              
-                <span
-                className="relative font-display text-[19px] font-900 uppercase leading-[1.05] tracking-[0.02em]"
-                style={{ color: volume.plateInk }}>
-                
-                  {volume.plate.map((line) =>
-                <span key={line} className="block">
-                      {line}
-                    </span>
-                )}
-                </span>
-                {volume.copies === 0 && !isBorrowed(volume.id) ?
-              <span className="absolute left-0 top-4 border-y border-r border-umber bg-cream px-2 py-1 font-body text-[9px] font-800 uppercase tracking-[0.18em] text-rust">
-                    On loan
-                  </span> :
-              null}
-                {isBorrowed(volume.id) ?
-              <span className="absolute left-0 top-4 border-y border-r border-umber bg-sun px-2 py-1 font-body text-[9px] font-800 uppercase tracking-[0.18em] text-umber">
-                    Borrowed
-                  </span> :
-              null}
-              </span>
-              <span className="absolute -right-2 -top-2 flex h-8 w-8 rotate-45 items-center justify-center border border-umber bg-sun">
-                <span className="-rotate-45 font-display text-[11px] font-900 text-umber">
-                  {volume.volume}
-                </span>
-              </span>
-            </span>
-
-            <span className="mt-3 block truncate font-display text-[15px] font-700 text-umber">
-              {volume.title}
-            </span>
-            <span className="mt-0.5 block truncate font-body text-[12px] font-600 text-umber/60">
-              {volume.author}
-            </span>
-            <span className="mt-auto flex items-center justify-between pt-3">
-              <Rarity value={volume.rarity} />
-              <span className="flex items-center gap-1 font-body text-[12px] font-800 text-gold">
-                <StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />
-                {volume.rating}
-              </span>
-            </span>
+    <ul className="grid grid-cols-2 gap-x-3 gap-y-6 sm:grid-cols-3 sm:gap-x-5 xl:grid-cols-4">
+      {items.map((volume, index) => (
+        <motion.li key={volume.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.28, delay: Math.min(index * 0.035, 0.2), ease: [0.23, 1, 0.32, 1] }} className="tb-book-card group flex min-w-0 flex-col">
+          <button type="button" onClick={() => onSelect(volume)} className="min-w-0 text-left">
+            <Cover volume={volume} />
+            <span className="mt-3 block truncate font-display text-sm font-800 text-umber sm:text-[15px]">{volume.title}</span>
+            <span className="mt-0.5 block truncate text-[11px] font-600 text-umber/55 sm:text-xs">{volume.author}</span>
+            <span className="mt-2 flex items-center justify-between gap-2"><span className="truncate text-[10px] font-800 uppercase tracking-[.1em] text-gold">{volume.genre}</span><span className="flex shrink-0 items-center gap-1 text-[11px] font-800 text-gold"><StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />{volume.rating || 'New'}</span></span>
           </button>
+          <button type="button" disabled={busy || isBorrowed(volume.id) || Boolean(session && volume.copies <= 0)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm mt-3 min-h-10 w-full px-2 text-[10px] uppercase tracking-[.08em] sm:text-[11px]"><BookOpenIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />{actionLabel(volume)}</button>
         </motion.li>
-      )}
-    </ul>);
-
+      ))}
+    </ul>
+  );
 }
 
-function Rarity({ value }: {value: number;}) {
+function Cover({ volume, compact = false }: { volume: Volume; compact?: boolean }) {
+  const { isBorrowed } = useGame();
+  const plate = Array.isArray(volume.plate) && volume.plate.length ? volume.plate : [volume.title || 'Untitled book'];
   return (
-    <span
-      className="flex items-center gap-[3px]"
-      aria-label={`Rarity ${value} of 5`}>
-      
-      {Array.from({ length: 5 }).map((_, index) =>
-      <span
-        key={index}
-        aria-hidden="true"
-        className={`h-[6px] w-[6px] rotate-45 border ${
-        index < value ? 'border-gold bg-sun' : 'border-gold/35 bg-transparent'}`
-        } />
-
-      )}
-    </span>);
-
+    <span className={`tb-book-cover relative block shrink-0 overflow-visible border-2 border-gold bg-cream p-[3px] shadow-[0_8px_20px_rgba(84,56,34,.11)] transition duration-300 group-hover:-translate-y-1.5 group-hover:shadow-[0_18px_34px_rgba(84,56,34,.2)] ${compact ? 'h-16 w-11' : 'w-full'}`}>
+      <span className={`relative flex overflow-hidden ${compact ? 'h-full' : 'aspect-[3/4]'}`} style={{ backgroundColor: volume.plateColor }}>
+        {volume.coverImage ? <img src={volume.coverImage} alt="" className="h-full w-full object-cover" onError={(event) => { event.currentTarget.style.display = 'none'; }} /> : <span className={`relative mt-auto block p-3 font-display font-900 uppercase leading-[1.05] ${compact ? 'text-[7px]' : 'text-base sm:text-lg'}`} style={{ color: volume.plateInk }}>{plate.map((line, index) => <span key={`${line}-${index}`} className="block">{line}</span>)}</span>}
+        {!compact && <span aria-hidden="true" className="pointer-events-none absolute inset-2 border border-current opacity-25" style={{ color: volume.plateInk }} />}
+        {!compact && (isBorrowed(volume.id) || volume.copies === 0) && <span className={`absolute left-0 top-3 border-y border-r border-umber px-2 py-1 text-[8px] font-800 uppercase tracking-[.12em] ${isBorrowed(volume.id) ? 'bg-sun text-umber' : 'bg-cream text-rust'}`}>{isBorrowed(volume.id) ? 'On shelf' : 'On loan'}</span>}
+      </span>
+      {!compact && <span className="absolute -right-1.5 -top-1.5 flex h-7 w-7 rotate-45 items-center justify-center border border-umber bg-sun"><span className="-rotate-45 font-display text-[9px] font-900 text-umber">{volume.volume}</span></span>}
+    </span>
+  );
 }

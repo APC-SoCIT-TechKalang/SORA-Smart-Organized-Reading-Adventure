@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import type { Session } from '@supabase/supabase-js';
 import type { Commission, SectionId, Toast, Volume } from '../types/library';
 import { database, errorMessage, readRows, setupMessage, supabase } from '../lib/supabase';
+import { volumes as demoVolumes } from '../data/manga';
 
 export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
 export interface ReadingLog { reading_log_id: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null; }
@@ -25,15 +26,32 @@ function useLibraryState() {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const generation = useRef(0);
   const mutation = useRef(false);
+  const authEventVersion = useRef(0);
+  const applySession = useCallback((next: Session | null) => {
+    generation.current++;
+    setState(empty);
+    setSession(next);
+  }, []);
+
   useEffect(() => {
     if (!supabase) { setLoading(false); setError(setupMessage); return; }
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
-      generation.current++;
-      setState(empty);
-      setSession(next);
+    const client = supabase;
+    let active = true;
+    const restoreSession = async () => {
+      const versionAtStart = authEventVersion.current;
+      const { data, error } = await client.auth.getSession();
+      if (!active) return;
+      if (error) { setError(errorMessage(error)); setLoading(false); return; }
+      // Never let a slower initial read overwrite a newer auth event.
+      if (versionAtStart === authEventVersion.current) applySession(data.session);
+    };
+    void restoreSession();
+    const { data } = client.auth.onAuthStateChange((_event, next) => {
+      authEventVersion.current++;
+      applySession(next);
     });
-    return () => { data.subscription.unsubscribe(); generation.current++; };
-  }, []);
+    return () => { active = false; data.subscription.unsubscribe(); generation.current++; };
+  }, [applySession]);
 
   const refresh = useCallback(async () => {
     if (!supabase) return;
@@ -41,13 +59,16 @@ function useLibraryState() {
     setLoading(true);
     try {
       const books = await readRows<BookRow>('books', 'book_id,title,author,volume_number,description,cover_image_url,isbn,publisher,original_title,book_genres(genre),book_copies(status)', 'book_id');
-      let next: LibraryState = { ...empty, volumes: books.map(book => ({
-        id: String(book.book_id), title: book.title, author: book.author ?? 'Unknown author',
-        volume: Number(book.volume_number) || 0, genre: book.book_genres.map(g => g.genre).join(', ') || 'Uncategorized',
+      // Keep the browse experience useful for visitors while the live catalog is
+      // empty or still being seeded. Signed-in actions continue to use Supabase.
+      const catalog = books.length || session ? books.map(book => ({
+        id: String(book.book_id), title: book.title || 'Untitled book', author: book.author ?? 'Unknown author',
+        volume: Number(book.volume_number) || 0, genre: (Array.isArray(book.book_genres) ? book.book_genres : []).map(g => g.genre).filter(Boolean).join(', ') || 'Uncategorized',
         synopsis: book.description ?? 'No description recorded.', copies: session ? book.book_copies.filter(c => c.status === 'IN_SHELF').length : -1,
-        rating: 0, rarity: 3, chapters: 0, plate: [book.title], plateColor: '#59351e', plateInk: '#fff9ef',
+        rating: 0, rarity: 3 as const, chapters: 0, plate: [(book.title || 'Untitled book').toUpperCase()], plateColor: '#59351e', plateInk: '#fff9ef',
         coverImage: book.cover_image_url ?? undefined, isbn: book.isbn, publisher: book.publisher, originalTitle: book.original_title,
-      })) };
+      })) : demoVolumes;
+      let next: LibraryState = { ...empty, volumes: catalog };
       if (session) {
         const results = await Promise.all([
           supabase.from('profiles').select('user_id,first_name,last_name,birthday,bio').eq('user_id', session.user.id).maybeSingle(),
@@ -70,7 +91,12 @@ function useLibraryState() {
             progress: results[4].some(p => p.quest_id === q.quest_id && p.status === 'COMPLETED') ? 100 : 0 })) };
       }
       if (current === generation.current) { setState(next); setError(''); }
-    } catch (err) { if (current === generation.current) setError(errorMessage(err)); }
+    } catch (err) {
+      if (current === generation.current) {
+        if (!session) setState({ ...empty, volumes: demoVolumes });
+        setError(errorMessage(err));
+      }
+    }
     finally { if (current === generation.current) setLoading(false); }
   }, [session]);
 
@@ -92,6 +118,35 @@ function useLibraryState() {
     catch (err) { message('Action could not be completed', errorMessage(err)); return false; }
     finally { mutation.current = false; setBusy(false); }
   }
+  async function signIn(email: string, password: string) {
+    if (mutation.current) return false;
+    mutation.current = true; setBusy(true);
+    try {
+      const { data, error } = await database().auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      // Update the shared state here as well as through onAuthStateChange. This
+      // makes the UI deterministic even if the auth event is delivered later.
+      applySession(data.session);
+      message('Logged in successfully.', 'Your account is ready.');
+      return true;
+    } finally { mutation.current = false; setBusy(false); }
+  }
+  async function signOut() {
+    if (mutation.current) return false;
+    mutation.current = true; setBusy(true);
+    try {
+      const { error } = await database().auth.signOut();
+      if (error) throw error;
+      applySession(null);
+      setSection('archive');
+      message('Logged out successfully.', 'You have been signed out of your library account.');
+      return true;
+    } catch (err) { message('Action could not be completed', errorMessage(err)); return false; }
+    finally { mutation.current = false; setBusy(false); }
+  }
+  const dismissToast = useCallback((id: string) => {
+    setToasts(items => items.filter(toast => toast.id !== id));
+  }, []);
   const borrowed = state.logs.filter(log => !log.returned_at).map(log => ({ volumeId: String(log.book_id), dueInDays: 0, progress: 0 }));
   return {
     ...state, session, section, setSection, loading, error, busy, refresh, borrowed, toasts,
@@ -109,8 +164,9 @@ function useLibraryState() {
     joinQuest: (id: string) => run(() => database().rpc('join_quest', { p_quest_id: Number(id) }), 'Quest joined'),
     toggleEvent: (_id: string, _name: string, _xp: number) => message('Event registration unavailable', 'Ask library staff about current events.'),
     toggleClub: (_id: string, _name: string) => message('Club registration unavailable', 'Ask library staff about current clubs.'),
-    dismissToast: (id: string) => setToasts(items => items.filter(t => t.id !== id)),
-    signOut: () => run(() => database().auth.signOut(), 'Signed out'),
+    dismissToast,
+    signIn,
+    signOut,
     saveProfile: (profile: Pick<Profile, 'first_name' | 'last_name' | 'birthday' | 'bio'>) => run(() => {
       if (!session) throw new Error('Sign in first');
       return database().from('profiles').update(profile).eq('user_id', session.user.id).select().single();

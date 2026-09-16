@@ -20,8 +20,9 @@ interface AppShellProps {
 }
 
 export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
-  const { section, setSection, loading, error, refresh, session } = useGame();
+  const { section, setSection, loading, error, refresh } = useGame();
   const [query, setQuery] = useState('');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -35,39 +36,29 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
   }, [setSection]);
 
   return (
-    <div className="tb-field relative min-h-full w-full">
-      {/* Ambient game frame */}
+    <div className="tb-field tb-world-shell relative min-h-full w-full overflow-x-hidden">
+      <a href="#main" className="skip-link">Skip to main content</a>
       <div aria-hidden="true" className="tb-vignette pointer-events-none fixed inset-0 z-0" />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none fixed inset-2 z-50 border border-gold/25" />
-      
-
       <GameHUD query={query} onQueryChange={setQuery} />
-
-      <main
-        id="main"
-        className="relative z-10 mx-auto flex max-w-[1480px] gap-8 px-4 pb-40 pt-6 sm:px-5 sm:pb-28 sm:pt-8 lg:pr-[250px]">
-        
-        <SideRail />
-
+      <main id="main" tabIndex={-1} className={`tb-main-stage relative z-10 mx-auto flex max-w-[1480px] gap-6 px-4 pb-40 pt-5 sm:px-6 sm:pb-28 sm:pt-7 lg:gap-8 ${sidebarOpen ? 'xl:pr-[210px]' : ''}`}>
+        <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} />
         <div className="min-w-0 flex-1">
-          <div className="mb-4 text-sm" role="status">{error ? <p role="alert">{error} <button onClick={() => void refresh()} className="underline">Retry</button></p> : loading ? "Loading library…" : !session ? "Browse the catalog, or sign in to see your membership and reading activity." : "Library connected · refreshes every 30 seconds"}</div><AnimatePresence mode="wait">
-            <motion.div
-              key={section}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}>
-              
+          {loading && (
+            <div className="tb-surface tb-cut-sm mb-5 flex items-center gap-3 px-4 py-3 font-body text-xs font-700 text-umber/65" role="status">
+              <span aria-hidden="true" className="h-2.5 w-2.5 animate-pulse rounded-full bg-gold" />
+              Preparing your reading hall…
+            </div>
+          )}
+          {error && (
+            <div className="tb-cut-sm mb-5 flex flex-wrap items-center justify-between gap-3 border border-rust/35 bg-cream/90 px-4 py-3 font-body text-sm font-600 text-umber/75 shadow-sm" role="alert">
+              <span>We couldn’t load the latest library data.</span>
+              <button type="button" onClick={() => void refresh()} className="tb-button-secondary tb-cut-sm min-h-9 px-3 py-1.5 text-xs">Try again</button>
+            </div>
+          )}
+          <AnimatePresence mode="wait">
+            <motion.div key={section} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
               {section === 'archive' ? <Archive /> : null}
-              {section === 'catalog' ?
-              <Catalog
-                query={query}
-                onQueryChange={setQuery}
-                initialLayout={catalogLayout} /> :
-
-              null}
+              {section === 'catalog' ? <Catalog query={query} onQueryChange={setQuery} initialLayout={catalogLayout} /> : null}
               {section === 'shelf' ? <Shelf /> : null}
               {section === 'commissions' ? <Commissions /> : null}
               {section === 'guide' ? <VisitorGuide /> : null}
@@ -75,10 +66,9 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
           </AnimatePresence>
         </div>
       </main>
-
       <ToastStack />
       <MobileNav />
       <BonChatbot autoPeek={bonAutoPeek} />
-    </div>);
-
+    </div>
+  );
 }
