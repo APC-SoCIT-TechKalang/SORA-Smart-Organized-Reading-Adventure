@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { BookOpenIcon, ChevronDownIcon, LogOutIcon, SearchIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
@@ -11,6 +11,7 @@ export function GameHUD({ query, onQueryChange }: { query: string; onQueryChange
   const { session, profile, coins, rank, setSection, signOut, busy } = useGame();
   const displayName = profile?.first_name || session?.user.user_metadata?.first_name || 'Reader';
   const initial = displayName.slice(0, 1).toUpperCase();
+  const closeAuth = useCallback(() => setMode(null), []);
 
   useEffect(() => {
     const openAuth = () => setMode('login');
@@ -82,7 +83,7 @@ export function GameHUD({ query, onQueryChange }: { query: string; onQueryChange
           </div>
         </div>
       </header>
-      <AccountDialog mode={mode} onClose={() => setMode(null)} />
+      <AccountDialog mode={mode} onClose={closeAuth} />
       <ManageAccountDialog open={manageAccountOpen} onClose={() => setManageAccountOpen(false)} />
     </>
   );

@@ -42,6 +42,16 @@ function useLibraryState() {
       const { data, error } = await client.auth.getSession();
       if (!active) return;
       if (error) { setError(errorMessage(error)); setLoading(false); return; }
+      if (data.session) {
+        const { error: userError } = await client.auth.getUser();
+        if (!active) return;
+        if (userError) {
+          await client.auth.signOut({ scope: 'local' });
+          if (versionAtStart === authEventVersion.current) applySession(null);
+          setLoading(false);
+          return;
+        }
+      }
       // Never let a slower initial read overwrite a newer auth event.
       if (versionAtStart === authEventVersion.current) applySession(data.session);
     };
@@ -119,23 +129,28 @@ function useLibraryState() {
     finally { mutation.current = false; setBusy(false); }
   }
   async function signIn(email: string, password: string) {
-    if (mutation.current) return false;
+    if (mutation.current) return { ok: false as const, error: 'A sign-in request is already in progress.' };
     mutation.current = true; setBusy(true);
     try {
       const { data, error } = await database().auth.signInWithPassword({ email, password });
       if (error) throw error;
+      if (!data.session) throw new Error('Unable to create a login session. Please try again.');
       // Update the shared state here as well as through onAuthStateChange. This
       // makes the UI deterministic even if the auth event is delivered later.
       applySession(data.session);
       message('Logged in successfully.', 'Your account is ready.');
-      return true;
+      return { ok: true as const };
+    } catch (err) {
+      const detail = errorMessage(err);
+      message('Sign in failed', detail);
+      return { ok: false as const, error: detail };
     } finally { mutation.current = false; setBusy(false); }
   }
   async function signOut() {
     if (mutation.current) return false;
     mutation.current = true; setBusy(true);
     try {
-      const { error } = await database().auth.signOut();
+      const { error } = await database().auth.signOut({ scope: 'local' });
       if (error) throw error;
       applySession(null);
       setSection('archive');

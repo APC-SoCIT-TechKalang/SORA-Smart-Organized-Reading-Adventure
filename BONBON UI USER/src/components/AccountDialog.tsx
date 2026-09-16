@@ -11,17 +11,28 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
   const { signIn, session } = useGame();
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [busy, setBusy] = useState(false);
   const [success, setSuccess] = useState('');
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
-    setBusy(true); setError('');
+    const email = String(form.get('identity')).trim();
+    const password = String(form.get('password'));
+    const nextFieldErrors: { email?: string; password?: string } = {};
+    if (!email) nextFieldErrors.email = 'Email is required.';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) nextFieldErrors.email = 'Please enter a valid email address.';
+    if (!password) nextFieldErrors.password = 'Password is required.';
+    else if (mode === 'preregister' && password.length < 8) nextFieldErrors.password = 'Use at least 8 characters for your password.';
+    setFieldErrors(nextFieldErrors);
+    setError('');
+    if (Object.keys(nextFieldErrors).length) return;
+    setBusy(true);
     try {
-      const credentials = { email: String(form.get('identity')).trim(), password: String(form.get('password')) };
+      const credentials = { email, password };
       if (mode === 'login') {
-        const signedIn = await signIn(credentials.email, credentials.password);
-        if (!signedIn) return;
+        const result = await signIn(credentials.email, credentials.password);
+        if (!result.ok) { setError(result.error); return; }
         onClose();
         return;
       } else {
@@ -40,6 +51,8 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
   useEffect(() => {
     setSubmitted(false);
     setError('');
+    setSuccess('');
+    setFieldErrors({});
     if (!mode) return;
     const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKeyDown);
@@ -66,14 +79,14 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
             {submitted ? (
               <div className="px-6 py-12 text-center"><CheckCircle2Icon className="mx-auto h-12 w-12 text-gold" /><h3 className="mt-4 font-display text-2xl font-900 text-umber">Account update</h3><p className="mx-auto mt-2 max-w-sm font-body text-sm leading-6 text-umber/65">{success}</p><button type="button" onClick={onClose} className="tb-cut-sm mt-7 border border-rust bg-rust px-6 py-3 font-display text-xs font-800 uppercase tracking-[0.14em] text-cream">Return to archive</button></div>
             ) : (
-              <form onSubmit={submit} className="space-y-5 px-6 py-6">
+              <form onSubmit={submit} noValidate aria-busy={busy} className="space-y-5 px-6 py-6">
                 {mode === 'preregister' && <div className="border border-gold/35 bg-parch/35 p-4 font-body text-sm leading-6 text-umber/75"><strong className="text-umber">Physical card activation:</strong> pre-register here, then visit the Tankobonbon location with valid ID. Staff will create and link your physical library card.</div>}
                 {mode === 'preregister' && <><Field label="First name" name="firstName" placeholder="First name" /><Field label="Last name" name="lastName" placeholder="Last name" /></>}
-                <Field label="Email address" name="identity" type="email" placeholder="you@example.com" autoFocus />
+                <Field label="Email address" name="identity" type="email" placeholder="you@example.com" autoFocus error={fieldErrors.email} onInput={() => setFieldErrors((current) => ({ ...current, email: undefined }))} />
                 
-                <Field label="Password" name="password" type="password" placeholder="Enter your password" />
+                <Field label="Password" name="password" type="password" placeholder="Enter your password" error={fieldErrors.password} onInput={() => setFieldErrors((current) => ({ ...current, password: undefined }))} />
                 {mode === 'preregister' && <label className="flex gap-2 font-body text-xs leading-5 text-umber/70"><input type="checkbox" required className="mt-1 accent-rust" />I understand that account activation happens in person after my physical card is issued.</label>}
-                {error && <p role="alert" className="text-sm text-rust">{error}</p>}<button disabled={busy} type="submit" className="tb-cut-sm flex w-full items-center justify-center gap-2 bg-rust px-5 py-3 font-display text-sm font-800 uppercase tracking-[0.12em] text-cream transition hover:bg-umber"><LockKeyholeIcon className="h-4 w-4" />{busy ? 'Please wait…' : mode === 'login' ? 'Continue to archive' : 'Save pre-registration'}</button>
+                {error && <p role="alert" className="tb-cut-sm border border-rust/35 bg-rust/10 px-3 py-2.5 text-sm leading-5 text-rust">{error}</p>}<button disabled={busy} type="submit" className="tb-cut-sm flex w-full items-center justify-center gap-2 bg-rust px-5 py-3 font-display text-sm font-800 uppercase tracking-[0.12em] text-cream transition hover:bg-umber disabled:cursor-wait disabled:opacity-70"><LockKeyholeIcon className={`h-4 w-4 ${busy ? 'animate-pulse' : ''}`} />{busy ? (mode === 'login' ? 'Signing in…' : 'Saving…') : mode === 'login' ? 'Sign in' : 'Save pre-registration'}</button>
                 <button type="button" onClick={onClose} className="mx-auto flex items-center gap-1 font-body text-xs font-700 text-umber/55 hover:text-rust"><ArrowLeftIcon className="h-3 w-3" />Back</button>
               </form>
             )}
@@ -83,6 +96,7 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
     </AnimatePresence>, document.body);
 }
 
-function Field({ label, name, type = 'text', placeholder, required = true, autoFocus = false }: { label: string; name: string; type?: string; placeholder: string; required?: boolean; autoFocus?: boolean }) {
-  return <label className="block"><span className="mb-1.5 block text-xs font-800 text-umber/70">{label}</span><input name={name} type={type} autoFocus={autoFocus} minLength={type === "password" ? 8 : undefined} placeholder={placeholder} required={required} className="tb-input tb-cut-sm h-11 w-full px-3 text-sm placeholder:text-umber/35" /></label>;
+function Field({ label, name, type = 'text', placeholder, required = true, autoFocus = false, error, onInput }: { label: string; name: string; type?: string; placeholder: string; required?: boolean; autoFocus?: boolean; error?: string; onInput?: () => void }) {
+  const errorId = `${name}-error`;
+  return <label className="block"><span className="mb-1.5 block text-xs font-800 text-umber/70">{label}</span><input name={name} type={type} autoFocus={autoFocus} onInput={onInput} aria-invalid={Boolean(error)} aria-describedby={error ? errorId : undefined} minLength={type === 'password' ? 8 : undefined} placeholder={placeholder} required={required} className={`tb-input tb-cut-sm h-11 w-full px-3 text-sm placeholder:text-umber/35 ${error ? 'border-rust bg-rust/5' : ''}`} />{error && <span id={errorId} className="mt-1.5 block text-xs font-700 text-rust">{error}</span>}</label>;
 }

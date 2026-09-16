@@ -53,6 +53,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   const [hovered, setHovered] = useState(false);
   const [blinking, setBlinking] = useState(false);
   const [excitedFrame, setExcitedFrame] = useState(0);
+  const showBonSparkles = false;
   const [draft, setDraft] = useState('');
   const [messages, setMessages] = useState<BonMessage[]>([
   {
@@ -313,7 +314,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
 
         <div className="pointer-events-none relative flex items-end">
           <AnimatePresence>
-            {false && hovered && peeking && !open ?
+            {showBonSparkles && hovered && peeking && !open ?
             <motion.div
               aria-hidden="true"
               initial={{ opacity: 0, scale: 0.8 }}
