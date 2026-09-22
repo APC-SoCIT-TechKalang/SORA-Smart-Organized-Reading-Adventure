@@ -130,4 +130,11 @@ button { font: inherit; }
 @keyframes sheen-sweep { 0% { background-position: 130% 0; } 60%, 100% { background-position: -60% 0; } }
 @media (prefers-reduced-motion: reduce) { .admin-hero-card, .admin-hero-orb, .admin-hero-sheen { animation: none; } }
 
+/* Top-up CTA: animated gold gradient with sheen */
+.admin-cta { background: linear-gradient(110deg, #f3d793 0%, #f9d219 45%, #c4800c 110%); background-size: 180% 100%; transition: background-position .6s ease, transform .18s ease, box-shadow .3s ease; position: relative; }
+.admin-cta::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 35%, rgba(254,254,253,.35) 50%, transparent 65%); background-size: 250% 100%; animation: sheen-sweep 6s ease-in-out infinite; pointer-events: none; }
+.admin-cta:hover { background-position: 100% 0; transform: translateY(-2px); box-shadow: 0 12px 28px rgba(196,128,12,.45); }
+.admin-cta:active { transform: translateY(0) scale(.99); }
+@media (prefers-reduced-motion: reduce) { .admin-cta, .admin-cta::after { animation: none; } }
+
 .admin-topbar { box-shadow: 0 4px 18px rgba(84,56,34,.06); }
