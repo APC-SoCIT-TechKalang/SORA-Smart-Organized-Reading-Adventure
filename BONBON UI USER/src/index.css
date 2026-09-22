@@ -646,3 +646,26 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
     clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
   }
 }
+
+/* ===== Premium 3D hero (archive feature) ===== */
+.tb-hero { perspective: 1200px; }
+.tb-hero-aurora { position: absolute; inset: -40%; pointer-events: none; background: conic-gradient(from 180deg at 60% 40%, rgba(249,210,25,.16), rgba(196,128,12,.12), rgba(168,61,18,.1), rgba(249,210,25,.16)); filter: blur(60px); animation: tb-aurora 18s linear infinite; }
+.tb-hero-orb { position: absolute; border-radius: 999px; filter: blur(38px); pointer-events: none; }
+.tb-hero-orb-one { width: 20rem; height: 20rem; top: -8rem; right: -5rem; background: radial-gradient(circle, rgba(249,210,25,.4), transparent 70%); animation: tb-orb 11s ease-in-out infinite; }
+.tb-hero-orb-two { width: 14rem; height: 14rem; bottom: -6rem; left: -4rem; background: radial-gradient(circle, rgba(168,61,18,.28), transparent 70%); animation: tb-orb 14s ease-in-out infinite reverse; }
+.tb-hero-orb-three { width: 10rem; height: 10rem; top: 30%; left: 42%; background: radial-gradient(circle, rgba(239,206,142,.35), transparent 70%); animation: tb-orb 9s ease-in-out infinite; animation-delay: -4s; }
+.tb-hero-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 32%, rgba(254,254,253,.28) 47%, rgba(254,254,253,.06) 53%, transparent 68%); background-size: 250% 100%; animation: tb-sheen 8s ease-in-out infinite; }
+.tb-hero-sparkles { position: absolute; inset: 0; pointer-events: none; }
+.tb-hero-sparkles span { position: absolute; top: 12%; left: calc(6% + var(--i) * 9.5%); color: rgba(196,128,12,.5); font-size: 10px; animation: tb-twinkle 4s ease-in-out infinite; animation-delay: calc(var(--i) * -.42s); }
+.tb-hero-sparkles span:nth-child(3n) { top: 68%; font-size: 13px; }
+.tb-hero-sparkles span:nth-child(4n) { top: 42%; font-size: 8px; }
+@keyframes tb-aurora { to { transform: rotate(360deg); } }
+@keyframes tb-orb { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(26px, -20px) scale(1.14); } }
+@keyframes tb-sheen { 0% { background-position: 130% 0; } 55%, 100% { background-position: -60% 0; } }
+@keyframes tb-twinkle { 0%, 100% { opacity: .15; transform: scale(.7) rotate(0deg); } 50% { opacity: 1; transform: scale(1.15) rotate(18deg); } }
+/* 3D tilt on the book plate */
+.tb-hero .rotate-\[1\.5deg\] { transition: transform .45s cubic-bezier(.34,1.4,.64,1), box-shadow .45s ease; transform-style: preserve-3d; }
+.tb-hero:hover .rotate-\[1\.5deg\] { transform: rotateY(-9deg) rotateX(4deg) rotate(1.5deg) translateZ(14px); }
+@media (prefers-reduced-motion: reduce) { .tb-hero-aurora, .tb-hero-orb, .tb-hero-sheen, .tb-hero-sparkles span { animation: none; } }
+
+/* Genshin-style plate: cut top-left / bottom-right corners */

@@ -12,8 +12,14 @@ export function HeroReading() {
   const openAccount = () => session ? setSection('shelf') : window.dispatchEvent(new Event('tankobonbon:open-auth'));
 
   return (
-    <section className="archive-feature tb-cut-lg relative overflow-hidden border border-[#d39a32] bg-[#fffdf8] shadow-[0_12px_30px_rgba(84,56,34,.08)]">
+    <section className="archive-feature tb-cut-lg tb-hero relative overflow-hidden border border-[#d39a32] bg-[#fffdf8] shadow-[0_12px_30px_rgba(84,56,34,.08)]">
       <div aria-hidden="true" className="absolute inset-0 opacity-70 [background-image:linear-gradient(rgba(196,128,12,.06)_1px,transparent_1px),linear-gradient(90deg,rgba(196,128,12,.06)_1px,transparent_1px)] [background-size:26px_26px]" />
+      <div aria-hidden="true" className="tb-hero-aurora" />
+      <div aria-hidden="true" className="tb-hero-orb tb-hero-orb-one" />
+      <div aria-hidden="true" className="tb-hero-orb tb-hero-orb-two" />
+      <div aria-hidden="true" className="tb-hero-orb tb-hero-orb-three" />
+      <div aria-hidden="true" className="tb-hero-sheen" />
+      <div aria-hidden="true" className="tb-hero-sparkles">{Array.from({ length: 10 }, (_, i) => <span key={i} style={{ '--i': i } as React.CSSProperties}>✦</span>)}</div>
       <div className="relative grid items-center gap-7 p-6 sm:p-7 md:grid-cols-[minmax(0,1fr)_195px] lg:p-8 xl:grid-cols-[minmax(0,1fr)_215px]">
         <div className="min-w-0">
           <span className="tb-eyebrow inline-flex items-center gap-2 border border-gold/35 bg-parch/30 px-3 py-1.5"><span aria-hidden="true" className="h-2 w-2 rotate-45 bg-rust" />{isReading ? 'Currently reading' : 'Featured from the archive'}</span>
