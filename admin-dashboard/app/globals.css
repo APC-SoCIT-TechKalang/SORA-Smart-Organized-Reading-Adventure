@@ -118,3 +118,16 @@ button { font: inherit; }
 @keyframes mascot-bubble-idle { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -2px); } }
 @keyframes mascot-bubble-wave { from { transform: translate(-50%, -1px); } to { transform: translate(-50%, -2px); } }
 @media (prefers-reduced-motion: reduce) { .rfid-pulse, .mascot-chat-figure, .mascot-chat-image, .mascot-blink-lid { animation: none; transition: none; } }
+
+/* Hero card: animated 3D gradient */
+.admin-hero-card { background: linear-gradient(135deg, #543822 0%, #6a4024 35%, #953410 70%, #c4800c 115%); background-size: 160% 160%; animation: hero-shift 14s ease-in-out infinite; }
+.admin-hero-orb { position: absolute; border-radius: 999px; filter: blur(46px); pointer-events: none; }
+.admin-hero-orb-one { width: 22rem; height: 22rem; top: -9rem; right: -6rem; background: radial-gradient(circle, rgba(249,210,25,.5), transparent 70%); animation: orb-float 9s ease-in-out infinite; }
+.admin-hero-orb-two { width: 16rem; height: 16rem; bottom: -7rem; left: -4rem; background: radial-gradient(circle, rgba(149,52,16,.65), transparent 70%); animation: orb-float 12s ease-in-out infinite reverse; }
+.admin-hero-sheen { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 30%, rgba(254,254,253,.14) 46%, rgba(254,254,253,.03) 52%, transparent 66%); background-size: 250% 100%; animation: sheen-sweep 7s ease-in-out infinite; }
+@keyframes hero-shift { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
+@keyframes orb-float { 0%, 100% { transform: translate(0, 0) scale(1); } 50% { transform: translate(24px, -18px) scale(1.12); } }
+@keyframes sheen-sweep { 0% { background-position: 130% 0; } 60%, 100% { background-position: -60% 0; } }
+@media (prefers-reduced-motion: reduce) { .admin-hero-card, .admin-hero-orb, .admin-hero-sheen { animation: none; } }
+
+.admin-topbar { box-shadow: 0 4px 18px rgba(84,56,34,.06); }
