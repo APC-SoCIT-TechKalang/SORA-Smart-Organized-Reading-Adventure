@@ -101,7 +101,6 @@ button { font: inherit; }
 .mascot-chat-button { border: 0; background: transparent; cursor: pointer; filter: drop-shadow(0 15px 16px rgba(57,36,20,.22)); }
 .mascot-chat-figure { position: relative; height: 125px; width: 100px; transform: translate(var(--mascot-x, 0px), var(--mascot-y, 0px)); transform-origin: bottom center; animation: mascot-idle 3.6s ease-in-out infinite; }
 .mascot-chat-image { position: absolute; inset: 0; height: 125px; width: 100px; object-fit: contain; object-position: bottom; transition: filter .2s ease; }
-.mascot-chat-image { animation: mascot-open-eye 2.6s ease-in-out infinite; }
 .mascot-blink-lid { position: absolute; inset: 0; height: 125px; width: 100px; background: url('/ai-mascot-blink.png') center / contain no-repeat; opacity: 0; pointer-events: none; animation: mascot-closed-eye 2.6s ease-in-out infinite; }
 .mascot-chat-button:hover .mascot-chat-figure { animation: mascot-wave 1.8s ease-in-out infinite alternate; }
 .mascot-chat-button:hover .mascot-chat-image { filter: brightness(1.04) saturate(1.06) drop-shadow(0 7px 8px rgba(168,61,18,.16)); }
@@ -113,7 +112,7 @@ button { font: inherit; }
 @keyframes insights-in { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: translateX(0); } }
 @keyframes mascot-idle { 0%, 100% { transform: translate(var(--mascot-x, 0px), var(--mascot-y, 0px)) rotate(0deg); } 50% { transform: translate(var(--mascot-x, 0px), calc(var(--mascot-y, 0px) - 3px)) rotate(-.5deg); } }
 @keyframes mascot-open-eye { 0%, 90%, 100% { opacity: 1; } 93%, 96% { opacity: 0; } }
-@keyframes mascot-closed-eye { 0%, 90%, 100% { opacity: 0; } 93%, 96% { opacity: 1; } }
+@keyframes mascot-closed-eye { 0%, 89.9%, 96.1%, 100% { opacity: 0; } 90%, 96% { opacity: 1; } }
 @keyframes mascot-wave { from { transform: translate(var(--mascot-x, 0px), calc(var(--mascot-y, 0px) - 1px)) rotate(-1deg) scale(1.005); } to { transform: translate(var(--mascot-x, 0px), calc(var(--mascot-y, 0px) - 2px)) rotate(1deg) scale(1.01); } }
 @keyframes mascot-bubble-idle { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -2px); } }
 @keyframes mascot-bubble-wave { from { transform: translate(-50%, -1px); } to { transform: translate(-50%, -2px); } }
