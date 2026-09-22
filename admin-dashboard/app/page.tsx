@@ -19,7 +19,7 @@ export default function Home() {
     }
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
-      setIsAdmin(false);
+      if (!nextSession) setIsAdmin(false);
     });
     return () => data.subscription.unsubscribe();
   }, []);
@@ -43,22 +43,24 @@ export default function Home() {
       }
     })();
     return () => { cancelled = true; };
-  }, [session]);
+  }, [session?.user.id]);
 
   if (checkingRole) return <main className="grid min-h-screen place-items-center bg-[#28140d] text-[#fff9ef]">Checking staff access…</main>;
-  if (!isAdmin) return <LockScreen accessError={accessError} />;
+  if (!isAdmin) return <LockScreen accessError={accessError} onSignedIn={setSession} />;
   return <PastUIDashboard />;
 }
 
-function LockScreen({accessError}:{accessError:string}) {
+function LockScreen({accessError,onSignedIn}:{accessError:string;onSignedIn:(session:Session)=>void}) {
   const [email, setEmail] = useState(""), [password, setPassword] = useState(""), [error, setError] = useState(""), [busy, setBusy] = useState(false), [showPassword, setShowPassword] = useState(false);
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setBusy(true);
     setError("");
     try {
-      const { error } = await database().auth.signInWithPassword({ email: email.trim(), password });
+      const { data, error } = await database().auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
+      if (!data.session) throw new Error("Your sign-in session could not be established. Please try again.");
+      onSignedIn(data.session);
     } catch (error) {
       setError(errorMessage(error));
     } finally {

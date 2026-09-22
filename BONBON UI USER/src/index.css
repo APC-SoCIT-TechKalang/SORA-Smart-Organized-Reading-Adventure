@@ -369,6 +369,39 @@ button {
 @keyframes parallax-aura { to { transform: rotate(360deg); } }
 @media (max-width: 560px) { .parallax-stage { min-height: 355px; padding-top: 20px; }.parallax-track { height: 240px; }.parallax-card { width: 102px; }.parallax-card.is-active { width: 132px; }.parallax-card.is-visible:not(.is-active) { transform: translate3d(calc(-50% + var(--offset) * 82px), calc(var(--abs-offset) * 15px), calc(var(--abs-offset) * -70px)) rotateY(calc(var(--offset) * -18deg)) scale(calc(1 - var(--abs-offset) * .12)); }.parallax-caption { padding: 0 8px; }.parallax-caption strong { font-size: 14px; }.parallax-borrow { padding: 7px 9px; } }
 
+/* New-arrival covers use the same clear, physical-book language as Browse Books. */
+.parallax-carousel { border: 1px solid rgba(196,128,12,.3); background: rgba(255,253,248,.72); }
+.parallax-stage { min-height: 486px; padding: 32px 16px 20px; background: radial-gradient(circle at 50% 36%, rgba(249,210,25,.12), transparent 35%), linear-gradient(145deg, rgba(255,253,248,.98), rgba(247,232,202,.72)); }
+.parallax-gradient { opacity: .12; filter: blur(72px); }
+.parallax-aura { opacity: .38; }
+.parallax-track { height: 306px; perspective: 1300px; }
+.parallax-card { bottom: 8px; width: 150px; border: 1px solid rgba(122,75,35,.5); border-radius: 4px; background: #fffdf8; padding: 5px; filter: saturate(.88) brightness(.96); opacity: .8; box-shadow: 0 10px 24px rgba(84,56,34,.14); transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px), calc(var(--abs-offset) * -54px)) rotateY(calc(var(--offset) * -11deg)) scale(calc(1 - var(--abs-offset) * .1)); }
+.parallax-card.is-hovered:not(.is-active) { transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px - 10px), calc(var(--abs-offset) * -35px)) rotateY(calc(var(--offset) * -7deg)) scale(calc(1 - var(--abs-offset) * .07)); filter: saturate(1) brightness(1); box-shadow: 0 18px 34px rgba(84,56,34,.22), 0 0 0 3px rgba(196,128,12,.12); }
+.parallax-card.is-active { width: 190px; border-color: #c4800c; transform: translate3d(calc(-50% + var(--pointer) * -8px), -8px, 60px) rotateY(calc(var(--pointer) * -2deg)); box-shadow: 0 24px 45px rgba(84,56,34,.24), 0 0 0 6px rgba(249,210,25,.13); }
+.parallax-card.is-active.is-hovered { transform: translate3d(calc(-50% + var(--pointer) * -8px), -16px, 72px) rotateY(calc(var(--pointer) * -2deg)) scale(1.018); box-shadow: 0 30px 52px rgba(84,56,34,.28), 0 0 0 7px rgba(249,210,25,.16); }
+.parallax-image { aspect-ratio: 2 / 3; background: #fffaf0; }
+.parallax-image img { display: block; width: 100%; height: 100%; padding: 2px; background: #fffaf0; object-fit: contain; mix-blend-mode: normal; opacity: 1; transform: none; transition: transform .45s cubic-bezier(.23,1,.32,1); }
+.parallax-card.is-active:hover .parallax-image img { transform: scale(1.018); }
+.parallax-frame { inset: 6px; border-color: rgba(122,75,35,.24); }
+.parallax-volume-badge { position: absolute; right: 7px; top: 7px; display: grid; min-width: 27px; height: 27px; place-items: center; border: 1px solid #6f421f; background: #f9d219; padding: 0 5px; color: #543822; font: 900 9px Cinzel,serif; box-shadow: 0 3px 8px rgba(84,56,34,.18); }
+.parallax-caption { margin-top: 12px; }
+.parallax-caption strong { font-size: 18px; }
+.parallax-instruction { margin-top: 0; }
+.parallax-controls { padding-top: 12px; }
+.parallax-controls > button { display: grid; width: 32px; height: 32px; place-items: center; border: 1px solid rgba(196,128,12,.35); background: rgba(255,253,248,.78); transition: transform .2s, background .2s; }
+.parallax-controls > button:hover:not(:disabled) { transform: translateY(-2px); background: #fff0c9; }
+.parallax-controls svg { width: 16px; height: 16px; }
+
+@media (max-width: 560px) {
+  .parallax-stage { min-height: 420px; padding-top: 26px; }
+  .parallax-track { height: 252px; }
+  .parallax-card { width: 112px; transform: translate3d(calc(-50% + var(--offset) * 86px), calc(var(--abs-offset) * 16px), calc(var(--abs-offset) * -54px)) rotateY(calc(var(--offset) * -10deg)) scale(calc(1 - var(--abs-offset) * .1)); }
+  .parallax-card.is-active { width: 154px; transform: translate3d(-50%, -7px, 55px); }
+  .parallax-card.is-visible:not(.is-active) { transform: translate3d(calc(-50% + var(--offset) * 86px), calc(var(--abs-offset) * 16px), calc(var(--abs-offset) * -54px)) rotateY(calc(var(--offset) * -10deg)) scale(calc(1 - var(--abs-offset) * .1)); }
+  .parallax-caption strong { font-size: 14px; }
+  .parallax-instruction { display: none; }
+}
+
 /* Shared world layer: quiet fantasy-library atmosphere without obscuring content. */
 .tb-world-shell::before,
 .tb-world-shell::after {

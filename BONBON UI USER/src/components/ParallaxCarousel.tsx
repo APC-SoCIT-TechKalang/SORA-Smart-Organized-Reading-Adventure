@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import type { Volume } from '../types/library';
 
 export interface ParallaxCarouselItem {
@@ -99,10 +100,9 @@ export function ParallaxCarousel({ items, activeIndex, onActiveChange, onOpen }:
             aria-current={distance === 0 ? 'true' : undefined}
             aria-label={distance === 0 ? `Open details for ${item.title}` : `Select ${item.title}`}>
             <span className="parallax-image">
-              <motion.img layoutId={`volume-cover-${item.id}`} src={item.image} alt={`${item.title} book cover`} transition={{ type: 'spring', stiffness: 330, damping: 30 }} />
-              <span className="parallax-tint" style={{ backgroundColor: item.color }} />
+              <motion.img layoutId={`volume-cover-${item.id}`} src={item.image} alt={`${item.title} book cover`} transition={{ type: 'spring', stiffness: 330, damping: 30 }} onError={(event) => { event.currentTarget.src = '/book-placeholder.svg'; }} />
               <span className="parallax-frame" />
-              <span className="parallax-card-title" style={{ color: item.ink }}>{item.title}</span>
+              <span className="parallax-volume-badge">{item.volume.volume}</span>
             </span>
           </button>;
         })}
@@ -112,6 +112,11 @@ export function ParallaxCarousel({ items, activeIndex, onActiveChange, onOpen }:
         <span className="min-w-0"><strong>{current.title}</strong><small>{current.author ?? 'New volume'} · {current.genre ?? 'Manga'}{current.rating ? ` · ★ ${current.rating}` : ''}</small></span>
       </div>
       <p className="parallax-instruction">Click a side book to focus it. Click the centered book to view its details.</p>
+      <div className="parallax-controls" aria-label="New arrival controls">
+        <button type="button" onClick={() => move(-1)} disabled={activeIndex === 0} aria-label="Previous arrival"><ChevronLeftIcon /></button>
+        <div className="parallax-progress">{items.map((item,index)=><button type="button" key={item.id} onClick={()=>onActiveChange(index)} className={index===activeIndex?'is-active':''} aria-label={`Show ${item.title}`} aria-current={index===activeIndex?'true':undefined}/>)}</div>
+        <button type="button" onClick={() => move(1)} disabled={activeIndex === items.length-1} aria-label="Next arrival"><ChevronRightIcon /></button>
+      </div>
     </div>
   </div>;
 }

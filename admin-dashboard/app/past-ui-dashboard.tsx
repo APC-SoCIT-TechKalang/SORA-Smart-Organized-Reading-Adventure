@@ -4,9 +4,12 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from "react"
 import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, LayoutDashboard, LogOut, Plus, Radio, RefreshCw, Search, Trophy, Users, Wallet, X } from "lucide-react";
 import { database, errorMessage, readRows } from "./lib/supabase";
 import { AdminBonChat } from "./AdminBonChat";
+import { CompleteAddVolume } from "./CompleteAddVolume";
+import { EditBookCover } from "./EditBookCover";
+import { CatalogueEditor } from "./CatalogueEditor";
 
 type Page = "Overview" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
-type Book = { book_id: number; title: string; author: string | null; acquisition_status: string; book_genres: { genre: string }[]; book_copies: { copy_id: number; status: string; identifier_value: string }[] };
+type Book = { book_id: number; title: string; author: string | null; cover_image_url: string | null; acquisition_status: string; book_genres: { genre: string }[]; book_copies: { copy_id: number; status: string; identifier_value: string }[] };
 type Copy = { copy_id: number; book_id: number; identifier_value: string; status: string; shelf_id: number | null };
 type Reader = { user_id: string; first_name: string; last_name: string; birthday: string | null; is_active: boolean; roles: { name: string } | null };
 type Membership = { membership_id: number; user_id: string; membership_number: string; remaining_minutes: number | null; status: string; expires_at: string | null };
@@ -33,6 +36,7 @@ export function PastUIDashboard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const [editingCover, setEditingCover] = useState<Book|null>(null);
   const generation = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -40,7 +44,7 @@ export function PastUIDashboard() {
     setLoading(true);
     try {
       const [books, copies, readers, memberships, visits, logs, quests, enrollments, plans, shelves] = await Promise.all([
-        readRows<Book>("books", "book_id,title,author,acquisition_status,book_genres(genre),book_copies(copy_id,status,identifier_value)", "book_id"),
+        readRows<Book>("books", "book_id,title,author,cover_image_url,acquisition_status,book_genres(genre),book_copies(copy_id,status,identifier_value)", "book_id"),
         readRows<Copy>("book_copies", "copy_id,book_id,identifier_value,status,shelf_id", "copy_id"),
         readRows<Reader>("profiles", "user_id,first_name,last_name,birthday,is_active,roles(name)", "user_id"),
         readRows<Membership>("memberships", "membership_id,user_id,membership_number,remaining_minutes,status,expires_at", "membership_id"),
@@ -67,7 +71,8 @@ export function PastUIDashboard() {
   const name = (id: string | null) => { const reader = data.readers.find(item => item.user_id === id); return reader ? `${reader.first_name} ${reader.last_name}` : "Walk-in visitor"; };
   const active = data.visits.filter(visit => visit.status === "ACTIVE");
   const rows = data.books.filter(book => [book.title, book.author, ...book.book_genres.map(genre => genre.genre)].join(" ").toLowerCase().includes(query.toLowerCase()));
-  const content = page === "Overview" ? <Overview data={data} setPage={setPage} name={name} run={run} /> : page === "Catalogue" ? <Catalogue rows={rows} data={data} query={query} setQuery={setQuery} setDrawer={setDrawer} run={run} /> : page === "Challenges" ? <Challenges data={data} name={name} run={run} /> : page === "Readers" ? <Readers data={data} active={active} name={name} run={run} /> : <TopUp data={data} name={name} run={run} />;
+  const noticeIsError = /not found|error|failed|denied|forbidden|violates|unable|invalid/i.test(notice);
+  const content = page === "Overview" ? <Overview data={data} setPage={setPage} name={name} run={run} /> : page === "Catalogue" ? <CatalogueEditor rows={rows} data={data} query={query} setQuery={setQuery} setDrawer={setDrawer} setEditingCover={setEditingCover} /> : page === "Challenges" ? <Challenges data={data} name={name} run={run} /> : page === "Readers" ? <Readers data={data} active={active} name={name} run={run} /> : <TopUp data={data} name={name} run={run} />;
   return <main className="admin-shell min-h-screen text-[#543822]"><div className="relative z-10 flex min-h-screen">
     <aside className={`admin-sidebar sticky top-0 flex h-screen shrink-0 flex-col overflow-hidden text-[#f8eddc] transition-all duration-300 ${open ? "w-80 max-md:w-[76px]" : "w-[76px]"}`}>
       <div className="flex h-[78px] items-center border-b border-white/10 px-4"><div className="min-w-0 flex-1"><Logo compact={!open}/></div><button onClick={() => setOpen(value => !value)} aria-label="Toggle sidebar" className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-[#d9bea0] hover:bg-white/10">{open ? <ChevronLeft size={17} className="max-md:hidden"/> : <ChevronRight size={17}/>}</button></div>
@@ -76,8 +81,8 @@ export function PastUIDashboard() {
     </aside>
     <section className="min-w-0 flex-1"><header className="flex h-[78px] items-center justify-between border-b border-[#e8dfd3] bg-[#fffdf9] px-5 sm:px-8"><div><p className="text-xs font-semibold text-[#835d40]">Tanakobonbon <span className="px-1 text-[#c9b39d]">/</span> Admin terminal</p><p className="mt-0.5 text-[10px] text-[#a18870]">Station 01 · {loading ? "Refreshing" : "Live workspace"}</p></div><button onClick={() => void refresh()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[#eadfd3] px-3 py-2 text-xs font-semibold text-[#6d4d35] disabled:opacity-50"><RefreshCw size={14}/>Refresh</button></header>
       <div className="mx-auto max-w-[1440px] p-5 sm:p-8 lg:p-10"><div className="mb-8 flex flex-col gap-4 border-b border-[#b58b6b] pb-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="mb-2 text-[10px] font-bold uppercase tracking-[.22em] text-[#bd6236]">{page === "Catalogue" ? "Book Management" : page}</p><h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">{page === "Overview" ? "Reading Room Today" : page}</h1><p className="mt-2 text-xs text-[#8d735e]">Live Supabase records · refreshes every 30 seconds</p></div><button className="inline-flex w-fit items-center gap-2 rounded-xl border border-[#eadfd3] bg-white px-3.5 py-2 text-xs font-semibold text-[#6d4d35]"><span className="h-2 w-2 rounded-full bg-emerald-500"/>Station online <ChevronDown size={14}/></button></div>
-        {error && <div role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>}{notice && <div role="status" className="mb-5 rounded-xl border border-[#ecd3a5] bg-[#fff0c9] p-4 text-sm text-[#804916]">{notice}</div>}{content}
-      </div></section>{drawer && <AddVolume data={data} close={() => setDrawer(false)} run={run}/>}<AdminBonChat data={data}/></div></main>;
+        {error && <div role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>}{notice && <div role={noticeIsError?"alert":"status"} aria-live="polite" className={`fixed right-5 top-5 z-[70] flex max-w-sm items-center gap-3 rounded-2xl px-5 py-4 text-sm font-bold shadow-[0_18px_50px_rgba(63,35,18,.28)] ${noticeIsError?"border border-rose-300 bg-rose-50 text-rose-800":"border border-[#d9b56f] bg-[#fffaf0] text-[#6f3a18]"}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-white ${noticeIsError?"bg-rose-600":"bg-emerald-600"}`}>{noticeIsError?"!":"✓"}</span>{notice}</div>}{content}
+      </div></section>{drawer && <CompleteAddVolume data={data} close={() => setDrawer(false)} run={run}/>} {editingCover && <EditBookCover book={editingCover} close={() => setEditingCover(null)} run={run}/>}<AdminBonChat data={data}/></div></main>;
 }
 
 function Logo({compact}:{compact:boolean}) { return <div className={`admin-logo ${compact ? "is-compact" : ""}`}><img src="/logo_line_200x@2x.png" alt="Tankobonbon Manga Library" /></div>; }
