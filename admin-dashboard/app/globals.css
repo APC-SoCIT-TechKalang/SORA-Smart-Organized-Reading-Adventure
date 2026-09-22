@@ -12,17 +12,15 @@ button { font: inherit; }
 
 .admin-shell { position: relative; isolation: isolate; overflow-x: clip; background: #f3d793; background-image: radial-gradient(circle at 88% 8%, rgba(249,210,25,.38), transparent 26rem), radial-gradient(circle at 8% 80%, rgba(196,128,12,.16), transparent 24rem), repeating-linear-gradient(0deg, rgba(84,56,34,.025) 0 1px, transparent 1px 5px), linear-gradient(135deg, #fefefd 0%, #f3d793 100%); }
 .admin-shell::before { content: ""; position: fixed; inset: -25%; z-index: -1; pointer-events: none; opacity: .22; background: repeating-linear-gradient(115deg, transparent 0 110px, rgba(149,52,16,.12) 111px 113px, transparent 114px 230px); animation: archive-drift 32s linear infinite; }
-.admin-sidebar { align-self: flex-start; color: #543822; background: linear-gradient(165deg, #efce8e 0%, #c4800c 62%, #953410 145%); box-shadow: 10px 0 30px rgba(84,56,34,.13); }
-.admin-sidebar nav button { color: #543822; }
-.admin-sidebar nav button:hover { color: #543822; background: rgba(254,254,253,.34); }
-.admin-sidebar nav button.bg-\[\#fffaf3\] { color: #fefefd; background: #953410; }
-.admin-sidebar > div:last-child button { color: #543822; }
-.admin-sidebar > div:last-child button:hover { color: #953410; background: rgba(254,254,253,.34); }
-.admin-logo { width: 250px; height: 58px; flex: 0 0 250px; overflow: hidden; display: flex; align-items: center; background: transparent; padding: 0; }
-.admin-logo img { display: block; width: 250px; height: auto; max-width: none; object-fit: contain; }
-.admin-logo img { mix-blend-mode: multiply; }
-.admin-logo.is-compact { width: 39px; height: 42px; flex-basis: 39px; padding: 3px; }
-.admin-logo.is-compact img { width: 200px; max-width: none; object-position: left center; }
+.admin-topbar { box-shadow: 0 4px 18px rgba(84,56,34,.06); }
+.admin-drawer { background: linear-gradient(170deg, #fffdf9 0%, #fdf3e2 100%); box-shadow: 10px 0 30px rgba(84,56,34,.1); }
+.admin-drawer nav button { transition: background .18s ease, color .18s ease, transform .18s ease; }
+.admin-drawer nav button:active { transform: scale(.98); }
+.admin-drawer nav button { transition: background .18s ease, color .18s ease, transform .18s ease; }
+.admin-drawer nav button:active { transform: scale(.98); }
+.admin-logo { display: inline-flex; align-items: center; height: 40px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.admin-logo img { display: block; height: 40px; width: auto; max-width: 220px; object-fit: contain; object-position: left center; mix-blend-mode: multiply; }
+@media (max-width: 480px) { .admin-logo img { height: 32px; max-width: 170px; } }
 .admin-workspace > header { border-bottom: 1px solid rgba(196,128,12,.28); background: rgba(254,254,253,.78); backdrop-filter: blur(18px); }
 .admin-workspace > div { animation: room-arrive .45s ease-out; }
 .admin-workspace section { transition: transform .22s ease, box-shadow .22s ease, border-color .22s ease; }
@@ -33,28 +31,11 @@ button { font: inherit; }
 
 /* Keep the reading room usable when browser zoom reduces the CSS viewport. */
 @media (max-width: 1100px) {
-  .admin-sidebar { width: 76px !important; }
-  .admin-sidebar .max-md\:hidden { display: none; }
-  .admin-sidebar nav button { justify-content: center; gap: 0; }
-  .admin-sidebar nav p { display: none; }
-  .admin-sidebar > div:first-child { padding-inline: 18px; }
-  .admin-sidebar > div:first-child button { margin-left: 0; }
-  .admin-logo { width: 39px; flex-basis: 39px; }
-  .admin-logo img { width: 200px; }
-  .admin-workspace > header { min-height: 78px; height: auto; gap: 14px; padding-block: 16px; }
   .admin-content { padding: 28px; }
 }
 
 @media (max-width: 760px) {
   .admin-shell > div { display: block; }
-  .admin-sidebar { position: fixed; z-index: 40; height: 64px; width: 100% !important; flex-direction: row; align-items: center; overflow: visible; box-shadow: 0 5px 22px rgba(84,56,34,.18); }
-  .admin-sidebar > div:first-child { height: 64px; width: 76px; border-bottom: 0; padding: 12px 18px; }
-  .admin-sidebar nav { display: flex; flex: 1; gap: 4px; overflow-x: auto; padding: 8px 10px; }
-  .admin-sidebar nav button { min-width: 42px; padding: 10px; }
-  .admin-sidebar nav button svg { height: 17px; width: 17px; }
-  .admin-sidebar > div:last-child { display: none; }
-  .admin-workspace { padding-top: 64px; }
-  .admin-workspace > header { padding-inline: 18px; }
   .admin-content { padding: 22px 16px 130px; }
   .admin-content > div:first-child { align-items: flex-start; }
   .admin-content h1 { font-size: clamp(1.8rem, 8vw, 2.4rem); }

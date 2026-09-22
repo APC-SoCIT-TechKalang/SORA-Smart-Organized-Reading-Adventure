@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { BookOpen, ChevronDown, ChevronLeft, ChevronRight, Clock3, Edit3, LayoutDashboard, LogOut, Plus, Radio, RefreshCw, Search, Trophy, Users, Wallet, X } from "lucide-react";
+import { BookOpen, ChevronDown, Clock3, Edit3, LayoutDashboard, LogOut, Menu, Plus, Radio, RefreshCw, Search, Trophy, Users, Wallet, X } from "lucide-react";
 import { database, errorMessage, readRows } from "./lib/supabase";
 import { AdminBonChat } from "./AdminBonChat";
 import { CompleteAddVolume } from "./CompleteAddVolume";
@@ -29,7 +29,7 @@ const statusTone: Record<string, string> = { "In Shelf": "bg-emerald-50 text-eme
 export function PastUIDashboard() {
   const [data, setData] = useState<Data>(blank);
   const [page, setPage] = useState<Page>("Overview");
-  const [open, setOpen] = useState(true);
+  const [navOpen, setNavOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -74,18 +74,28 @@ export function PastUIDashboard() {
   const noticeIsError = /not found|error|failed|denied|forbidden|violates|unable|invalid/i.test(notice);
   const content = page === "Overview" ? <Overview data={data} setPage={setPage} name={name} run={run} /> : page === "Catalogue" ? <CatalogueEditor rows={rows} data={data} query={query} setQuery={setQuery} setDrawer={setDrawer} setEditingCover={setEditingCover} /> : page === "Challenges" ? <Challenges data={data} name={name} run={run} /> : page === "Readers" ? <Readers data={data} active={active} name={name} run={run} /> : <TopUp data={data} name={name} run={run} />;
   return <main className="admin-shell min-h-screen text-[#543822]"><div className="relative z-10 flex min-h-screen">
-    <aside className={`admin-sidebar sticky top-0 flex h-screen shrink-0 flex-col overflow-hidden text-[#f8eddc] transition-all duration-300 ${open ? "w-80 max-md:w-[76px]" : "w-[76px]"}`}>
-      <div className="flex h-[78px] items-center border-b border-white/10 px-4"><div className="min-w-0 flex-1"><Logo compact={!open}/></div><button onClick={() => setOpen(value => !value)} aria-label="Toggle sidebar" className="ml-auto grid h-8 w-8 place-items-center rounded-lg text-[#d9bea0] hover:bg-white/10">{open ? <ChevronLeft size={17} className="max-md:hidden"/> : <ChevronRight size={17}/>}</button></div>
-      <nav className="flex-1 space-y-1 px-3 py-6">{open && <p className="mb-3 px-3 text-[9px] font-bold uppercase tracking-[.16em] text-[#bb9576] max-md:hidden">Workspace</p>}{nav.map(({ icon: Icon, page: itemPage, label }) => <button key={itemPage} onClick={() => setPage(itemPage)} className={`flex w-full items-center rounded-xl px-3 py-3 text-sm font-medium ${page === itemPage ? "bg-[#fffaf3] text-[#59351e] shadow-sm" : "text-[#efd9bd] hover:bg-white/10 hover:text-white"} ${open ? "gap-3" : "justify-center"}`}><Icon size={18}/>{open && <span className="max-md:hidden">{label}</span>}</button>)}</nav>
-      <div className="border-t border-white/10 p-3"><button onClick={() => void run(() => database().auth.signOut(), "Signed out") } className={`flex w-full items-center rounded-xl p-2 text-left text-[#efd9bd] hover:bg-white/10 ${open ? "gap-3" : "justify-center"}`}><LogOut size={18}/>{open && <span className="max-md:hidden text-xs">Sign out</span>}</button></div>
+    <aside aria-hidden={!navOpen} className={`admin-drawer sticky top-0 flex h-screen shrink-0 flex-col overflow-hidden text-[#543822] transition-[width] duration-300 ease-in-out ${navOpen ? "w-[290px]" : "w-0"}`}>
+      <div className="flex h-16 w-[290px] shrink-0 items-center justify-between border-b border-[#eee5dc] px-4"><Logo/><button onClick={() => setNavOpen(false)} aria-label="Close navigation menu" className="grid h-9 w-9 place-items-center rounded-xl text-[#8d735e] transition hover:bg-[#f5ecdf]"><X size={18}/></button></div>
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-5" style={{width: 290}}>
+        <p className="mb-3 px-3 text-[9px] font-bold uppercase tracking-[.18em] text-[#a18870]">Workspace</p>
+        {nav.map(({ icon: Icon, page: itemPage, label }) => <button key={itemPage} onClick={() => setPage(itemPage)} className={`flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${page === itemPage ? "bg-[#953410] text-[#fffaf3] shadow-sm" : "text-[#6d4d35] hover:bg-[#f7efe4]"}`}><Icon size={18}/>{label}</button>)}
+      </nav>
+      <div className="w-[290px] border-t border-[#eee5dc] p-3"><button onClick={() => void run(() => database().auth.signOut(), "Signed out")} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold text-[#6d4d35] transition hover:bg-[#f7efe4]"><LogOut size={18}/>Sign out</button></div>
     </aside>
-    <section className="min-w-0 flex-1"><header className="flex h-[78px] items-center justify-between border-b border-[#e8dfd3] bg-[#fffdf9] px-5 sm:px-8"><div><p className="text-xs font-semibold text-[#835d40]">Tanakobonbon <span className="px-1 text-[#c9b39d]">/</span> Admin terminal</p><p className="mt-0.5 text-[10px] text-[#a18870]">Station 01 · {loading ? "Refreshing" : "Live workspace"}</p></div><button onClick={() => void refresh()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[#eadfd3] px-3 py-2 text-xs font-semibold text-[#6d4d35] disabled:opacity-50"><RefreshCw size={14}/>Refresh</button></header>
+    <section className="min-w-0 flex-1">
+      <header className="admin-topbar sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#e8dfd3] bg-[#fffdf9]/95 px-4 backdrop-blur sm:px-6">
+        {!navOpen && <><button onClick={() => setNavOpen(value => !value)} aria-label="Open navigation menu" aria-expanded={navOpen} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#eadfd3] text-[#6d4d35] transition hover:bg-[#f7efe4] active:scale-95"><Menu size={19}/></button><Logo/></>}
+        <div className="ml-auto flex items-center gap-2">
+          <button onClick={() => void refresh()} disabled={loading} className="inline-flex items-center gap-2 rounded-xl border border-[#eadfd3] px-3 py-2 text-xs font-semibold text-[#6d4d35] disabled:opacity-50"><RefreshCw size={14}/>Refresh</button>
+          <button onClick={() => void run(() => database().auth.signOut(), "Signed out")} className="inline-flex items-center gap-2 rounded-xl bg-[#a83d12] px-3 py-2 text-xs font-bold text-white shadow-sm transition hover:bg-[#8f320d]"><LogOut size={14}/>Sign out</button>
+        </div>
+      </header>
       <div className="mx-auto max-w-[1440px] p-5 sm:p-8 lg:p-10"><div className="mb-8 flex flex-col gap-4 border-b border-[#b58b6b] pb-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="mb-2 text-[10px] font-bold uppercase tracking-[.22em] text-[#bd6236]">{page === "Catalogue" ? "Book Management" : page}</p><h1 className="font-serif text-3xl font-semibold tracking-tight sm:text-4xl">{page === "Overview" ? "Reading Room Today" : page}</h1><p className="mt-2 text-xs text-[#8d735e]">Live Supabase records · refreshes every 30 seconds</p></div><button className="inline-flex w-fit items-center gap-2 rounded-xl border border-[#eadfd3] bg-white px-3.5 py-2 text-xs font-semibold text-[#6d4d35]"><span className="h-2 w-2 rounded-full bg-emerald-500"/>Station online <ChevronDown size={14}/></button></div>
         {error && <div role="alert" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">{error}</div>}{notice && <div role={noticeIsError?"alert":"status"} aria-live="polite" className={`fixed right-5 top-5 z-[70] flex max-w-sm items-center gap-3 rounded-2xl px-5 py-4 text-sm font-bold shadow-[0_18px_50px_rgba(63,35,18,.28)] ${noticeIsError?"border border-rose-300 bg-rose-50 text-rose-800":"border border-[#d9b56f] bg-[#fffaf0] text-[#6f3a18]"}`}><span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-white ${noticeIsError?"bg-rose-600":"bg-emerald-600"}`}>{noticeIsError?"!":"✓"}</span>{notice}</div>}{content}
       </div></section>{drawer && <CompleteAddVolume data={data} close={() => setDrawer(false)} run={run}/>} {editingCover && <EditBookCover book={editingCover} close={() => setEditingCover(null)} run={run}/>}<AdminBonChat data={data}/></div></main>;
 }
 
-function Logo({compact}:{compact:boolean}) { return <div className={`admin-logo ${compact ? "is-compact" : ""}`}><img src="/logo_line_200x@2x.png" alt="Tankobonbon Manga Library" /></div>; }
+function Logo() { return <div className="admin-logo"><img src="/logo_line_200x@2x.png" alt="Tankobonbon Manga Library" /></div>; }
 function SectionTitle({title,copy}:{title:string;copy?:string}) { return <div><h2 className="font-serif text-xl font-semibold">{title}</h2>{copy && <p className="mt-1 text-xs text-[#8d735e]">{copy}</p>}</div>; }
 function ActionButton({children,onClick,disabled}:{children:ReactNode;onClick:()=>void;disabled?:boolean}) { return <button disabled={disabled} onClick={onClick} className="inline-flex items-center gap-2 rounded-xl bg-[#a83d12] px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-[#8f320d] disabled:opacity-50">{children}</button>; }
 function bookStatus(book: Book) { const statuses = book.book_copies.map(copy => copy.status); return statuses.includes("WITH_READER") ? "Being Read" : statuses.includes("RETURN_CART") ? "Return Cart" : "In Shelf"; }
