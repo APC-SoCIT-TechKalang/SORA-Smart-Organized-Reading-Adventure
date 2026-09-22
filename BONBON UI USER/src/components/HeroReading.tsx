@@ -24,8 +24,8 @@ export function HeroReading() {
         <div className="min-w-0">
           <span className="tb-eyebrow tb-hero-eyebrow inline-flex items-center gap-2 border border-gold/35 bg-parch/30 px-3 py-1.5"><span aria-hidden="true" className="h-2 w-2 rotate-45 bg-rust" />{isReading ? 'Currently reading' : 'Featured from the archive'}</span>
           <h1 className="mt-3 max-w-2xl font-display text-[clamp(2.1rem,3.6vw,3.3rem)] font-900 uppercase leading-[.98] tracking-[-.018em]">
-            <span className="tb-hero-title block bg-[linear-gradient(100deg,#543822_20%,#a83d12_45%,#c4800c_55%,#543822_80%)] bg-clip-text text-transparent [background-size:220%_100%]">{titleWithoutVolume}</span>
-            {book && <span className="tb-hero-title mt-0.5 block bg-[linear-gradient(100deg,#a83d12_20%,#c4800c_50%,#a83d12_80%)] bg-clip-text text-transparent [background-size:220%_100%] [animation-delay:.15s]">VOL. {book.volume}</span>}
+            <span className="tb-hero-title block bg-[linear-gradient(100deg,#543822_20%,#953410_45%,#c4800c_55%,#543822_80%)] bg-clip-text text-transparent [background-size:220%_100%]">{titleWithoutVolume}</span>
+            {book && <span className="tb-hero-title mt-0.5 block bg-[linear-gradient(100deg,#953410_20%,#c4800c_50%,#953410_80%)] bg-clip-text text-transparent [background-size:220%_100%] [animation-delay:.15s]">VOL. {book.volume}</span>}
           </h1>
           {book ? (
             <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-600 text-umber/65"><span>{book.author}</span><span aria-hidden="true" className="text-gold">•</span><span>{book.genre}</span><span aria-hidden="true" className="text-gold">•</span><span>Volume {book.volume}</span></p>
