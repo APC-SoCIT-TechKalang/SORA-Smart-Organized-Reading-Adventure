@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, Send, X } from "lucide-react";
 
 type ChatData = { books: { book_id: number; title: string; author: string | null }[]; copies: { book_id: number; status: string }[]; readers: unknown[]; visits: { status: string }[]; logs: { book_id: number; returned_at: string | null }[] };
@@ -11,6 +11,42 @@ export function AdminBonChat({ data }: { data: ChatData }) {
   const [draft, setDraft] = useState("");
   const [messages, setMessages] = useState<Message[]>([{ id: 1, from: "bon", text: "Hi, librarian! Ask me about borrowing trends, popular books, readers, or the reading room today." }]);
   const logRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const dragState = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false });
+
+  useEffect(() => {
+    if (!pos) return;
+    const clamp = (value: number, max: number) => Math.min(Math.max(value, 8), max);
+    const onMove = (event: PointerEvent) => {
+      const { startX, startY, baseX, baseY } = dragState.current;
+      if (Math.abs(event.clientX - startX) + Math.abs(event.clientY - startY) > 6) dragState.current.moved = true;
+      const el = dragRef.current;
+      const w = el?.offsetWidth ?? 100, h = el?.offsetHeight ?? 150;
+      setPos({ x: clamp(baseX + event.clientX - startX, window.innerWidth - w - 8), y: clamp(baseY + event.clientY - startY, window.innerHeight - h - 8) });
+    };
+    const onUp = () => setDragging(false);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => { window.removeEventListener("pointermove", onMove); window.removeEventListener("pointerup", onUp); };
+  }, [pos !== undefined]);
+
+  function startDrag(event: React.PointerEvent) {
+    if (event.button !== 0 && event.pointerType === "mouse") return;
+    const el = dragRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const next = { x: rect.left, y: rect.top };
+    if (!pos) setPos(next);
+    dragState.current = { startX: event.clientX, startY: event.clientY, baseX: next.x, baseY: next.y, moved: false };
+    setDragging(true);
+  }
+
+  function handleMascotClick() {
+    if (dragState.current.moved) return;
+    setOpen(value => !value);
+  }
   const stats = useMemo(() => {
     const counts = new Map<number, number>();
     data.logs.forEach(log => counts.set(log.book_id, (counts.get(log.book_id) || 0) + 1));
@@ -32,14 +68,14 @@ export function AdminBonChat({ data }: { data: ChatData }) {
 
   function submit(event: FormEvent) { event.preventDefault(); if (draft.trim()) answer(draft.trim()); }
   const suggestions = ["What is the most borrowed book?", "How many readers are active?", "How many copies are available?"];
-  return <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+  return <div ref={dragRef} onPointerDown={startDrag} onClick={handleMascotClick} style={pos ? { position: "fixed", left: pos.x, top: pos.y, right: "auto", bottom: "auto" } : undefined} className={`fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3 select-none ${dragging ? "cursor-grabbing" : "cursor-grab"} ${dragging ? "is-dragging" : ""}`}>
     {open && <section className="analytics-panel flex h-[500px] w-[min(390px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-[#e4d4c3] bg-[#fffdf9] shadow-[0_20px_60px_rgba(57,36,20,.2)]" role="dialog" aria-label="Chat with BON">
       <header className="flex items-center gap-3 bg-[#59351e] px-4 py-4 text-[#fff9ef]"><div className="insights-message-avatar h-11 w-11 rounded-2xl border border-[#f5c822] bg-[#f8eddc]"><img src="/ai-mascot.png" alt="BON" /></div><div><b className="block text-sm">BON</b><small className="text-[#e8c9ad]">Admin archive assistant · online</small></div><button className="ml-auto" onClick={() => setOpen(false)} aria-label="Close chat"><X size={19}/></button></header>
       <div ref={logRef} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">{messages.map(message => <p key={message.id} className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 leading-relaxed ${message.from === "bon" ? "border border-[#eadfd3] bg-[#fff5e8] text-[#59351e]" : "ml-auto bg-[#a83d12] text-white"}`}>{message.text}</p>)}</div>
       <div className="flex gap-2 overflow-x-auto border-t border-[#eadfd3] p-3">{suggestions.map(suggestion => <button key={suggestion} onClick={() => answer(suggestion)} className="shrink-0 rounded-full border border-[#d6b58f] px-3 py-1.5 text-[11px] font-semibold text-[#804916]">{suggestion}</button>)}</div>
       <form onSubmit={submit} className="flex gap-2 border-t border-[#eadfd3] p-3"><input value={draft} onChange={event => setDraft(event.target.value)} placeholder="Ask BON about the archive…" className="min-w-0 flex-1 rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-2.5 text-sm outline-none focus:border-[#a83d12]"/><button className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#a83d12] text-white" aria-label="Send message"><Send size={16}/></button></form>
     </section>}
-    {!open && <button onClick={() => setOpen(true)} className="mascot-chat-bubble relative flex items-center gap-2 rounded-full border border-[#eadfd3] bg-[#fffdf9] px-4 py-2 text-xs font-bold text-[#59351e] shadow-lg">Ask BON <MessageCircle size={15} className="text-[#a83d12]"/></button>}
-    <button onClick={() => setOpen(value => !value)} className="mascot-chat-button mascot-chat-figure" aria-label={open ? "Close BON chat" : "Open BON chat"}><img src="/ai-mascot.png" alt="BON archive assistant" className="mascot-chat-image"/></button>
+    {!open && <button onClick={handleMascotClick} className="mascot-chat-bubble relative flex items-center gap-2 rounded-full border border-[#eadfd3] bg-[#fffdf9] px-4 py-2 text-xs font-bold text-[#59351e] shadow-lg">Ask BON <MessageCircle size={15} className="text-[#a83d12]"/></button>}
+    <button onClick={handleMascotClick} className="mascot-chat-button mascot-chat-figure" aria-label={open ? "Close BON chat" : "Open BON chat"}><img src="/ai-mascot.png" alt="BON archive assistant" className="mascot-chat-image" draggable={false}/></button>
   </div>;
 }

@@ -135,3 +135,9 @@ button { font: inherit; }
 @media (prefers-reduced-motion: reduce) { .admin-cta, .admin-cta::after { animation: none; } }
 
 .admin-topbar { box-shadow: 0 4px 18px rgba(84,56,34,.06); }
+
+/* Draggable mascot */
+.mascot-chat-button { touch-action: none; -webkit-user-drag: none; }
+.is-dragging .mascot-chat-figure { animation: none; }
+.is-dragging .mascot-chat-image { filter: drop-shadow(0 22px 22px rgba(57,36,20,.3)) brightness(1.03); }
+.is-dragging .mascot-chat-bubble { animation: none; opacity: .85; }
