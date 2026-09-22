@@ -74,14 +74,26 @@ export function AdminBonChat({ data }: { data: ChatData }) {
     setDragging(true);
   }
 
+  // Re-clamp and re-snap when the window is resized (keeps placement responsive)
+  useEffect(() => {
+    const onResize = () => setPos(current => {
+      if (!current) return current;
+      const x = current.x + BUTTON / 2 < window.innerWidth / 2 ? MARGIN : window.innerWidth - BUTTON - MARGIN;
+      return { x, y: Math.min(Math.max(current.y, MARGIN), window.innerHeight - BUTTON - MARGIN) };
+    });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
   function toggle() {
     if (dragState.current.moved) return;
     setOpen(value => !value);
   }
 
   const anchoredLeft = pos ? pos.x + BUTTON / 2 < window.innerWidth / 2 : false;
-  return <div ref={wrapRef} onPointerDown={startDrag} style={pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto" } : undefined} className={`assistive-wrap fixed bottom-5 right-5 z-50 ${dragging ? "is-dragging" : ""}`}>
-    {open && <section className={`analytics-panel assistive-panel flex h-[480px] w-[min(370px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-[#e4d4c3] bg-[#fffdf9] shadow-[0_24px_70px_rgba(57,36,20,.25)] ${anchoredLeft ? "assistive-panel-left" : ""}`} role="dialog" aria-label="Chat with BON">
+  const panelBelow = pos ? pos.y > window.innerHeight / 2 : true;
+  return <div ref={wrapRef} onPointerDown={startDrag} style={pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto", width: BUTTON } : undefined} className={`assistive-wrap fixed bottom-5 right-5 z-50 ${dragging ? "is-dragging" : ""} ${panelBelow ? "" : "panel-below"}`}>
+    {open && <section className={`analytics-panel assistive-panel flex h-[min(480px,calc(100dvh-9rem))] w-[min(370px,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-[#e4d4c3] bg-[#fffdf9] shadow-[0_24px_70px_rgba(57,36,20,.25)] ${anchoredLeft ? "assistive-panel-left" : ""}`} role="dialog" aria-label="Chat with BON">
       <header className="flex items-center gap-3 bg-[#59351e] px-4 py-4 text-[#fff9ef]"><div className="insights-message-avatar h-11 w-11 rounded-2xl border border-[#f5c822] bg-[#f8eddc]"><img src="/ai-mascot.png" alt="BON" /></div><div><b className="block text-sm">BON</b><small className="text-[#e8c9ad]">Admin archive assistant · online</small></div><button className="ml-auto" onClick={() => setOpen(false)} aria-label="Close chat"><X size={19}/></button></header>
       <div ref={logRef} className="flex-1 space-y-3 overflow-y-auto p-4 text-sm">{messages.map(message => <p key={message.id} className={`max-w-[88%] rounded-2xl px-3.5 py-2.5 leading-relaxed ${message.from === "bon" ? "border border-[#eadfd3] bg-[#fff5e8] text-[#59351e]" : "ml-auto bg-[#a83d12] text-white"}`}>{message.text}</p>)}</div>
       <div className="flex gap-2 overflow-x-auto border-t border-[#eadfd3] p-3">{suggestions.map(suggestion => <button key={suggestion} onClick={() => answer(suggestion)} className="shrink-0 rounded-full border border-[#d6b58f] px-3 py-1.5 text-[11px] font-semibold text-[#804916]">{suggestion}</button>)}</div>
