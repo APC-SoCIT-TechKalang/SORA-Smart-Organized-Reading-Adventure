@@ -43,12 +43,6 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
       <main id="main" tabIndex={-1} className={`tb-main-stage relative z-10 mx-auto flex max-w-[1480px] gap-6 px-4 pb-40 pt-5 sm:px-6 sm:pb-28 sm:pt-7 lg:gap-8 ${sidebarOpen ? 'xl:pr-[210px]' : ''}`}>
         <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} />
         <div className="min-w-0 flex-1">
-          {loading && (
-            <div className="tb-surface tb-cut-sm mb-5 flex items-center gap-3 px-4 py-3 font-body text-xs font-700 text-umber/65" role="status">
-              <span aria-hidden="true" className="h-2.5 w-2.5 animate-pulse rounded-full bg-gold" />
-              Preparing your reading hall…
-            </div>
-          )}
           {error && (
             <div className="tb-cut-sm mb-5 flex flex-wrap items-center justify-between gap-3 border border-rust/35 bg-cream/90 px-4 py-3 font-body text-sm font-600 text-umber/75 shadow-sm" role="alert">
               <span>We couldn’t load the latest library data.</span>
