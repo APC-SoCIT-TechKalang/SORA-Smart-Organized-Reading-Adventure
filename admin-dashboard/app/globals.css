@@ -100,12 +100,9 @@ button { font: inherit; }
 .analytics-panel form { box-shadow: 0 -8px 22px rgba(57,36,20,.04); }
 .mascot-chat-button { border: 0; background: transparent; cursor: pointer; filter: drop-shadow(0 15px 16px rgba(57,36,20,.22)); }
 .mascot-chat-figure { position: relative; height: 125px; width: 100px; transform: translate(var(--mascot-x, 0px), var(--mascot-y, 0px)); transform-origin: bottom center; animation: mascot-idle 3.6s ease-in-out infinite; }
-.mascot-chat-image { position: absolute; inset: 0; height: 125px; width: 100px; object-fit: contain; object-position: bottom; transition: filter .2s ease; }
-.mascot-blink-lid { position: absolute; inset: 0; height: 125px; width: 100px; background: url('/ai-mascot-blink.png') center / contain no-repeat; opacity: 0; pointer-events: none; animation: mascot-closed-eye 2.6s ease-in-out infinite; }
+.mascot-chat-image { position: absolute; inset: 0; height: 125px; width: 100px; object-fit: contain; object-position: bottom; transition: filter .2s ease; animation: mascot-blink 4.2s ease-in-out infinite; transform-origin: center 78%; }
 .mascot-chat-button:hover .mascot-chat-figure { animation: mascot-wave 1.8s ease-in-out infinite alternate; }
-.mascot-chat-button:hover .mascot-chat-image { filter: brightness(1.04) saturate(1.06) drop-shadow(0 7px 8px rgba(168,61,18,.16)); }
-.mascot-chat-button:hover .mascot-chat-image { animation: none; opacity: 1; }
-.mascot-chat-button:hover .mascot-blink-lid { animation: none; opacity: 0; }
+.mascot-chat-button:hover .mascot-chat-image { filter: brightness(1.04) saturate(1.06) drop-shadow(0 7px 8px rgba(168,61,18,.16)); animation: none; }
 .mascot-chat-button:hover .mascot-chat-bubble { animation: mascot-bubble-wave 1.8s ease-in-out infinite alternate; }
 .mascot-chat-bubble { position: absolute; bottom: 132px; left: 50%; border: 1px solid #eadfd3; border-radius: 15px; background: #fffdf9; padding: 10px 14px; color: #59351e; font-size: 10px; font-weight: 800; letter-spacing: .01em; box-shadow: 0 8px 20px rgba(57,36,20,.14); transform: translateX(-50%); animation: mascot-bubble-idle 3.6s ease-in-out infinite; white-space: nowrap; }
 .mascot-chat-bubble::after { content: ""; position: absolute; bottom: -6px; left: 50%; height: 11px; width: 11px; border-right: 1px solid #eadfd3; border-bottom: 1px solid #eadfd3; background: #fffdf9; transform: translateX(-50%) rotate(45deg); }
@@ -113,10 +110,11 @@ button { font: inherit; }
 @keyframes mascot-idle { 0%, 100% { transform: translate(var(--mascot-x, 0px), var(--mascot-y, 0px)) rotate(0deg); } 50% { transform: translate(var(--mascot-x, 0px), calc(var(--mascot-y, 0px) - 3px)) rotate(-.5deg); } }
 @keyframes mascot-open-eye { 0%, 90%, 100% { opacity: 1; } 93%, 96% { opacity: 0; } }
 @keyframes mascot-closed-eye { 0%, 89.9%, 96.1%, 100% { opacity: 0; } 90%, 96% { opacity: 1; } }
+@keyframes mascot-blink { 0%, 91%, 100% { transform: scaleY(1); } 93.5%, 95% { transform: scaleY(.965) scaleX(1.01); } }
 @keyframes mascot-wave { from { transform: translate(var(--mascot-x, 0px), calc(var(--mascot-y, 0px) - 1px)) rotate(-1deg) scale(1.005); } to { transform: translate(var(--mascot-x, 0px), calc(var(--mascot-y, 0px) - 2px)) rotate(1deg) scale(1.01); } }
 @keyframes mascot-bubble-idle { 0%, 100% { transform: translate(-50%, 0); } 50% { transform: translate(-50%, -2px); } }
 @keyframes mascot-bubble-wave { from { transform: translate(-50%, -1px); } to { transform: translate(-50%, -2px); } }
-@media (prefers-reduced-motion: reduce) { .rfid-pulse, .mascot-chat-figure, .mascot-chat-image, .mascot-blink-lid { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .rfid-pulse, .mascot-chat-figure, .mascot-chat-image { animation: none; transition: none; } }
 
 /* Hero card: animated 3D gradient */
 .admin-hero-card { background: linear-gradient(135deg, #543822 0%, #6a4024 35%, #953410 70%, #c4800c 115%); background-size: 160% 160%; animation: hero-shift 14s ease-in-out infinite; }

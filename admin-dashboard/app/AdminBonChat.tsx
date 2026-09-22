@@ -40,6 +40,6 @@ export function AdminBonChat({ data }: { data: ChatData }) {
       <form onSubmit={submit} className="flex gap-2 border-t border-[#eadfd3] p-3"><input value={draft} onChange={event => setDraft(event.target.value)} placeholder="Ask BON about the archive…" className="min-w-0 flex-1 rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-2.5 text-sm outline-none focus:border-[#a83d12]"/><button className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#a83d12] text-white" aria-label="Send message"><Send size={16}/></button></form>
     </section>}
     {!open && <button onClick={() => setOpen(true)} className="mascot-chat-bubble relative flex items-center gap-2 rounded-full border border-[#eadfd3] bg-[#fffdf9] px-4 py-2 text-xs font-bold text-[#59351e] shadow-lg">Ask BON <MessageCircle size={15} className="text-[#a83d12]"/></button>}
-    <button onClick={() => setOpen(value => !value)} className="mascot-chat-button mascot-chat-figure" aria-label={open ? "Close BON chat" : "Open BON chat"}><img src="/ai-mascot.png" alt="BON archive assistant" className="mascot-chat-image"/><span className="mascot-blink-lid"/></button>
+    <button onClick={() => setOpen(value => !value)} className="mascot-chat-button mascot-chat-figure" aria-label={open ? "Close BON chat" : "Open BON chat"}><img src="/ai-mascot.png" alt="BON archive assistant" className="mascot-chat-image"/></button>
   </div>;
 }
