@@ -8,12 +8,14 @@ type Shelf = { shelf_id:number; name:string };
 type Props = { data:{shelves:Shelf[]}; close:()=>void; run:(action:()=>PromiseLike<{error:unknown}>,success:string)=>Promise<boolean> };
 const initial = {title:"",original_title:"",romanized_title:"",author:"",contributors:"",series_name:"",volume_number:"",isbn:"",publisher:"",imprint:"",format:"Physical",book_type:"Manga",demographic:"",age_rating:"",themes:"",description:"",cover_image_url:"",genres:"",barcode:"",shelf:"",condition_notes:""};
 type FormKey = keyof typeof initial;
-type LookupResponse = { source:"catalog"|"isbn"; existingBookId:number|null; warnings:string[]; metadata:Partial<typeof initial>; error?:string };
+type LookupResponse = { source:"catalog"|"isbn"; existingBookId:number|null; warnings:string[]; metadata:Partial<typeof initial>; coverCandidates?:string[]; error?:string };
 
 export function CompleteAddVolume({data,close,run}:Props) {
   const [form,setForm] = useState(initial);
   const [submitting,setSubmitting] = useState(false);
   const [coverFailed,setCoverFailed] = useState(false);
+  const [coverCandidates,setCoverCandidates] = useState<string[]>([]);
+  const [coverIndex,setCoverIndex] = useState(0);
   const [coverFile,setCoverFile] = useState<File|null>(null);
   const [fileError,setFileError] = useState("");
   const [localPreview,setLocalPreview] = useState("");
@@ -23,6 +25,9 @@ export function CompleteAddVolume({data,close,run}:Props) {
   const [lookupSource,setLookupSource] = useState<"catalog"|"isbn"|null>(null);
   const [existingBookId,setExistingBookId] = useState<number|null>(null);
   const lookupVersion = useRef(0);
+  const lookupAbort = useRef<AbortController|null>(null);
+  const manuallyEdited = useRef(new Set<FormKey>());
+  const autoFilled = useRef(new Set<FormKey>());
 
   useEffect(()=>{
     if(!coverFile){setLocalPreview("");return;}
@@ -30,12 +35,25 @@ export function CompleteAddVolume({data,close,run}:Props) {
     return()=>URL.revokeObjectURL(url);
   },[coverFile]);
 
-  const update = (key:FormKey,value:string) => setForm(current=>({...current,[key]:value}));
+  useEffect(()=>()=>lookupAbort.current?.abort(),[]);
+
+  const update = (key:FormKey,value:string) => {
+    manuallyEdited.current.add(key);
+    autoFilled.current.delete(key);
+    setForm(current=>({...current,[key]:value}));
+  };
   const updateIsbn = (value:string) => {
     lookupVersion.current++;
-    setForm(current=>lookupSource?{...initial,isbn:value,barcode:current.barcode,shelf:current.shelf,condition_notes:current.condition_notes}:{...current,isbn:value});
-    setExistingBookId(null); setLookupSource(null); setLookupMessage("");
-    setLookupWarnings([]);
+    lookupAbort.current?.abort();
+    setLookingUp(false);
+    setForm(current=>{
+      const next={...current,isbn:value};
+      for(const key of autoFilled.current)next[key]=initial[key];
+      autoFilled.current.clear();
+      return next;
+    });
+    setCoverCandidates([]);setCoverIndex(0);setCoverFailed(false);
+    setExistingBookId(null);setLookupSource(null);setLookupMessage("");setLookupWarnings([]);
   };
   const clean = (value:string) => value.trim() || null;
   const input = "mt-2 w-full rounded-xl border border-[#dfcfbe] bg-[#fffbf5] px-3.5 py-3 text-sm font-normal normal-case text-[#4b301f] outline-none transition placeholder:text-[#b5a18e] focus:border-[#b86a18] focus:ring-4 focus:ring-[#d99b2b]/10 disabled:cursor-not-allowed disabled:opacity-50";
@@ -53,32 +71,55 @@ export function CompleteAddVolume({data,close,run}:Props) {
   ];
 
   const lookupIsbn = async () => {
-    if(lookingUp) return;
+    if(lookingUp)return;
     const version=++lookupVersion.current;
-    setLookingUp(true); setLookupMessage(""); setLookupWarnings([]); setLookupSource(null); setExistingBookId(null);
-    try {
+    lookupAbort.current?.abort();
+    const controller=new AbortController();
+    lookupAbort.current=controller;
+    setLookingUp(true);setLookupMessage("");setLookupWarnings([]);setLookupSource(null);setExistingBookId(null);
+    try{
       const {data:{session}}=await database().auth.getSession();
-      if(!session) throw new Error("Your staff session has expired. Sign in again.");
-      const response=await fetch("/api/catalog/lookup",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({isbn:form.isbn})});
+      if(!session)throw new Error("Your staff session has expired. Sign in again.");
+      const response=await fetch("/api/catalog/lookup",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({isbn:form.isbn}),signal:controller.signal});
       const result=await response.json() as LookupResponse;
-      if(!response.ok) throw new Error(result.error||"The ISBN lookup failed.");
-      if(version!==lookupVersion.current) return;
+      if(!response.ok)throw new Error(result.error||"The ISBN lookup failed.");
+      if(version!==lookupVersion.current)return;
       setForm(current=>{
-        const next={...current,title:"",original_title:"",romanized_title:"",author:"",contributors:"",series_name:"",volume_number:"",publisher:"",imprint:"",book_type:"Other",demographic:"",age_rating:"",themes:"",description:"",cover_image_url:"",genres:""};
-        for(const key of Object.keys(initial) as FormKey[]){const value=result.metadata[key];if(typeof value==="string"&&value.trim()) next[key]=value;}
+        const next={...current};
+        for(const key of Object.keys(initial) as FormKey[]){
+          const value=result.metadata[key];
+          if(!manuallyEdited.current.has(key)&&typeof value==="string"&&value.trim()){
+            next[key]=value;autoFilled.current.add(key);
+          }
+        }
         return next;
       });
-      setCoverFile(null); setCoverFailed(false); setExistingBookId(result.existingBookId); setLookupSource(result.source);
-      setLookupWarnings(result.warnings||[]);
+      if(!manuallyEdited.current.has("cover_image_url")&&!coverFile){
+        const candidates=[...new Set((result.coverCandidates||[]).filter(Boolean))];
+        setCoverCandidates(candidates);setCoverIndex(0);setCoverFailed(false);
+      }
+      setExistingBookId(result.existingBookId);setLookupSource(result.source);setLookupWarnings(result.warnings||[]);
       setLookupMessage(result.source==="catalog"?"Existing title found. Add the barcode for this new physical copy.":"Metadata loaded. Review all suggested fields before saving.");
-    } catch(error) { if(version===lookupVersion.current)setLookupMessage(error instanceof Error?error.message:"The ISBN lookup failed."); }
-    finally { if(version===lookupVersion.current)setLookingUp(false); }
+    }catch(error){
+      if(version===lookupVersion.current&&!(error instanceof DOMException&&error.name==="AbortError"))setLookupMessage(error instanceof Error?error.message:"The ISBN lookup failed.");
+    }finally{
+      if(version===lookupVersion.current){setLookingUp(false);lookupAbort.current=null;}
+    }
+  };
+
+  const tryNextCover = () => {
+    const nextIndex=coverIndex+1;
+    if(nextIndex<coverCandidates.length){
+      const nextUrl=coverCandidates[nextIndex];
+      setCoverIndex(nextIndex);setCoverFailed(false);
+      setForm(current=>({...current,cover_image_url:nextUrl}));
+    }else setCoverFailed(true);
   };
 
   const submit = async (event:React.FormEvent) => {
-    event.preventDefault(); if(submitting) return; setSubmitting(true);
-    const ok = await run(async()=>{
-      if(existingBookId&&!form.barcode.trim()) return {error:new Error("Scan or enter the physical-copy barcode before adding this existing title.")};
+    event.preventDefault();if(submitting)return;setSubmitting(true);
+    const ok=await run(async()=>{
+      if(existingBookId&&!form.barcode.trim())return {error:new Error("Scan or enter the physical-copy barcode before adding this existing title.")};
       let uploadedPath="";
       let coverUrl=clean(form.cover_image_url);
       if(coverFile&&!existingBookId){
@@ -94,20 +135,47 @@ export function CompleteAddVolume({data,close,run}:Props) {
         p_genres:genres,p_barcode:clean(form.barcode),p_shelf_id:form.shelf?Number(form.shelf):null,p_condition_notes:clean(form.condition_notes),
       });
       const createdNew=Boolean((result.data as {created_new?:boolean}|null)?.created_new);
-      if(uploadedPath&&(result.error||!createdNew)) await database().storage.from("book-covers").remove([uploadedPath]);
+      if(uploadedPath&&(result.error||!createdNew))await database().storage.from("book-covers").remove([uploadedPath]);
       return {error:result.error};
     },existingBookId?"Physical copy added to the catalogue":"Volume added to the catalogue");
-    setSubmitting(false); if(ok) close();
+    setSubmitting(false);if(ok)close();
   };
 
-  return <div className="fixed inset-0 z-[60] bg-[#2d190c]/40 backdrop-blur-sm" onMouseDown={event=>{if(event.target===event.currentTarget&&!submitting)close();}}><aside role="dialog" aria-modal="true" aria-labelledby="add-volume-title" className="absolute right-0 top-0 flex h-full w-full max-w-[680px] flex-col overflow-hidden border-l border-[#d89b39] bg-[#fffdf9] shadow-[-20px_0_60px_rgba(67,37,18,.2)]">
-    <header className="flex items-center justify-between border-b border-[#eadbc9] bg-[linear-gradient(135deg,#fffaf1,#f8ead4)] px-7 py-5"><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#b66a3c]">Catalogue · New record</p><h2 id="add-volume-title" className="mt-1 font-serif text-3xl text-[#54341f]">Add a volume</h2><p className="mt-1 text-xs text-[#927864]">Scan an ISBN to reduce manual cataloging.</p></div><button type="button" disabled={submitting} onClick={close} aria-label="Close add volume panel" className="rounded-xl p-2.5 hover:bg-[#efe0cd] disabled:opacity-40"><X size={20}/></button></header>
-    <form onSubmit={submit} className="flex-1 overflow-y-auto">
-      <section className="border-b border-[#eee2d6] bg-[#fffaf1] px-7 py-5"><div className="flex items-start gap-3"><span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#f4dfb7] text-[#a83d12]"><BookOpenCheck size={17}/></span><div className="min-w-0 flex-1"><h3 className="font-serif text-lg text-[#5b3924]">ISBN metadata lookup</h3><p className="mt-1 text-[11px] leading-5 text-[#927864]">Scan the retail ISBN to retrieve available information from Google Books or Open Library.</p></div></div><div className="mt-4 flex flex-col gap-2 sm:flex-row"><label className="relative flex-1"><span className="sr-only">ISBN-10 or ISBN-13</span><ScanLine className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a17954]" size={18}/><input autoFocus value={form.isbn} onChange={event=>updateIsbn(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();void lookupIsbn();}}} placeholder="Scan or enter ISBN-10 / ISBN-13" className={`${input} mt-0 pl-11`}/></label><button type="button" disabled={lookingUp||!form.isbn.trim()} onClick={()=>void lookupIsbn()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#5b3924] px-5 text-xs font-bold text-white transition hover:bg-[#432617] disabled:cursor-not-allowed disabled:opacity-50">{lookingUp?<LoaderCircle className="animate-spin" size={16}/>:<Search size={16}/>} {lookingUp?"Looking up…":"Find book"}</button></div>{lookupMessage&&<div className={`mt-3 rounded-xl border px-3.5 py-3 text-xs leading-5 ${lookupSource?"border-[#d8bd82] bg-white text-[#5b3924]":"border-[#d89a82] bg-[#fff4ee] text-[#9a3515]"}`}><div className="flex flex-wrap items-center gap-2"><strong>{lookupMessage}</strong>{lookupSource&&<span className="rounded-full bg-[#f4dfb7] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">{lookupSource==="catalog"?"Existing catalogue record":"ISBN metadata"}</span>}</div>{lookupWarnings.map((warning,index)=><p key={index} className="mt-1 text-[10px] text-[#927864]">• {warning}</p>)}</div>}</section>
-      <section className="grid gap-7 p-7 sm:grid-cols-[150px_1fr]"><div><p className={`${label} mb-2`}>Cover art</p><div className="grid shrink-0 place-items-center overflow-hidden rounded-xl border border-[#dfc69f] bg-[#fffaf1] p-2 shadow-lg" style={{width:150,height:225}}>{(localPreview||(form.cover_image_url&&!coverFailed))?<img src={localPreview||form.cover_image_url} alt="Full cover preview" className="block min-h-0 min-w-0" style={{width:"100%",height:"100%",objectFit:"contain"}} referrerPolicy="no-referrer" onError={()=>setCoverFailed(true)}/>:<div className="text-center text-[#a17954]"><ImagePlus className="mx-auto mb-2" size={30}/><span className="text-[10px] font-bold uppercase tracking-wider">{coverFailed?"Image could not load":"Cover preview"}</span></div>}</div><p className="mt-2 text-[10px] leading-4 text-[#9d8877]">Full image preview · portrait artwork fits best.</p></div><div className="space-y-4"><label className={label}>Title *<input required value={form.title} onChange={event=>update("title",event.target.value)} placeholder="e.g. One Piece" className={input}/></label><div className="grid grid-cols-2 gap-3"><label className={label}>Series<input value={form.series_name} onChange={event=>update("series_name",event.target.value)} placeholder="Series name" className={input}/></label><label className={label}>Volume<input value={form.volume_number} onChange={event=>update("volume_number",event.target.value)} placeholder="e.g. 104" className={input}/></label></div><label className={label}>Author<input value={form.author} onChange={event=>update("author",event.target.value)} placeholder="Author or creator" className={input}/></label><label className={label}>Cover image URL<input type="url" value={form.cover_image_url} onChange={event=>{setCoverFailed(false);update("cover_image_url",event.target.value);}} placeholder="https://…/cover.jpg" className={input}/></label><div className="flex items-center gap-3"><span className="h-px flex-1 bg-[#e5d7c8]"/><span className="text-[9px] font-bold uppercase tracking-widest text-[#a58a74]">or upload</span><span className="h-px flex-1 bg-[#e5d7c8]"/></div><label className={`${label} cursor-pointer rounded-xl border border-dashed border-[#d4a45f] bg-[#fff7e9] p-3 text-center transition hover:bg-[#ffefd3]`}><span>{coverFile?coverFile.name:"Choose JPG, PNG or WebP"}</span><input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={event=>{const file=event.target.files?.[0]??null;if(file&&file.size>5*1024*1024){setFileError("Cover image must be 5 MB or smaller.");setCoverFile(null);return;}setFileError("");setCoverFailed(false);setCoverFile(file);}}/></label>{fileError&&<p role="alert" className="text-xs font-semibold text-[#a83d12]">{fileError}</p>}{coverFile&&form.cover_image_url&&<p className="text-[10px] text-[#927864]">The uploaded image will be used instead of the link.</p>}</div></section>
-      <section className="border-y border-[#eee2d6] bg-[#fcf7ef] px-7 py-6"><h3 className="mb-4 font-serif text-lg text-[#5b3924]">Reader details</h3><div className="grid gap-4 sm:grid-cols-2">{fields.map(item=><label key={item.key} className={label}>{item.label}<input value={form[item.key]} onChange={event=>update(item.key,event.target.value)} placeholder={item.placeholder} className={input}/>{item.key==="genres"&&<span className="mt-1.5 block text-[10px] normal-case tracking-normal text-[#9d8877]">Separate genres with commas.</span>}</label>)}<label className={label}>Book type<select value={form.book_type} onChange={event=>update("book_type",event.target.value)} className={input}><option>Manga</option><option>Light Novel</option><option>Novel</option><option>Art Book</option><option>Guidebook</option><option>Magazine</option><option>Other</option></select></label><label className={label}>Format<select value={form.format} onChange={event=>update("format",event.target.value)} className={input}><option>Physical</option><option>Hardcover</option><option>Paperback</option><option>Digital</option></select></label></div><label className={`${label} mt-4`}>Synopsis<textarea rows={4} value={form.description} onChange={event=>update("description",event.target.value)} placeholder="Description shown on the book detail screen…" className={`${input} resize-y leading-6`}/></label></section>
-      <section className="px-7 py-6"><h3 className="mb-4 font-serif text-lg text-[#5b3924]">Physical copy <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-[#a58a74]">{existingBookId?"Required":"Optional"}</span></h3><div className="grid gap-4 sm:grid-cols-2"><label className={label}>Barcode<input value={form.barcode} onChange={event=>update("barcode",event.target.value)} placeholder="Scan or enter barcode" className={input}/></label><label className={label}>Shelf<select value={form.shelf} onChange={event=>update("shelf",event.target.value)} disabled={!form.barcode.trim()} className={input}><option value="">No shelf</option>{data.shelves.map(item=><option key={item.shelf_id} value={item.shelf_id}>{item.name}</option>)}</select></label></div><label className={`${label} mt-4`}>Condition notes<input value={form.condition_notes} onChange={event=>update("condition_notes",event.target.value)} disabled={!form.barcode.trim()} placeholder="e.g. New, minor shelf wear" className={input}/></label></section>
-      <footer className="sticky bottom-0 flex items-center border-t border-[#e7d7c5] bg-[#fffdf9]/95 px-7 py-5 backdrop-blur"><p className="hidden text-[10px] text-[#98816e] sm:block">* Review imported metadata before saving.</p><button type="submit" disabled={submitting||!form.title.trim()||(Boolean(existingBookId)&&!form.barcode.trim())} className="ml-auto inline-flex min-w-44 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-5 py-3 text-xs font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#8f320d] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50">{submitting?<><LoaderCircle size={16} className="animate-spin"/>Creating…</>:<><Plus size={16}/>{existingBookId?"Add physical copy":"Create volume"}</>}</button></footer>
-    </form>
-  </aside></div>;
+  return <div className="fixed inset-0 z-[60] bg-[#2d190c]/40 backdrop-blur-sm" onMouseDown={event=>{if(event.target===event.currentTarget&&!submitting)close();}}>
+    <aside role="dialog" aria-modal="true" aria-labelledby="add-volume-title" className="absolute right-0 top-0 flex h-full w-full max-w-[680px] flex-col overflow-hidden border-l border-[#d89b39] bg-[#fffdf9] shadow-[-20px_0_60px_rgba(67,37,18,.2)]">
+      <header className="flex items-center justify-between border-b border-[#eadbc9] bg-[linear-gradient(135deg,#fffaf1,#f8ead4)] px-7 py-5">
+        <div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#b66a3c]">Catalogue · New record</p><h2 id="add-volume-title" className="mt-1 font-serif text-3xl text-[#54341f]">Add a volume</h2><p className="mt-1 text-xs text-[#927864]">Scan an ISBN to reduce manual cataloging.</p></div>
+        <button type="button" disabled={submitting} onClick={close} aria-label="Close add volume panel" className="rounded-xl p-2.5 hover:bg-[#efe0cd] disabled:opacity-40"><X size={20}/></button>
+      </header>
+      <form onSubmit={submit} className="flex-1 overflow-y-auto">
+        <section className="border-b border-[#eee2d6] bg-[#fffaf1] px-7 py-5">
+          <div className="flex items-start gap-3"><span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#f4dfb7] text-[#a83d12]"><BookOpenCheck size={17}/></span><div className="min-w-0 flex-1"><h3 className="font-serif text-lg text-[#5b3924]">ISBN metadata lookup</h3><p className="mt-1 text-[11px] leading-5 text-[#927864]">Retrieve edition data from public book sources, then enrich matching manga metadata.</p></div></div>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <label className="relative flex-1"><span className="sr-only">ISBN-10 or ISBN-13</span><ScanLine className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a17954]" size={18}/><input autoFocus value={form.isbn} onChange={event=>updateIsbn(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();void lookupIsbn();}}} placeholder="Scan or enter ISBN-10 / ISBN-13" className={`${input} mt-0 pl-11`}/></label>
+            <button type="button" disabled={lookingUp||!form.isbn.trim()} onClick={()=>void lookupIsbn()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#5b3924] px-5 text-xs font-bold text-white transition hover:bg-[#432617] disabled:cursor-not-allowed disabled:opacity-50">{lookingUp?<LoaderCircle className="animate-spin" size={16}/>:<Search size={16}/>} {lookingUp?"Looking up…":"Find book"}</button>
+          </div>
+          {lookupMessage&&<div className={`mt-3 rounded-xl border px-3.5 py-3 text-xs leading-5 ${lookupSource?"border-[#d8bd82] bg-white text-[#5b3924]":"border-[#d89a82] bg-[#fff4ee] text-[#9a3515]"}`}><div className="flex flex-wrap items-center gap-2"><strong>{lookupMessage}</strong>{lookupSource&&<span className="rounded-full bg-[#f4dfb7] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">{lookupSource==="catalog"?"Existing catalogue record":"ISBN metadata"}</span>}</div>{lookupWarnings.map((warning,index)=><p key={index} className="mt-1 text-[10px] text-[#927864]">• {warning}</p>)}</div>}
+        </section>
+        <section className="grid gap-7 p-7 sm:grid-cols-[150px_1fr]">
+          <div><p className={`${label} mb-2`}>Cover art</p><div className="grid shrink-0 place-items-center overflow-hidden rounded-xl border border-[#dfc69f] bg-[#fffaf1] p-2 shadow-lg" style={{width:150,height:225}}>{(localPreview||(form.cover_image_url&&!coverFailed))?<img src={localPreview||form.cover_image_url} alt="Full cover preview" className="block min-h-0 min-w-0" style={{width:"100%",height:"100%",objectFit:"contain"}} referrerPolicy="no-referrer" onError={tryNextCover}/>:<div className="text-center text-[#a17954]"><ImagePlus className="mx-auto mb-2" size={30}/><span className="text-[10px] font-bold uppercase tracking-wider">{coverFailed?"Image could not load":"Cover preview"}</span></div>}</div><p className="mt-2 text-[10px] leading-4 text-[#9d8877]">Full image preview · portrait artwork fits best.</p></div>
+          <div className="space-y-4">
+            <label className={label}>Title *<input required value={form.title} onChange={event=>update("title",event.target.value)} placeholder="e.g. One Piece" className={input}/></label>
+            <div className="grid grid-cols-2 gap-3"><label className={label}>Series<input value={form.series_name} onChange={event=>update("series_name",event.target.value)} placeholder="Series name" className={input}/></label><label className={label}>Volume<input value={form.volume_number} onChange={event=>update("volume_number",event.target.value)} placeholder="e.g. 104" className={input}/></label></div>
+            <label className={label}>Author<input value={form.author} onChange={event=>update("author",event.target.value)} placeholder="Author or creator" className={input}/></label>
+            <label className={label}>Cover image URL<input type="url" value={form.cover_image_url} onChange={event=>{const value=event.target.value;setCoverFailed(false);setCoverCandidates(value?[value]:[]);setCoverIndex(0);update("cover_image_url",value);}} placeholder="https://…/cover.jpg" className={input}/></label>
+            <div className="flex items-center gap-3"><span className="h-px flex-1 bg-[#e5d7c8]"/><span className="text-[9px] font-bold uppercase tracking-widest text-[#a58a74]">or upload</span><span className="h-px flex-1 bg-[#e5d7c8]"/></div>
+            <label className={`${label} cursor-pointer rounded-xl border border-dashed border-[#d4a45f] bg-[#fff7e9] p-3 text-center transition hover:bg-[#ffefd3]`}><span>{coverFile?coverFile.name:"Choose JPG, PNG or WebP"}</span><input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={event=>{const file=event.target.files?.[0]??null;if(file&&file.size>5*1024*1024){setFileError("Cover image must be 5 MB or smaller.");setCoverFile(null);return;}setFileError("");setCoverFailed(false);setCoverFile(file);}}/></label>
+            {fileError&&<p role="alert" className="text-xs font-semibold text-[#a83d12]">{fileError}</p>}{coverFile&&form.cover_image_url&&<p className="text-[10px] text-[#927864]">The uploaded image will be used instead of the link.</p>}
+          </div>
+        </section>
+        <section className="border-y border-[#eee2d6] bg-[#fcf7ef] px-7 py-6">
+          <h3 className="mb-4 font-serif text-lg text-[#5b3924]">Reader details</h3>
+          <div className="grid gap-4 sm:grid-cols-2">{fields.map(item=><label key={item.key} className={label}>{item.label}<input value={form[item.key]} onChange={event=>update(item.key,event.target.value)} placeholder={item.placeholder} className={input}/>{item.key==="genres"&&<span className="mt-1.5 block text-[10px] normal-case tracking-normal text-[#9d8877]">Separate genres with commas.</span>}</label>)}<label className={label}>Book type<select value={form.book_type} onChange={event=>update("book_type",event.target.value)} className={input}><option>Manga</option><option>Light Novel</option><option>Novel</option><option>Comic</option><option>Art Book</option><option>Guidebook</option><option>Magazine</option><option>Other</option></select></label><label className={label}>Format<select value={form.format} onChange={event=>update("format",event.target.value)} className={input}><option>Physical</option><option>Hardcover</option><option>Paperback</option><option>Digital</option></select></label></div>
+          <label className={`${label} mt-4`}>Synopsis<textarea rows={4} value={form.description} onChange={event=>update("description",event.target.value)} placeholder="Description shown on the book detail screen…" className={`${input} resize-y leading-6`}/></label>
+        </section>
+        <section className="px-7 py-6"><h3 className="mb-4 font-serif text-lg text-[#5b3924]">Physical copy <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-[#a58a74]">{existingBookId?"Required":"Optional"}</span></h3><div className="grid gap-4 sm:grid-cols-2"><label className={label}>Barcode<input value={form.barcode} onChange={event=>update("barcode",event.target.value)} placeholder="Scan or enter barcode" className={input}/></label><label className={label}>Shelf<select value={form.shelf} onChange={event=>update("shelf",event.target.value)} disabled={!form.barcode.trim()} className={input}><option value="">No shelf</option>{data.shelves.map(item=><option key={item.shelf_id} value={item.shelf_id}>{item.name}</option>)}</select></label></div><label className={`${label} mt-4`}>Condition notes<input value={form.condition_notes} onChange={event=>update("condition_notes",event.target.value)} disabled={!form.barcode.trim()} placeholder="e.g. New, minor shelf wear" className={input}/></label></section>
+        <footer className="sticky bottom-0 flex items-center border-t border-[#e7d7c5] bg-[#fffdf9]/95 px-7 py-5 backdrop-blur"><p className="hidden text-[10px] text-[#98816e] sm:block">* Review imported metadata before saving.</p><button type="submit" disabled={submitting||!form.title.trim()||(Boolean(existingBookId)&&!form.barcode.trim())} className="ml-auto inline-flex min-w-44 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-5 py-3 text-xs font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#8f320d] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50">{submitting?<><LoaderCircle size={16} className="animate-spin"/>Creating…</>:<><Plus size={16}/>{existingBookId?"Add physical copy":"Create volume"}</>}</button></footer>
+      </form>
+    </aside>
+  </div>;
 }
