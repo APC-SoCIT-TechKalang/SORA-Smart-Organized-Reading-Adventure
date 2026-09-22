@@ -18,7 +18,7 @@ export function Archive() {
     title: volume.title,
     subtitle: 'Read in library',
     image: volume.coverImage ?? '/book-placeholder.svg',
-    color: volume.plateColor,
+    color: '#f3d793',
     ink: volume.plateInk,
     author: volume.author,
     genre: volume.genre,
