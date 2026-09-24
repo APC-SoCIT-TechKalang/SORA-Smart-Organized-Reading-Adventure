@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import { BookOpen, LayoutDashboard, LogOut, RefreshCw, Trophy, Users, Wallet } from 'lucide-react';
-import { database, errorMessage, readRows } from './lib/supabase';
+import { database, errorMessage, readRows } from '../../lib/supabase';
 
 interface Book { book_id: number; title: string; author: string | null; isbn: string | null; acquisition_status: string; }
 interface Copy { copy_id: number; book_id: number; identifier_value: string; status: string; shelf_id: number | null; }

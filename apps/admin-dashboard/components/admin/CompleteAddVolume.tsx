@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BookOpenCheck, ImagePlus, LoaderCircle, Plus, ScanLine, Search, X } from "lucide-react";
-import { database } from "./lib/supabase";
+import { database } from "../../lib/supabase";
 
 type Shelf = { shelf_id:number; name:string };
 type Props = { data:{shelves:Shelf[]}; close:()=>void; run:(action:()=>PromiseLike<{error:unknown}>,success:string)=>Promise<boolean> };

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ImagePlus, LoaderCircle, Save, X } from "lucide-react";
-import { database } from "./lib/supabase";
+import { database } from "../../lib/supabase";
 
 type Book = {book_id:number;title:string;cover_image_url:string|null};
 export function EditBookCover({book,close,run}:{book:Book;close:()=>void;run:(action:()=>PromiseLike<{error:unknown}>,success:string)=>Promise<boolean>}) {

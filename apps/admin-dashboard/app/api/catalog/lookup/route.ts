@@ -19,6 +19,8 @@ import {
   validIsbn,
 } from "./metadata";
 
+export const runtime = "nodejs";
+
 type SourceResult = { metadata: BookMetadata | null; source: string };
 type GeminiEnrichment = {
   series_name: string;
@@ -278,6 +280,9 @@ export async function POST(request: NextRequest) {
     if (missing.length) warnings.push(`Still unavailable from reliable sources: ${missing.join(", ")}.`);
     return NextResponse.json({ source: "isbn", existingBookId: null, warnings, metadata, coverCandidates: normalized.coverUrls });
   } catch (error) {
-    return NextResponse.json({ error: error instanceof Error ? error.message : "The ISBN lookup failed." }, { status: 500 });
+    // Keep database/provider details in server logs. They can expose implementation
+    // details and do not help an administrator recover from a failed lookup.
+    console.error("Catalog ISBN lookup failed", error);
+    return NextResponse.json({ error: "The ISBN lookup failed. Please try again." }, { status: 500 });
   }
 }

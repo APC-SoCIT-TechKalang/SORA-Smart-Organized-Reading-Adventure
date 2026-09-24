@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { BookOpen, ChevronDown, Clock3, Edit3, LayoutDashboard, LogOut, Menu, Plus, Radio, RefreshCw, Search, Trophy, Users, Wallet, X } from "lucide-react";
-import { database, errorMessage, readRows } from "./lib/supabase";
+import { database, errorMessage, readRows } from "../../lib/supabase";
 import { AdminBonChat } from "./AdminBonChat";
 import { CompleteAddVolume } from "./CompleteAddVolume";
 import { EditBookCover } from "./EditBookCover";
