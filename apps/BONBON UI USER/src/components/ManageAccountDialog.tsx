@@ -94,9 +94,9 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
 
   return createPortal(
     <AnimatePresence>
-      <motion.div className="fixed inset-0 z-[100] flex items-center justify-center bg-umber/75 p-4 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-        <motion.section role="dialog" aria-modal="true" aria-labelledby="manage-account-title" className="tb-cut-lg relative max-h-[min(850px,calc(100vh-2rem))] w-full max-w-3xl overflow-y-auto border-2 border-gold bg-cream shadow-[0_24px_80px_rgba(67,39,20,.38)]" initial={{ y: 24, scale: .97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: .97 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
-          <div className="sticky top-0 z-10 flex items-start justify-between border-b border-gold/40 bg-umber px-6 py-5 text-cream">
+      <motion.div className="fixed inset-0 z-[100] flex items-end justify-center bg-umber/75 backdrop-blur-md sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+        <motion.section role="dialog" aria-modal="true" aria-labelledby="manage-account-title" className="relative max-h-[94dvh] w-full max-w-3xl overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_24px_80px_rgba(67,39,20,.38)] sm:tb-cut-lg sm:max-h-[min(850px,calc(100vh-2rem))] sm:rounded-none sm:pb-0" initial={{ y: 24, scale: .97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: .97 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
+          <div className="sticky top-0 z-10 flex items-start justify-between border-b border-gold/40 bg-umber px-4 py-4 text-cream sm:px-6 sm:py-5">
             <div><p className="font-body text-[10px] font-800 uppercase tracking-[.28em] text-sun">Tankobonbon account</p><h2 id="manage-account-title" className="mt-1 font-display text-2xl font-900 uppercase tracking-[.06em]">Manage account</h2><p className="mt-1 text-xs text-sand/70">Keep your archive identity and access details up to date.</p></div>
             <button type="button" aria-label="Close manage account" onClick={onClose} className="rounded-full p-2 text-sun transition hover:bg-cream/10"><XIcon /></button>
           </div>

@@ -62,7 +62,7 @@ export function SectionHeading({
 }: SectionHeadingProps) {
   const Tag = level === 2 ? 'h2' : 'h3';
   return (
-    <div className={`tb-section-heading flex items-end gap-4 ${className}`}>
+    <div className={`tb-section-heading flex flex-wrap items-end gap-x-4 gap-y-2 ${className}`}>
       <div className="flex items-center gap-3">
         <span
           aria-hidden="true"
@@ -72,9 +72,9 @@ export function SectionHeading({
           {title}
         </Tag>
       </div>
-      <span aria-hidden="true" className="tb-rule mb-[6px] flex-1" />
+      <span aria-hidden="true" className="tb-rule mb-[6px] hidden min-w-8 flex-1 min-[390px]:block" />
       {meta ?
-      <span className="mb-[2px] font-body text-[11px] font-700 uppercase tracking-[0.22em] text-gold">
+      <span className="mb-[2px] w-full font-body text-[10px] font-700 uppercase tracking-[0.16em] text-gold min-[390px]:w-auto min-[390px]:text-[11px] min-[390px]:tracking-[0.22em]">
           {meta}
         </span> :
       null}

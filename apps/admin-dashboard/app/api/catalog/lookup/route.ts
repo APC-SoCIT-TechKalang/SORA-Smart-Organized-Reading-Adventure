@@ -5,6 +5,7 @@ import {
   type FormMetadata,
   aniListAdapter,
   cleanLabels,
+  emptyBookMetadata,
   googleAdapter,
   isbn13,
   jikanAdapter,
@@ -22,6 +23,7 @@ import {
 export const runtime = "nodejs";
 
 type SourceResult = { metadata: BookMetadata | null; source: string };
+type TitleCandidate = { id:string; source:string; title:string; subtitle:string; coverUrl:string; metadata:FormMetadata; coverCandidates:string[] };
 type GeminiEnrichment = {
   series_name: string;
   volume_number: string;
@@ -129,6 +131,43 @@ async function jikan(search: string, base: BookMetadata): Promise<SourceResult> 
   return { metadata: manga ? jikanAdapter(manga, base) : null, source: "Jikan" };
 }
 
+async function aniListCandidates(search: string, isbn: string): Promise<TitleCandidate[]> {
+  const query = `query ($search: String!) {
+    Page(page: 1, perPage: 6) {
+      media(search: $search, type: MANGA, isAdult: false, sort: SEARCH_MATCH) {
+        id title { english romaji native } format description(asHtml: false) genres
+        tags { name rank isMediaSpoiler }
+        coverImage { extraLarge large }
+        staff(perPage: 10, sort: RELEVANCE) { edges { role node { name { full native } } } }
+      }
+    }
+  }`;
+  const response = await fetch("https://graphql.anilist.co", { method:"POST", headers:{"Content-Type":"application/json",Accept:"application/json"}, body:JSON.stringify({query,variables:{search}}), signal:AbortSignal.timeout(8000) });
+  if (!response.ok) return [];
+  const result = await response.json() as {data?:{Page?:{media?:Array<Record<string,unknown>>}}};
+  return (result.data?.Page?.media ?? []).map(item => {
+    const titles = item.title && typeof item.title === "object" ? item.title as Record<string,unknown> : {};
+    const base = emptyBookMetadata(isbn); base.title = search;
+    const metadata = aniListAdapter(item, base);
+    const subtitle = [titles.romaji,titles.native].filter(value=>typeof value==="string"&&value&&value!==titles.english).join(" · ");
+    return { id:`anilist-${String(item.id ?? titles.romaji ?? search)}`, source:"AniList", title:String(titles.english ?? titles.romaji ?? search), subtitle, coverUrl:metadata.coverUrls[0]??"", metadata:toFormMetadata(metadata), coverCandidates:metadata.coverUrls };
+  });
+}
+
+async function jikanCandidates(search: string, isbn: string): Promise<TitleCandidate[]> {
+  const url = new URL("https://api.jikan.moe/v4/manga");
+  url.searchParams.set("q", search); url.searchParams.set("limit", "6"); url.searchParams.set("sfw", "true");
+  const response = await fetch(url, {signal:AbortSignal.timeout(8000),next:{revalidate:604800}});
+  if (!response.ok) return [];
+  const result = await response.json() as {data?:Array<Record<string,unknown>>};
+  return (result.data ?? []).map(item => {
+    const base = emptyBookMetadata(isbn); base.title = search;
+    const metadata = jikanAdapter(item, base);
+    const subtitle = [item.title,item.title_japanese].filter(value=>typeof value==="string"&&value&&value!==item.title_english).join(" · ");
+    return { id:`jikan-${String(item.mal_id ?? item.title ?? search)}`, source:"Jikan", title:String(item.title_english ?? item.title ?? search), subtitle, coverUrl:metadata.coverUrls[0]??"", metadata:toFormMetadata(metadata), coverCandidates:metadata.coverUrls };
+  });
+}
+
 function validGeminiEnrichment(value: unknown): value is GeminiEnrichment {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
@@ -197,10 +236,21 @@ export async function POST(request: NextRequest) {
     const { data: isAdmin, error: roleError } = await client.rpc("has_role", { required_role: "admin" });
     if (roleError || !isAdmin) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
 
-    const body = await request.json() as {isbn?: string};
+    const body = await request.json() as {isbn?: string; action?: string; query?: string};
     const enteredIsbn = normalizeIsbn(body.isbn ?? "");
     if (!validIsbn(enteredIsbn)) return NextResponse.json({ error: "Enter a valid ISBN-10 or ISBN-13." }, { status: 400 });
     const canonicalIsbn = isbn13(enteredIsbn);
+
+    if (body.action === "title-search") {
+      const query = String(body.query ?? "").replace(/\s+/g, " ").trim();
+      if (query.length < 2) return NextResponse.json({ error:"Enter at least 2 characters to search by title." }, {status:400});
+      const {data:allowed,error:limitError} = await client.rpc("consume_catalog_lookup");
+      if (limitError) throw limitError;
+      if (!allowed) return NextResponse.json({error:"Too many catalogue searches. Wait a few minutes and try again."},{status:429});
+      const results = await Promise.allSettled([aniListCandidates(query,canonicalIsbn),jikanCandidates(query,canonicalIsbn)]);
+      const candidates = results.flatMap(result=>result.status==="fulfilled"?result.value:[]);
+      return NextResponse.json({candidates});
+    }
 
     const { data: existing, error: existingError } = await client.from("books")
       .select("book_id,title,original_title,romanized_title,author,contributors,series_name,volume_number,isbn,publisher,imprint,format,book_type,demographic,age_rating,themes,description,cover_image_url,book_genres(genre)")
@@ -222,7 +272,11 @@ export async function POST(request: NextRequest) {
 
     const bibliographicResults = await Promise.allSettled([googleBooks(canonicalIsbn), openLibrary(canonicalIsbn)]);
     const found = bibliographicResults.flatMap(result => result.status === "fulfilled" && result.value.metadata ? [result.value] : []);
-    if (!found.length) return NextResponse.json({ error: "No metadata was found for this ISBN. You can still enter the volume manually." }, { status: 404 });
+    if (!found.length) return NextResponse.json({
+      source:"isbn", existingBookId:null,
+      warnings:["No edition metadata was found for this ISBN. Search by title below or enter the volume manually."],
+      metadata:toFormMetadata(emptyBookMetadata(canonicalIsbn)), coverCandidates:[],
+    });
     const base = mergeMetadata(found[0].metadata!, ...found.slice(1).map(result => result.metadata!));
     const sources = found.map(result => result.source);
 

@@ -33,6 +33,8 @@ body {
   background-color: #fefefd;
   color: #543822;
   font-family: 'Manrope', system-ui, sans-serif;
+  min-width: 320px;
+  overscroll-behavior-y: none;
 }
 button,
 input,
@@ -42,6 +44,83 @@ select {
 }
 button {
   touch-action: manipulation;
+}
+
+@media (max-width: 639px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  .tb-cut-lg {
+    clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+  }
+
+  .book-record-row {
+    grid-template-columns: 1fr;
+    gap: 3px;
+    padding: 10px 12px;
+  }
+
+  .book-record-row dd {
+    overflow-wrap: anywhere;
+  }
+
+  .parallax-stage {
+    min-height: 348px;
+    padding-inline: 0;
+  }
+
+  .parallax-track {
+    height: 230px;
+  }
+
+  .parallax-card {
+    width: 112px;
+    transform: translate3d(calc(-50% + var(--offset) * 78px), calc(var(--abs-offset) * 13px), calc(var(--abs-offset) * -52px)) rotateY(calc(var(--offset) * -16deg)) scale(calc(1 - var(--abs-offset) * .11));
+  }
+
+  .parallax-card.is-active {
+    width: 145px;
+  }
+
+  .parallax-caption {
+    gap: 10px;
+    padding-inline: 12px;
+  }
+
+  .parallax-caption strong,
+  .parallax-caption small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .parallax-instruction {
+    display: none;
+  }
+
+  .tb-button-primary,
+  .tb-button-secondary,
+  .tb-icon-button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 374px) {
+  .tb-brand-seal {
+    display: none !important;
+  }
+
+  .tb-stat-icon {
+    height: 2rem;
+    width: 2rem;
+  }
+
+  .parallax-card {
+    transform: translate3d(calc(-50% + var(--offset) * 66px), calc(var(--abs-offset) * 13px), calc(var(--abs-offset) * -52px)) rotateY(calc(var(--offset) * -16deg)) scale(calc(1 - var(--abs-offset) * .11));
+  }
 }
 ::selection {
   background: rgba(249, 210, 25, 0.42);
@@ -396,6 +475,19 @@ button {
 .parallax-track { height: 306px; perspective: 1300px; }
 .parallax-card { bottom: 8px; width: 150px; border: 1px solid rgba(122,75,35,.5); border-radius: 4px; background: #fffdf8; padding: 5px; filter: saturate(.88) brightness(.96); opacity: .8; box-shadow: 0 10px 24px rgba(84,56,34,.14); transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px), calc(var(--abs-offset) * -54px)) rotateY(calc(var(--offset) * -11deg)) scale(calc(1 - var(--abs-offset) * .1)); }
 .parallax-card.is-hovered:not(.is-active) { transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px - 10px), calc(var(--abs-offset) * -35px)) rotateY(calc(var(--offset) * -7deg)) scale(calc(1 - var(--abs-offset) * .07)); filter: saturate(1) brightness(1); box-shadow: 0 18px 34px rgba(84,56,34,.22), 0 0 0 3px rgba(196,128,12,.12); }
+
+@media (max-width: 639px) {
+  .book-record-row { grid-template-columns: 1fr; gap: 3px; padding: 10px 12px; }
+  .book-record-row dd { overflow-wrap: anywhere; }
+  .parallax-stage { min-height: 350px; padding: 20px 0 14px; }
+  .parallax-track { height: 232px; }
+  .parallax-card { width: 104px; transform: translate3d(calc(-50% + var(--offset) * 80px), calc(var(--abs-offset) * 14px), calc(var(--abs-offset) * -52px)) rotateY(calc(var(--offset) * -14deg)) scale(calc(1 - var(--abs-offset) * .1)); }
+  .parallax-card.is-active { width: 136px; }
+  .parallax-card.is-visible:not(.is-active) { transform: translate3d(calc(-50% + var(--offset) * 80px), calc(var(--abs-offset) * 14px), calc(var(--abs-offset) * -52px)) rotateY(calc(var(--offset) * -14deg)) scale(calc(1 - var(--abs-offset) * .1)); }
+  .parallax-caption { gap: 9px; padding-inline: 10px; }
+  .parallax-caption strong, .parallax-caption small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .parallax-instruction { display: none; }
+}
 .parallax-card.is-active { width: 190px; border-color: #c4800c; transform: translate3d(calc(-50% + var(--pointer) * -8px), -8px, 60px) rotateY(calc(var(--pointer) * -2deg)); box-shadow: 0 24px 45px rgba(84,56,34,.24), 0 0 0 6px rgba(249,210,25,.13); }
 .parallax-card.is-active.is-hovered { transform: translate3d(calc(-50% + var(--pointer) * -8px), -16px, 72px) rotateY(calc(var(--pointer) * -2deg)) scale(1.018); box-shadow: 0 30px 52px rgba(84,56,34,.28), 0 0 0 7px rgba(249,210,25,.16); }
 .parallax-image { aspect-ratio: 2 / 3; background: #fffaf0; }
@@ -1273,6 +1365,45 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
 .tb-hero .rotate-\[1\.5deg\] { transition: transform .45s cubic-bezier(.34,1.4,.64,1), box-shadow .45s ease; transform-style: preserve-3d; }
 .tb-hero:hover .rotate-\[1\.5deg\] { transform: rotateY(-9deg) rotateX(4deg) rotate(1.5deg) translateZ(14px); }
 @media (prefers-reduced-motion: reduce) { .tb-hero-aurora, .tb-hero-orb, .tb-hero-sheen, .tb-hero-sparkles span { animation: none; } }
+
+/* Mobile chat is a true full-screen layer. Keep desktop's floating panel intact. */
+@media (max-width: 1023px) {
+  .bon-chat-panel {
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 70;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-width: none !important;
+    max-height: none !important;
+    margin: 0 !important;
+    border-width: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  .bon-chat-header {
+    flex: 0 0 auto;
+    padding-top: max(.75rem, env(safe-area-inset-top));
+  }
+
+  .bon-chat-log {
+    min-height: 0;
+  }
+
+  .bon-chat-suggestions {
+    flex: 0 0 auto;
+    scrollbar-width: none;
+  }
+
+  .bon-chat-suggestions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .bon-chat-composer {
+    flex: 0 0 auto;
+    padding-bottom: max(.75rem, env(safe-area-inset-bottom));
+  }
+}
 
 /* Genshin-style plate: cut top-left / bottom-right corners */
 .tb-cut {

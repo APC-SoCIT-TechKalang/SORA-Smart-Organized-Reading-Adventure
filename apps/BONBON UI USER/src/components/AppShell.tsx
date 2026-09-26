@@ -40,7 +40,7 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
       <a href="#main" className="skip-link">Skip to main content</a>
       <div aria-hidden="true" className="tb-vignette pointer-events-none fixed inset-0 z-0" />
       <GameHUD query={query} onQueryChange={setQuery} />
-      <main id="main" tabIndex={-1} className={`tb-main-stage relative z-10 mx-auto flex max-w-[1480px] gap-6 px-4 pb-40 pt-5 sm:px-6 sm:pb-28 sm:pt-7 lg:gap-8 ${sidebarOpen ? 'xl:pr-[210px]' : ''}`}>
+      <main id="main" tabIndex={-1} className={`tb-main-stage relative z-10 mx-auto flex max-w-[1480px] gap-6 px-3 pb-[calc(6.5rem+env(safe-area-inset-bottom))] pt-4 min-[390px]:px-4 sm:px-6 sm:pb-28 sm:pt-7 lg:gap-8 ${sidebarOpen ? 'xl:pr-[210px]' : ''}`}>
         <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} />
         <div className="min-w-0 flex-1">
           {error && (

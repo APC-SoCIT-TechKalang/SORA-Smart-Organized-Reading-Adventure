@@ -41,13 +41,13 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
   return createPortal(
     <AnimatePresence>
       {volume && (
-        <motion.div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+        <motion.div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
           <motion.button type="button" aria-label="Close volume details" onClick={onClose} className="absolute inset-0 bg-umber/70 backdrop-blur-md" />
-          <motion.aside role="dialog" aria-modal="true" aria-labelledby="volume-title" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }} transition={{ duration: 0.28, ease: EASE }} className="tb-scroll relative z-10 max-h-[92dvh] w-full max-w-[940px] overflow-y-auto rounded-2xl border border-gold/45 bg-cream shadow-[0_28px_75px_rgba(30,17,8,.42)]">
+          <motion.aside role="dialog" aria-modal="true" aria-labelledby="volume-title" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }} transition={{ duration: 0.28, ease: EASE }} className="tb-scroll relative z-10 max-h-[94dvh] w-full max-w-[940px] overflow-y-auto rounded-t-2xl border border-gold/45 bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_28px_75px_rgba(30,17,8,.42)] sm:max-h-[92dvh] sm:rounded-2xl sm:pb-0">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gold/30 bg-umber px-5 py-3 text-sand"><span className="font-display text-xs font-700 uppercase tracking-[.14em]">Book details</span><button type="button" onClick={onClose} aria-label="Close book details" className="flex h-10 w-10 items-center justify-center rounded-full text-sand/70 transition hover:bg-sand/10 hover:text-sun"><XIcon aria-hidden="true" className="h-5 w-5" /></button></div>
 
-            <div className="grid gap-7 p-5 sm:p-8 md:grid-cols-[200px_minmax(0,1fr)]">
-              <div className="mx-auto w-[170px] md:mx-0 md:w-[200px]">
+            <div className="grid gap-5 p-4 min-[390px]:p-5 sm:gap-7 sm:p-8 md:grid-cols-[200px_minmax(0,1fr)]">
+              <div className="mx-auto w-[132px] min-[390px]:w-[150px] sm:w-[170px] md:mx-0 md:w-[200px]">
                 <div className="overflow-hidden border-[3px] border-gold bg-umber p-1 shadow-[0_16px_28px_rgba(84,56,34,.22)]">
                   {image ? <img src={image} alt={`${volume.title} cover`} className="aspect-[3/4] w-full object-cover" /> : <div className="flex aspect-[3/4] flex-col justify-end p-4" style={{ backgroundColor: volume.plateColor }}><span className="font-display text-xl font-900 uppercase leading-tight" style={{ color: volume.plateInk }}>{volume.plate.map((line) => <span key={line} className="block">{line}</span>)}</span></div>}
                 </div>
@@ -64,7 +64,7 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
                 <div className="book-record mt-6 rounded-lg"><div className="book-record-heading"><span>Publication record</span><span>Archive</span></div><BookRow label="ISBN" value={volume.isbn ?? 'Not recorded'} /><BookRow label="Original title" value={volume.originalTitle ?? 'Not recorded'} /><BookRow label="Author" value={volume.author} /><BookRow label="Publisher" value={volume.publisher ?? 'Not recorded'} /><BookRow label="Genre" value={volume.genre} /><BookRow label="Volume / chapters" value={`Volume ${volume.volume} · ${volume.chapters} chapters`} /><BookRow label="Availability" value={volume.copies > 0 ? `${volume.copies} copies available` : 'All copies on loan'} /></div>
                 <div className="mt-5 rounded-lg border border-gold/25 bg-parch/15 p-4"><p className="tb-eyebrow">About this title</p><p className="mt-2 text-sm font-600 leading-6 text-umber/70">{volume.synopsis}</p></div>
 
-                <div className="mt-6 flex flex-wrap gap-3 border-t border-gold/25 pt-5">
+                <div className="mt-6 grid gap-2.5 border-t border-gold/25 pt-5 min-[390px]:grid-cols-2 sm:flex sm:flex-wrap sm:gap-3">
                   <button type="button" disabled={busy || isBorrowed(volume.id) || Boolean(session && volume.copies <= 0)} onClick={startReading} className="tb-button-primary tb-cut-sm px-5 py-3 font-display text-xs uppercase tracking-[.1em]"><BookOpenIcon aria-hidden="true" className="h-4 w-4" />{!session ? 'Sign in to read' : isBorrowed(volume.id) ? 'On your shelf' : busy ? 'Saving…' : volume.copies > 0 ? 'Start reading' : 'Ask staff'}</button>
                   <button type="button" onClick={onClose} className="tb-button-secondary tb-cut-sm px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Back to catalog</button>
                 </div>

@@ -70,16 +70,16 @@ export function AccountDialog({ mode, onClose }: { mode: AccountMode | null; onC
   return createPortal(
     <AnimatePresence>
       {mode && (
-        <motion.div className="fixed inset-0 z-[100] flex items-center justify-center bg-umber/70 p-4 backdrop-blur-md" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-          <motion.section role="dialog" aria-modal="true" aria-labelledby="account-title" className="tb-cut-lg relative w-full max-w-lg overflow-hidden border-2 border-gold bg-cream shadow-[0_24px_80px_rgba(67,39,20,0.38)]" initial={{ y: 24, scale: .96 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: .97 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
-            <div className="flex items-center justify-between border-b border-gold/40 bg-umber px-6 py-5 text-cream">
+        <motion.div className="fixed inset-0 z-[100] flex items-end justify-center bg-umber/70 backdrop-blur-md sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+          <motion.section role="dialog" aria-modal="true" aria-labelledby="account-title" className="relative max-h-[94dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_24px_80px_rgba(67,39,20,0.38)] sm:tb-cut-lg sm:rounded-none sm:pb-0" initial={{ y: 24, scale: .96 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: .97 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gold/40 bg-umber px-4 py-4 text-cream sm:px-6 sm:py-5">
               <div><p className="font-body text-[10px] font-800 uppercase tracking-[0.28em] text-sun">Tankobonbon account</p><h2 id="account-title" className="mt-1 font-display text-2xl font-900 uppercase tracking-[0.06em]">{mode === 'login' ? 'Welcome back' : 'Pre-register'}</h2></div>
               <button type="button" aria-label="Close" onClick={onClose} className="rounded-full p-2 text-sun transition hover:bg-cream/10"><XIcon /></button>
             </div>
             {submitted ? (
               <div className="px-6 py-12 text-center"><CheckCircle2Icon className="mx-auto h-12 w-12 text-gold" /><h3 className="mt-4 font-display text-2xl font-900 text-umber">Account update</h3><p className="mx-auto mt-2 max-w-sm font-body text-sm leading-6 text-umber/65">{success}</p><button type="button" onClick={onClose} className="tb-cut-sm mt-7 border border-rust bg-rust px-6 py-3 font-display text-xs font-800 uppercase tracking-[0.14em] text-cream">Return to archive</button></div>
             ) : (
-              <form onSubmit={submit} noValidate aria-busy={busy} className="space-y-5 px-6 py-6">
+              <form onSubmit={submit} noValidate aria-busy={busy} className="space-y-4 px-4 py-5 sm:space-y-5 sm:px-6 sm:py-6">
                 {mode === 'preregister' && <div className="border border-gold/35 bg-parch/35 p-4 font-body text-sm leading-6 text-umber/75"><strong className="text-umber">Physical card activation:</strong> pre-register here, then visit the Tankobonbon location with valid ID. Staff will create and link your physical library card.</div>}
                 {mode === 'preregister' && <><Field label="First name" name="firstName" placeholder="First name" /><Field label="Last name" name="lastName" placeholder="Last name" /></>}
                 <Field label="Email address" name="identity" type="email" placeholder="you@example.com" autoFocus error={fieldErrors.email} onInput={() => setFieldErrors((current) => ({ ...current, email: undefined }))} />

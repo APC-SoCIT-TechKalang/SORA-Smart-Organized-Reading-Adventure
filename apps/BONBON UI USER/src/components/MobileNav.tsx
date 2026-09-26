@@ -45,7 +45,7 @@ export function MobileNav() {
                 type="button"
                 onClick={() => setSection(item.id)}
                 aria-current={isActive ? 'page' : undefined}
-                className={`relative flex min-h-[64px] w-full flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-150 ease-out ${
+                className={`relative flex min-h-[60px] w-full flex-col items-center justify-center gap-1 px-1 py-1.5 transition-colors duration-150 ease-out ${
                 isActive ? 'text-sand' : 'text-umber/70'}`
                 }>
                 

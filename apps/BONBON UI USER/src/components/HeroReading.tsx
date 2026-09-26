@@ -20,10 +20,10 @@ export function HeroReading() {
       <div aria-hidden="true" className="tb-hero-orb tb-hero-orb-three" />
       <div aria-hidden="true" className="tb-hero-sheen" />
       <div aria-hidden="true" className="tb-hero-sparkles">{Array.from({ length: 10 }, (_, i) => <span key={i} style={{ '--i': i } as React.CSSProperties}>✦</span>)}</div>
-      <div className="relative grid items-center gap-7 p-6 sm:p-7 md:grid-cols-[minmax(0,1fr)_195px] lg:p-8 xl:grid-cols-[minmax(0,1fr)_215px]">
+      <div className="relative grid items-center gap-5 p-4 min-[390px]:p-5 sm:gap-7 sm:p-7 md:grid-cols-[minmax(0,1fr)_195px] lg:p-8 xl:grid-cols-[minmax(0,1fr)_215px]">
         <div className="min-w-0">
           <span className="tb-eyebrow tb-hero-eyebrow inline-flex items-center gap-2 border border-gold/35 bg-parch/30 px-3 py-1.5"><span aria-hidden="true" className="h-2 w-2 rotate-45 bg-rust" />{isReading ? 'Currently reading' : 'Featured from the archive'}</span>
-          <h1 className="mt-3 max-w-2xl font-display text-[clamp(2.1rem,3.6vw,3.3rem)] font-900 uppercase leading-[.98] tracking-[-.018em]">
+          <h1 className="mt-3 max-w-2xl font-display text-[clamp(1.75rem,9vw,3.3rem)] font-900 uppercase leading-[.98] tracking-[-.018em]">
             <span className="tb-hero-title block bg-[linear-gradient(100deg,#543822_20%,#953410_45%,#c4800c_55%,#543822_80%)] bg-clip-text text-transparent [background-size:220%_100%]">{titleWithoutVolume}</span>
             {book && <span className="tb-hero-title mt-0.5 block bg-[linear-gradient(100deg,#953410_20%,#c4800c_50%,#953410_80%)] bg-clip-text text-transparent [background-size:220%_100%] [animation-delay:.15s]">VOL. {book.volume}</span>}
           </h1>
@@ -39,14 +39,14 @@ export function HeroReading() {
             <p className="mt-2 text-xs font-600 leading-5 text-umber/55">{isReading ? 'Your time is recorded automatically while you read in the library.' : 'Start a book to track reading time, quests, and library points.'}</p>
           </div>
 
-          <div className="mt-6 flex flex-wrap items-center gap-3">
+          <div className="mt-5 grid grid-cols-1 gap-2.5 min-[390px]:grid-cols-2 sm:mt-6 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
             <button type="button" onClick={() => setSection(isReading ? 'shelf' : 'catalog')} className="tb-button-primary tb-cut-sm tb-hero-cta relative overflow-hidden px-5 py-2.5 font-display text-xs uppercase tracking-[0.11em]">{isReading ? <BookOpenIcon aria-hidden="true" className="h-4 w-4" /> : <LibraryBigIcon aria-hidden="true" className="h-4 w-4" />}{isReading ? 'Read a session' : 'Read a session'}<ChevronRightIcon aria-hidden="true" className="h-4 w-4" /></button>
             <button type="button" onClick={openAccount} className="tb-button-secondary tb-cut-sm px-5 py-2.5 font-display text-xs uppercase tracking-[0.11em]"><BookmarkIcon aria-hidden="true" className="h-4 w-4 text-gold" />{session ? 'My shelf' : 'My shelf'}</button>
             {isReading && <span className="inline-flex items-center gap-1.5 text-xs font-800 text-rust"><CheckCircle2Icon aria-hidden="true" className="h-4 w-4 text-gold" />Session active</span>}
           </div>
         </div>
 
-        <div className="tb-hero-book mx-auto w-[170px] sm:w-[190px] md:w-full">
+        <div className="tb-hero-book mx-auto hidden w-[170px] min-[430px]:block sm:w-[190px] md:w-full">
           <div className="relative rotate-[1.5deg] border-[3px] border-gold bg-umber p-1.5 shadow-[12px_16px_0_rgba(84,56,34,.11)] transition-transform duration-300 hover:rotate-0 hover:-translate-y-1">
             <div aria-hidden="true" className="tb-hero-halo" />
             <div className="relative aspect-[3/4] overflow-hidden border border-sun/60 bg-parch">

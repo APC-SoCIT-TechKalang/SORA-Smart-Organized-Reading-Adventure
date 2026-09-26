@@ -28,12 +28,12 @@ export function CatalogGrid({ items, layout, onSelect }: CatalogGridProps) {
     return (
       <ul className="tb-list-panel overflow-hidden rounded-xl border border-gold/30 bg-cream/85 shadow-sm">
         {items.map((volume) => (
-          <li key={volume.id} className="tb-list-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-gold/20 px-3 py-3 last:border-b-0 sm:gap-4 sm:px-4">
-            <button type="button" onClick={() => onSelect(volume)} className="col-span-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-left sm:gap-4">
+          <li key={volume.id} className="tb-list-row grid grid-cols-1 items-center gap-3 border-b border-gold/20 px-3 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4 sm:px-4">
+            <button type="button" onClick={() => onSelect(volume)} className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 text-left sm:gap-4">
               <Cover volume={volume} compact />
               <span className="min-w-0 text-left"><span className="block truncate font-display text-sm font-800 text-umber sm:text-base">{volume.title}</span><span className="mt-0.5 block truncate text-xs font-600 text-umber/55">{volume.author} · {volume.genre}</span><span className="mt-1 flex items-center gap-1 text-[11px] font-800 text-gold"><StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />{volume.rating || 'New'}</span></span>
             </button>
-            <button type="button" disabled={busy || isBorrowed(volume.id) || Boolean(session && volume.copies <= 0)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm min-h-10 px-3 text-[10px] uppercase tracking-[.08em] sm:px-4 sm:text-xs">{actionLabel(volume)}</button>
+            <button type="button" disabled={busy || isBorrowed(volume.id) || Boolean(session && volume.copies <= 0)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm min-h-11 w-full px-3 text-[10px] uppercase tracking-[.08em] sm:w-auto sm:px-4 sm:text-xs">{actionLabel(volume)}</button>
           </li>
         ))}
       </ul>

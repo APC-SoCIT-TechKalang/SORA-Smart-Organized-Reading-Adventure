@@ -20,7 +20,7 @@ export function VisitorGuide() {
         <div className="mt-6 rounded-xl border border-gold/25 bg-parch/15 p-3 sm:p-6">
           <div className="mx-auto max-w-[680px]">
             <div className="mb-4 rounded-lg border border-gold/25 bg-cream/75 px-4 py-2.5 text-center text-[10px] font-800 uppercase tracking-[.16em] text-umber/55">Windows and reading lamps</div>
-            <div className="grid grid-cols-4 gap-2 sm:grid-cols-5 sm:gap-3" aria-label="Seat map preview">
+            <div className="grid grid-cols-2 gap-2 min-[390px]:grid-cols-4 sm:grid-cols-5 sm:gap-3" aria-label="Seat map preview">
               {SEATS.map((seat) => <div key={seat.id} aria-label={`Seat ${seat.id}: ${seat.taken ? 'taken' : 'open'}`} className={`tb-seat flex min-h-[76px] flex-col items-center justify-center rounded-lg border p-2 sm:min-h-[92px] ${seat.taken ? 'is-taken border-umber bg-umber text-sand' : 'border-gold/40 bg-cream text-umber'}`}><ArmchairIcon aria-hidden="true" className={`h-5 w-5 sm:h-6 sm:w-6 ${seat.taken ? 'text-sand/65' : 'text-gold'}`} /><strong className="mt-1.5 font-display text-xs font-900 sm:text-sm">{seat.id}</strong><span className={`mt-0.5 text-[8px] font-800 uppercase tracking-[.08em] ${seat.taken ? 'text-sand/60' : 'text-emerald-700'}`}>{seat.taken ? 'Taken' : 'Open'}</span></div>)}
             </div>
             <div className="mt-4 rounded-lg border border-gold/25 bg-cream/75 px-4 py-2.5 text-center text-[10px] font-800 uppercase tracking-[.16em] text-umber/55">Archive stacks</div>

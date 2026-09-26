@@ -31,18 +31,18 @@ export function GameHUD({ query, onQueryChange }: { query: string; onQueryChange
   return (
     <>
       <header className="tb-hud sticky top-0 z-40 border-b border-gold/35 bg-cream/90 shadow-[0_8px_30px_rgba(84,56,34,.07)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 px-4 py-3 sm:px-6 lg:grid-cols-[auto_minmax(240px,430px)_auto] lg:gap-5">
-          <button type="button" onClick={() => setSection('archive')} className="group flex min-w-0 items-center gap-2.5 text-left text-umber">
-            <span className="tb-brand-seal flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-parch/25 transition group-hover:bg-parch/50">
+        <div className="mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-3 py-2.5 min-[390px]:px-4 sm:gap-x-3 sm:px-6 sm:py-3 lg:grid-cols-[auto_minmax(240px,430px)_auto] lg:gap-5">
+          <button type="button" onClick={() => setSection('archive')} className="group flex min-w-0 overflow-hidden items-center gap-2 text-left text-umber lg:gap-2.5">
+            <span className="tb-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-parch/25 transition group-hover:bg-parch/50 sm:h-10 sm:w-10">
               <BookOpenIcon aria-hidden="true" className="h-5 w-5 text-rust" />
             </span>
-            <span className="min-w-0 font-display text-[15px] font-900 uppercase tracking-[0.08em] sm:text-lg">
-              Tankobonbon
-              <small className="block truncate font-body text-[8px] font-800 tracking-[.18em] text-gold sm:text-[9px]">S.O.R.A. Reading Adventure</small>
+            <span className="min-w-0 overflow-hidden font-display text-[12px] font-900 uppercase tracking-[0.04em] min-[390px]:text-[13px] lg:text-lg lg:tracking-[0.08em]">
+              <span className="block truncate">Tankobonbon</span>
+              <small className="hidden truncate font-body text-[9px] font-800 tracking-[.18em] text-gold lg:block">S.O.R.A. Reading Adventure</small>
             </span>
           </button>
 
-          <label className="tb-input tb-search-rune order-3 col-span-2 flex w-full items-center gap-2.5 rounded-full px-4 lg:order-none lg:col-span-1">
+          <label className="tb-input tb-search-rune order-3 col-span-2 flex w-full items-center gap-2.5 rounded-full px-3.5 lg:order-none lg:col-span-1 lg:px-4">
             <SearchIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-gold" />
             <input aria-label="Search catalog" value={query} onChange={(event) => { onQueryChange(event.target.value); setSection('catalog'); }} placeholder="Search title, author, or genre" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-umber/45" />
             {query && <button type="button" onClick={() => onQueryChange('')} className="rounded-full px-1 text-xs font-800 text-umber/50 hover:text-rust" aria-label="Clear search">Clear</button>}
@@ -60,7 +60,7 @@ export function GameHUD({ query, onQueryChange }: { query: string; onQueryChange
                   <ChevronDownIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />
                 </button>
                 {accountOpen && (
-                  <div role="menu" className="absolute right-0 z-50 mt-2 w-64 overflow-hidden rounded-xl border border-gold/35 bg-cream p-2 shadow-[0_20px_50px_rgba(64,43,29,.2)]">
+                  <div role="menu" className="fixed inset-x-3 top-[68px] z-50 overflow-hidden rounded-xl border border-gold/35 bg-cream p-2 shadow-[0_20px_50px_rgba(64,43,29,.2)] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-64">
                     <div className="border-b border-gold/25 px-3 py-2.5">
                       <p className="font-display text-sm font-800 text-umber">{displayName}’s account</p>
                       <p className="mt-1 truncate text-xs text-umber/60">{session.user.email}</p>
@@ -75,9 +75,9 @@ export function GameHUD({ query, onQueryChange }: { query: string; onQueryChange
                 )}
               </div>
             ) : (
-              <div className="flex gap-2">
-                <button type="button" onClick={() => setMode('login')} className="tb-button-secondary tb-cut-sm px-3 text-xs sm:px-4 sm:text-sm">Sign in</button>
-                <button type="button" onClick={() => setMode('preregister')} className="tb-button-primary tb-cut-sm hidden px-4 text-sm sm:inline-flex">Pre-register</button>
+              <div className="flex shrink-0 gap-2">
+                <button type="button" onClick={() => setMode('login')} className="tb-button-secondary tb-cut-sm whitespace-nowrap px-3 text-xs lg:px-4 lg:text-sm">Sign in</button>
+                <button type="button" onClick={() => setMode('preregister')} className="tb-button-primary tb-cut-sm hidden whitespace-nowrap px-4 text-sm lg:inline-flex">Pre-register</button>
               </div>
             )}
           </div>

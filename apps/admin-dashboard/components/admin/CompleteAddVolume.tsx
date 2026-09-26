@@ -9,6 +9,7 @@ type Props = { data:{shelves:Shelf[]}; close:()=>void; run:(action:()=>PromiseLi
 const initial = {title:"",original_title:"",romanized_title:"",author:"",contributors:"",series_name:"",volume_number:"",isbn:"",publisher:"",imprint:"",format:"Physical",book_type:"Manga",demographic:"",age_rating:"",themes:"",description:"",cover_image_url:"",genres:"",barcode:"",shelf:"",condition_notes:""};
 type FormKey = keyof typeof initial;
 type LookupResponse = { source:"catalog"|"isbn"; existingBookId:number|null; warnings:string[]; metadata:Partial<typeof initial>; coverCandidates?:string[]; error?:string };
+type TitleCandidate = {id:string;source:string;title:string;subtitle:string;coverUrl:string;metadata:Partial<typeof initial>;coverCandidates:string[]};
 
 export function CompleteAddVolume({data,close,run}:Props) {
   const [form,setForm] = useState(initial);
@@ -24,6 +25,10 @@ export function CompleteAddVolume({data,close,run}:Props) {
   const [lookupWarnings,setLookupWarnings] = useState<string[]>([]);
   const [lookupSource,setLookupSource] = useState<"catalog"|"isbn"|null>(null);
   const [existingBookId,setExistingBookId] = useState<number|null>(null);
+  const [titleQuery,setTitleQuery] = useState("");
+  const [titleCandidates,setTitleCandidates] = useState<TitleCandidate[]>([]);
+  const [searchingTitles,setSearchingTitles] = useState(false);
+  const [titleSearchMessage,setTitleSearchMessage] = useState("");
   const lookupVersion = useRef(0);
   const lookupAbort = useRef<AbortController|null>(null);
   const manuallyEdited = useRef(new Set<FormKey>());
@@ -53,6 +58,7 @@ export function CompleteAddVolume({data,close,run}:Props) {
       return next;
     });
     setCoverCandidates([]);setCoverIndex(0);setCoverFailed(false);
+    setTitleQuery("");setTitleCandidates([]);setTitleSearchMessage("");
     setExistingBookId(null);setLookupSource(null);setLookupMessage("");setLookupWarnings([]);
   };
   const clean = (value:string) => value.trim() || null;
@@ -99,12 +105,49 @@ export function CompleteAddVolume({data,close,run}:Props) {
         setCoverCandidates(candidates);setCoverIndex(0);setCoverFailed(false);
       }
       setExistingBookId(result.existingBookId);setLookupSource(result.source);setLookupWarnings(result.warnings||[]);
+      setTitleQuery(String(result.metadata.series_name||result.metadata.title||""));
       setLookupMessage(result.source==="catalog"?"Existing title found. Add the barcode for this new physical copy.":"Metadata loaded. Review all suggested fields before saving.");
     }catch(error){
       if(version===lookupVersion.current&&!(error instanceof DOMException&&error.name==="AbortError"))setLookupMessage(error instanceof Error?error.message:"The ISBN lookup failed.");
     }finally{
       if(version===lookupVersion.current){setLookingUp(false);lookupAbort.current=null;}
     }
+  };
+
+  const searchTitles = async () => {
+    if(searchingTitles||titleQuery.trim().length<2)return;
+    setSearchingTitles(true);setTitleCandidates([]);setTitleSearchMessage("");
+    try{
+      const {data:{session}}=await database().auth.getSession();
+      if(!session)throw new Error("Your staff session has expired. Sign in again.");
+      const response=await fetch("/api/catalog/lookup",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({action:"title-search",isbn:form.isbn,query:titleQuery})});
+      const result=await response.json() as {candidates?:TitleCandidate[];error?:string};
+      if(!response.ok)throw new Error(result.error||"The title search failed.");
+      setTitleCandidates(result.candidates||[]);
+      if(!result.candidates?.length)setTitleSearchMessage("No manga or light novel matches were found. Try a shorter series title.");
+    }catch(error){setTitleSearchMessage(error instanceof Error?error.message:"The title search failed.");}
+    finally{setSearchingTitles(false);}
+  };
+
+  const applyTitleCandidate = (candidate:TitleCandidate) => {
+    const editionFields=new Set<FormKey>(["title","isbn","publisher","imprint","format","volume_number"]);
+    setForm(current=>{
+      const next={...current};
+      for(const key of Object.keys(initial) as FormKey[]){
+        const value=candidate.metadata[key];
+        const canFill=!current[key].trim()||key==="book_type";
+        if(!editionFields.has(key)&&!manuallyEdited.current.has(key)&&canFill&&typeof value==="string"&&value.trim()){
+          next[key]=value;autoFilled.current.add(key);
+        }
+      }
+      return next;
+    });
+    if(!manuallyEdited.current.has("cover_image_url")&&!coverFile&&!form.cover_image_url){
+      const candidates=[...new Set(candidate.coverCandidates.filter(Boolean))];
+      setCoverCandidates(candidates);setCoverIndex(0);setCoverFailed(false);
+      if(candidates[0])setForm(current=>({...current,cover_image_url:candidates[0]}));
+    }
+    setTitleCandidates([]);setTitleSearchMessage(`Applied missing series details from ${candidate.source}. Review them before saving.`);
   };
 
   const tryNextCover = () => {
@@ -155,6 +198,13 @@ export function CompleteAddVolume({data,close,run}:Props) {
             <button type="button" disabled={lookingUp||!form.isbn.trim()} onClick={()=>void lookupIsbn()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#5b3924] px-5 text-xs font-bold text-white transition hover:bg-[#432617] disabled:cursor-not-allowed disabled:opacity-50">{lookingUp?<LoaderCircle className="animate-spin" size={16}/>:<Search size={16}/>} {lookingUp?"Looking up…":"Find book"}</button>
           </div>
           {lookupMessage&&<div className={`mt-3 rounded-xl border px-3.5 py-3 text-xs leading-5 ${lookupSource?"border-[#d8bd82] bg-white text-[#5b3924]":"border-[#d89a82] bg-[#fff4ee] text-[#9a3515]"}`}><div className="flex flex-wrap items-center gap-2"><strong>{lookupMessage}</strong>{lookupSource&&<span className="rounded-full bg-[#f4dfb7] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">{lookupSource==="catalog"?"Existing catalogue record":"ISBN metadata"}</span>}</div>{lookupWarnings.map((warning,index)=><p key={index} className="mt-1 text-[10px] text-[#927864]">• {warning}</p>)}</div>}
+          {lookupSource==="isbn"&&<div className="mt-4 rounded-xl border border-[#e3d1bc] bg-white p-3.5">
+            <p className="text-[10px] font-bold uppercase tracking-[.13em] text-[#795a42]">Missing manga or light novel details?</p>
+            <p className="mt-1 text-[10px] leading-4 text-[#927864]">Search by series title, then choose the correct match. Only blank fields will be filled.</p>
+            <div className="mt-3 flex gap-2"><input value={titleQuery} onChange={event=>setTitleQuery(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();void searchTitles();}}} placeholder="Series or alternate title" className={`${input} mt-0 min-w-0`}/><button type="button" disabled={searchingTitles||titleQuery.trim().length<2} onClick={()=>void searchTitles()} className="shrink-0 rounded-xl border border-[#c98a45] px-3 text-xs font-bold text-[#8a481d] disabled:opacity-50">{searchingTitles?"Searching…":"Find matches"}</button></div>
+            {titleSearchMessage&&<p className="mt-2 text-[10px] leading-4 text-[#795a42]">{titleSearchMessage}</p>}
+            {titleCandidates.length>0&&<div className="mt-3 max-h-64 space-y-2 overflow-y-auto">{titleCandidates.map(candidate=><button key={candidate.id} type="button" onClick={()=>applyTitleCandidate(candidate)} className="flex w-full items-center gap-3 rounded-lg border border-[#eadbc9] p-2 text-left transition hover:border-[#c98a45] hover:bg-[#fff8ed]">{candidate.coverUrl?<img src={candidate.coverUrl} alt="" className="h-16 w-11 shrink-0 rounded object-cover" referrerPolicy="no-referrer"/>:<span className="h-16 w-11 shrink-0 rounded bg-[#f2e5d7]"/>}<span className="min-w-0"><strong className="block text-xs text-[#54341f]">{candidate.title}</strong>{candidate.subtitle&&<span className="mt-0.5 block truncate text-[10px] text-[#927864]">{candidate.subtitle}</span>}<span className="mt-1 block text-[9px] font-bold uppercase tracking-wider text-[#b66a3c]">{candidate.source} · {candidate.metadata.book_type||"Book"}</span></span></button>)}</div>}
+          </div>}
         </section>
         <section className="grid gap-7 p-7 sm:grid-cols-[150px_1fr]">
           <div><p className={`${label} mb-2`}>Cover art</p><div className="grid shrink-0 place-items-center overflow-hidden rounded-xl border border-[#dfc69f] bg-[#fffaf1] p-2 shadow-lg" style={{width:150,height:225}}>{(localPreview||(form.cover_image_url&&!coverFailed))?<img src={localPreview||form.cover_image_url} alt="Full cover preview" className="block min-h-0 min-w-0" style={{width:"100%",height:"100%",objectFit:"contain"}} referrerPolicy="no-referrer" onError={tryNextCover}/>:<div className="text-center text-[#a17954]"><ImagePlus className="mx-auto mb-2" size={30}/><span className="text-[10px] font-bold uppercase tracking-wider">{coverFailed?"Image could not load":"Cover preview"}</span></div>}</div><p className="mt-2 text-[10px] leading-4 text-[#9d8877]">Full image preview · portrait artwork fits best.</p></div>

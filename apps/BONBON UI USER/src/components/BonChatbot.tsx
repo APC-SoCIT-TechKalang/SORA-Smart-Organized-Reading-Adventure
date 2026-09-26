@@ -202,7 +202,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   }
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 right-0 z-40 flex items-end justify-end">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(60px+env(safe-area-inset-bottom))] right-0 z-50 flex items-end justify-end sm:bottom-0 sm:z-40">
       <AnimatePresence>
         {open ?
         <motion.div
@@ -211,7 +211,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
           animate={{ opacity: 1, x: 0, y: 0 }}
           exit={{ opacity: 0, x: 60, y: 24 }}
           transition={{ duration: 0.32, ease: EASE }}
-          className="bon-chat-panel pointer-events-auto fixed inset-x-0 bottom-0 flex max-h-[85dvh] w-full origin-bottom flex-col overflow-hidden border-t-2 border-gold shadow-plate sm:inset-x-auto sm:bottom-0 sm:right-4 sm:mb-4 sm:max-h-[70dvh] sm:w-[350px] sm:rounded-t-2xl sm:border sm:border-gold md:right-2 md:mb-6 md:w-[380px] md:rounded-2xl"
+          className="bon-chat-panel pointer-events-auto fixed inset-0 flex h-[100dvh] w-full origin-bottom flex-col overflow-hidden border-t-2 border-gold shadow-plate sm:inset-x-auto sm:bottom-0 sm:left-auto sm:right-4 sm:top-auto sm:mb-4 sm:h-auto sm:max-h-[70dvh] sm:w-[350px] sm:rounded-t-2xl sm:border sm:border-gold md:right-2 md:mb-6 md:w-[380px] md:rounded-2xl"
           role="dialog"
           aria-label="Chat with BON">
           
@@ -358,7 +358,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             transition={hovered ?
             { y: { duration: 1.45, repeat: Infinity, ease: 'easeInOut' }, scale: { duration: 1.45, repeat: Infinity, ease: 'easeInOut' }, opacity: { duration: 0.2, ease: EASE, delay: 0.18 }, x: { duration: 0.2, ease: EASE, delay: 0.18 } } :
             { duration: 0.2, ease: EASE, delay: 0.18 }}
-            className="bon-dialogue-trigger pointer-events-auto absolute bottom-[151px] right-[9px] flex w-[130px] min-w-[130px] items-center justify-center gap-1.5 whitespace-nowrap border border-gold/90 bg-cream/95 px-2 py-2 shadow-[0_8px_18px_rgba(84,56,34,0.16)] md:bottom-[156px] md:right-[9px]">
+            className="bon-dialogue-trigger pointer-events-auto absolute bottom-[69px] right-2 hidden w-[116px] min-w-[116px] items-center justify-center gap-1.5 whitespace-nowrap border border-gold/90 bg-cream/95 px-2 py-2 shadow-[0_8px_18px_rgba(84,56,34,0.16)] min-[390px]:flex sm:bottom-[151px] sm:right-[9px] sm:w-[130px] sm:min-w-[130px] md:bottom-[156px]">
             
               <MessageCircleIcon aria-hidden="true" className="h-4 w-4 text-rust" />
               <span className="font-display text-[13px] font-700 uppercase tracking-[0.11em] text-umber">Ask BON</span>
@@ -394,13 +394,13 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             filter: { duration: hovered ? 1.45 : 0.3, repeat: hovered ? Infinity : 0, ease: 'easeInOut' }
           }}
           whileTap={{ scale: 0.96 }}
-          className="pointer-events-auto relative block h-[142px] w-[142px] rounded-full drop-shadow-[0_3px_6px_rgba(84,56,34,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rust md:h-[146px] md:w-[146px]">
+          className={`pointer-events-auto relative h-[72px] w-[72px] rounded-full drop-shadow-[0_3px_6px_rgba(84,56,34,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rust sm:h-[142px] sm:w-[142px] md:h-[146px] md:w-[146px] ${open ? 'hidden lg:block' : 'block'}`}>
           
           <img
             src={hovered ? BON_EXCITED_FRAMES[excitedFrame] : blinking ? BON_BLINK : BON_ART}
             alt="BON, the Tankobonbon archive guide, waving hello"
             draggable={false}
-            className="absolute bottom-0 left-1/2 h-[142px] w-auto max-w-none -translate-x-1/2 select-none md:h-[146px]" />
+            className="absolute bottom-0 left-1/2 h-[72px] w-auto max-w-none -translate-x-1/2 select-none sm:h-[142px] md:h-[146px]" />
           
         </motion.button>
       </div>
