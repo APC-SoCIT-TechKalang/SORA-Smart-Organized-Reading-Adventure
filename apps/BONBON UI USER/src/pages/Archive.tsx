@@ -30,7 +30,7 @@ export function Archive() {
     <div className="space-y-8 sm:space-y-10">
       <HeroReading />
       <StatStrip />
-      <section className="min-w-0">
+      <section className="min-w-0 pt-20 sm:pt-24 lg:pt-0">
         <SectionHeading title="New arrivals" meta="Fresh in the stacks" />
         <div className="mt-5 overflow-hidden border-y border-gold/30 bg-cream/40 px-2 py-4 sm:px-4">
           {arrivalItems.length ? (

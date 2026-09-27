@@ -476,6 +476,89 @@ button {
 .parallax-card { bottom: 8px; width: 150px; border: 1px solid rgba(122,75,35,.5); border-radius: 4px; background: #fffdf8; padding: 5px; filter: saturate(.88) brightness(.96); opacity: .8; box-shadow: 0 10px 24px rgba(84,56,34,.14); transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px), calc(var(--abs-offset) * -54px)) rotateY(calc(var(--offset) * -11deg)) scale(calc(1 - var(--abs-offset) * .1)); }
 .parallax-card.is-hovered:not(.is-active) { transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px - 10px), calc(var(--abs-offset) * -35px)) rotateY(calc(var(--offset) * -7deg)) scale(calc(1 - var(--abs-offset) * .07)); filter: saturate(1) brightness(1); box-shadow: 0 18px 34px rgba(84,56,34,.22), 0 0 0 3px rgba(196,128,12,.12); }
 
+/* Keep BON and her callout as one responsive launcher system. */
+.bon-launcher-group {
+  /* Mobile: big enough that BON reads as a character, not an icon. */
+  --bon-launcher-size: clamp(5.75rem, 26vw, 7rem);
+}
+.bon-launcher {
+  width: var(--bon-launcher-size);
+  height: var(--bon-launcher-size);
+}
+.bon-launcher-image {
+  height: var(--bon-launcher-size);
+}
+/* The callout sizes to its label instead of a fixed width, so "Ask BON"
+   never clips regardless of font loading or launcher size.
+   Mobile: a compact speech bubble centred over BON's head with its tail
+   pointing down at her, so it reads as her speaking instead of a label
+   floating over page content. `translate` (not `transform`) centres it so
+   Framer Motion's transform animations still compose on top. */
+.bon-launcher-group .bon-dialogue-trigger {
+  left: 50%;
+  right: auto;
+  bottom: calc(var(--bon-launcher-size) + .45rem);
+  translate: -50% 0;
+  transform-origin: 50% 100%;
+  width: max-content;
+  min-width: 0;
+  max-width: none;
+  min-height: 2.125rem;
+  gap: .35rem;
+  padding: .3rem .75rem;
+  box-shadow: inset 0 0 0 2px rgba(239,206,142,.22), 0 6px 14px rgba(84,56,34,.16);
+}
+.bon-launcher-group .bon-dialogue-trigger::before {
+  inset: 3px;
+}
+.bon-launcher-group .bon-dialogue-trigger > svg {
+  flex-shrink: 0;
+  width: .8rem;
+  height: .8rem;
+}
+.bon-launcher-group .bon-dialogue-trigger > span:not([aria-hidden]) {
+  font-size: .6875rem;
+  line-height: 1;
+  letter-spacing: .1em;
+}
+.bon-launcher-group .bon-dialogue-trigger > span[aria-hidden] {
+  right: auto;
+  bottom: -6px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-bottom-width: 2px;
+  border-right-width: 2px;
+  transform: rotate(45deg);
+}
+@media (min-width: 1024px) {
+  .bon-launcher-group {
+    --bon-launcher-size: clamp(7rem, 9vw, 8rem);
+  }
+  .bon-launcher-group .bon-dialogue-trigger {
+    left: auto;
+    right: calc(var(--bon-launcher-size) * .05);
+    bottom: calc(var(--bon-launcher-size) + .5rem);
+    translate: none;
+    min-height: 2.75rem;
+    gap: .375rem;
+    padding: .5rem 1rem;
+    box-shadow: inset 0 0 0 3px rgba(239,206,142,.2), 0 9px 24px rgba(84,56,34,.14);
+  }
+  .bon-launcher-group .bon-dialogue-trigger::before {
+    inset: 4px;
+  }
+  .bon-launcher-group .bon-dialogue-trigger > svg {
+    width: .9rem;
+    height: .9rem;
+  }
+  .bon-launcher-group .bon-dialogue-trigger > span:not([aria-hidden]) {
+    font-size: .8125rem;
+    letter-spacing: .11em;
+  }
+}
+
 @media (max-width: 639px) {
   .book-record-row { grid-template-columns: 1fr; gap: 3px; padding: 10px 12px; }
   .book-record-row dd { overflow-wrap: anywhere; }
@@ -1401,7 +1484,18 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
 
   .bon-chat-composer {
     flex: 0 0 auto;
-    padding-bottom: max(.75rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Desktop chat is a fixed-height floating card beside BON. A definite height
+   (rather than max-height + auto) lets the log flex and scroll while the
+   header and composer always stay visible. */
+@media (min-width: 1024px) {
+  .bon-chat-panel {
+    width: 380px;
+    height: min(600px, calc(100dvh - 7rem));
+    margin-bottom: 1rem;
+    border-radius: 1rem;
   }
 }
 
