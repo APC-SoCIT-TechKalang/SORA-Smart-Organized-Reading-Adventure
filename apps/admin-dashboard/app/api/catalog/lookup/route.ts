@@ -25,6 +25,8 @@ export const runtime = "nodejs";
 type SourceResult = { metadata: BookMetadata | null; source: string };
 type TitleCandidate = { id:string; source:string; title:string; subtitle:string; coverUrl:string; metadata:FormMetadata; coverCandidates:string[] };
 type GeminiEnrichment = {
+  original_title: string;
+  romanized_title: string;
   series_name: string;
   volume_number: string;
   imprint: string;
@@ -170,11 +172,18 @@ async function jikanCandidates(search: string, isbn: string): Promise<TitleCandi
   });
 }
 
-function validGeminiEnrichment(value: unknown): value is GeminiEnrichment {
-  if (!value || typeof value !== "object") return false;
+function parseEnrichment(value: unknown): GeminiEnrichment | null {
+  if (!value || typeof value !== "object") return null;
   const item = value as Record<string, unknown>;
-  const strings = ["series_name", "volume_number", "imprint", "age_rating", "book_type", "demographic", "themes", "genres"];
-  return strings.every(key => typeof item[key] === "string") && ["low", "medium", "high"].includes(String(item.confidence));
+  const stringValue = (key: string) => typeof item[key] === "string" ? String(item[key]) : "";
+  const confidence = String(item.confidence ?? "low");
+  return ["low", "medium", "high"].includes(confidence) ? {
+    original_title: stringValue("original_title"), romanized_title: stringValue("romanized_title"),
+    series_name: stringValue("series_name"), volume_number: stringValue("volume_number"),
+    imprint: stringValue("imprint"), age_rating: stringValue("age_rating"),
+    book_type: stringValue("book_type"), demographic: stringValue("demographic"),
+    themes: stringValue("themes"), genres: stringValue("genres"), confidence: confidence as "low" | "medium" | "high",
+  } : null;
 }
 
 async function gemini(metadata: FormMetadata): Promise<GeminiEnrichment | null> {
@@ -196,11 +205,11 @@ async function gemini(metadata: FormMetadata): Promise<GeminiEnrichment | null> 
         responseSchema: {
           type: "OBJECT",
           properties: {
-        series_name: { type: "STRING" }, volume_number: { type: "STRING" }, imprint: { type: "STRING" }, age_rating: { type: "STRING" }, book_type: { type: "STRING" },
+        original_title: { type: "STRING" }, romanized_title: { type: "STRING" }, series_name: { type: "STRING" }, volume_number: { type: "STRING" }, imprint: { type: "STRING" }, age_rating: { type: "STRING" }, book_type: { type: "STRING" },
             demographic: { type: "STRING" }, themes: { type: "STRING" }, genres: { type: "STRING" },
             confidence: { type: "STRING", enum: ["low", "medium", "high"] },
           },
-          required: ["series_name", "volume_number", "imprint", "age_rating", "book_type", "demographic", "themes", "genres", "confidence"],
+          required: ["original_title", "romanized_title", "series_name", "volume_number", "imprint", "age_rating", "book_type", "demographic", "themes", "genres", "confidence"],
         },
       },
     }),
@@ -211,7 +220,7 @@ async function gemini(metadata: FormMetadata): Promise<GeminiEnrichment | null> 
   const output = result.candidates?.[0]?.content?.parts?.map(part => part.text ?? "").join("") ?? "";
   try {
     const parsed: unknown = JSON.parse(output);
-    return validGeminiEnrichment(parsed) ? parsed : null;
+    return parseEnrichment(parsed);
   } catch { return null; }
 }
 
@@ -223,7 +232,7 @@ async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | nu
     title: metadata.title, author: metadata.author, publisher: metadata.publisher,
     description: metadata.description, series: metadata.series_name, volume: metadata.volume_number,
   };
-  const prompt = `Normalize this library book for manga/light-novel cataloging. Extract the canonical series title from an edition title such as "Series 1: Subtitle". Use the ISBN, title, author, publisher, and your learned catalog knowledge to make best-effort suggestions for missing volume, imprint, age rating, demographic, genres, and themes; leave a field empty when the evidence is genuinely uncertain. Never override a non-empty source value. Return JSON only with exactly these string fields: series_name, volume_number, imprint, age_rating, book_type, demographic, themes, genres, confidence. book_type must be Manga, Light Novel, Novel, Comic, or Other. demographic must be Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. genres/themes are short comma-separated labels. Evidence:\n${JSON.stringify(evidence)}`;
+  const prompt = `Normalize this library book for manga/light-novel cataloging. Extract original_title, romanized_title, and the canonical series title from an edition title such as "Series 1: Subtitle". Use the ISBN, title, author, publisher, and your learned catalog knowledge to make best-effort suggestions for missing volume, imprint, age rating, demographic, genres, and themes; leave a field empty when the evidence is genuinely uncertain. Never override a non-empty source value. Return JSON only with exactly these string fields: original_title, romanized_title, series_name, volume_number, imprint, age_rating, book_type, demographic, themes, genres, confidence. book_type must be Manga, Light Novel, Novel, Comic, or Other. demographic must be Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. genres/themes are short comma-separated labels. Evidence:\n${JSON.stringify(evidence)}`;
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -241,10 +250,12 @@ async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | nu
   if (!response.ok) return null;
   const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const output = result.choices?.[0]?.message?.content?.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim() ?? "";
-  try { const parsed: unknown = JSON.parse(output); return validGeminiEnrichment(parsed) ? parsed : null; } catch { return null; }
+  try { const parsed: unknown = JSON.parse(output); return parseEnrichment(parsed); } catch { return null; }
 }
 
 function applyGemini(metadata: FormMetadata, enrichment: GeminiEnrichment) {
+  metadata.original_title ||= enrichment.original_title.trim();
+  metadata.romanized_title ||= enrichment.romanized_title.trim();
   metadata.series_name ||= enrichment.series_name.trim();
   metadata.volume_number ||= enrichment.volume_number.trim();
   metadata.imprint ||= enrichment.imprint.trim();
