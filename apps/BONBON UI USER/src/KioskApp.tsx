@@ -81,11 +81,11 @@ export function KioskApp() {
     return () => { events.forEach(event => window.removeEventListener(event, resetIdle)); window.clearTimeout(idleTimer.current); window.clearTimeout(maximum); };
   }, [account, endSession]);
 
-  return <main className="tb-field min-h-screen bg-cream text-umber">
-    <header className="border-b border-gold/35 bg-umber px-5 py-4 text-cream shadow-lg">
-      <div className="mx-auto flex max-w-5xl items-center gap-3"><span className="grid h-11 w-11 place-items-center rounded-full border border-sun/50"><BookOpenIcon className="h-5 w-5 text-sun" /></span><div><strong className="font-display text-xl font-900 uppercase tracking-[.08em]">Tankobonbon</strong><p className="text-[10px] font-800 uppercase tracking-[.2em] text-sand/70">Store kiosk</p></div></div>
+  return <main className="tb-field tb-world-shell min-h-screen text-umber">
+    <header className="tb-hud sticky top-0 z-40 border-b border-gold/35 bg-cream/90 shadow-[0_8px_30px_rgba(84,56,34,.07)] backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-3 py-2.5 min-[390px]:px-4 sm:px-6 sm:py-3"><div className="flex min-w-0 items-center gap-2 text-umber sm:gap-3"><span className="tb-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-parch/25 sm:h-11 sm:w-11"><BookOpenIcon className="h-5 w-5 text-rust" /></span><span className="min-w-0 font-display font-900 uppercase leading-none tracking-[.04em] sm:tracking-[.07em]"><span className="block truncate text-[15px] min-[390px]:text-lg sm:text-2xl">Tankobonbon</span><small className="mt-1 block truncate font-body text-[7px] font-800 leading-tight tracking-[.11em] text-gold min-[390px]:text-[8px] sm:text-[10px]">S.O.R.A. Reading Adventure</small></span></div><span className="tb-eyebrow hidden sm:block">Store kiosk</span></div>
     </header>
-    <div className="mx-auto grid min-h-[calc(100vh-76px)] max-w-5xl place-items-center px-5 py-10">
+    <div className="mx-auto grid min-h-[calc(100vh-76px)] max-w-[1480px] place-items-center px-4 py-8 sm:px-6 sm:py-12">
       {account ? <AccountView account={account} endSession={endSession} /> :
        status === 'waiting' && request ? <WaitingView code={request.pairing_code} cancel={endSession} /> :
        <WelcomeView status={status} message={message} begin={begin} />}
