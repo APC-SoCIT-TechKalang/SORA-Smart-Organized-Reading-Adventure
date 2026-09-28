@@ -1,7 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpenIcon, LogOutIcon, RadioIcon, ShieldCheckIcon } from 'lucide-react';
-import { errorMessage, setupMessage } from './lib/supabase';
+import { database, errorMessage } from './lib/supabase';
 import { startWebNfcScan, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
 
 type KioskAccount = { profile: { first_name: string; last_name: string }; membership: { number: string; expires_at: string | null }; progress: { points: number; streak: number }; reading_sessions: number };
@@ -11,13 +10,6 @@ const MAX_SESSION_MS = 15 * 60 * 1000;
 const SESSION_STARTED_KEY = 'sora.kiosk.session-started-at';
 const ACCOUNT_KEY = 'sora.kiosk.account';
 
-function kioskAuth() {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) throw new Error(setupMessage);
-  return createClient(url, key, { auth: { storage: window.sessionStorage, storageKey: 'sora.kiosk.auth', persistSession: true, autoRefreshToken: false, detectSessionInUrl: false } });
-}
-
 export function KioskApp() {
   const [account, setAccount] = useState<KioskAccount | null>(null);
   const [status, setStatus] = useState<KioskStatus>('ready');
@@ -25,7 +17,7 @@ export function KioskApp() {
   const idleTimer = useRef<number>();
 
   const clearSession = useCallback(async () => {
-    try { await kioskAuth().auth.signOut({ scope: 'local' }); } catch { /* Clear local kiosk state even if network is unavailable. */ }
+    try { await database().auth.signOut({ scope: 'local' }); } catch { /* Clear local kiosk state even if network is unavailable. */ }
     window.sessionStorage.removeItem(SESSION_STARTED_KEY);
     window.sessionStorage.removeItem(ACCOUNT_KEY);
     setAccount(null); setStatus('ready'); setMessage('');
@@ -34,11 +26,14 @@ export function KioskApp() {
   const establishSession = useCallback(async ({ tokenHash, account: nextAccount }: BridgeAuthentication) => {
     setStatus('authorizing'); setMessage('');
     try {
-      const { data, error } = await kioskAuth().auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
+      // Use the same Supabase client/storage as the BONBON User UI. This is
+      // what makes a successful card tap equivalent to normal customer login.
+      const { data, error } = await database().auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
       if (error || !data.session) throw error || new Error('The card session could not be verified.');
       window.sessionStorage.setItem(SESSION_STARTED_KEY, String(Date.now()));
       setAccount(nextAccount as KioskAccount);
       setStatus('ready');
+      window.location.assign('/');
     } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
 
@@ -64,7 +59,7 @@ export function KioskApp() {
     const restore = async () => {
       const startedAt = Number(window.sessionStorage.getItem(SESSION_STARTED_KEY));
       if (!startedAt || Date.now() - startedAt > MAX_SESSION_MS) return void clearSession();
-      const { data, error } = await kioskAuth().auth.getUser();
+      const { data, error } = await database().auth.getUser();
       // getUser validates the stored token with Supabase rather than trusting a
       // cached session after a refresh.
       if (error || !data.user) return void clearSession();

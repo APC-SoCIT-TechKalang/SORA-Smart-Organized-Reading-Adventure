@@ -173,12 +173,36 @@ function useLibraryState() {
       const { error } = await database().auth.signOut({ scope: 'local' });
       if (error) throw error;
       applySession(null);
+      window.sessionStorage.removeItem('sora.kiosk.session-started-at');
+      window.sessionStorage.removeItem('sora.kiosk.account');
       setSection('archive');
       message('Logged out successfully.', 'You have been signed out of your library account.');
       return true;
     } catch (err) { message('Action could not be completed', errorMessage(err)); return false; }
     finally { mutation.current = false; setBusy(false); }
   }
+  useEffect(() => {
+    if (!session || !window.sessionStorage.getItem('sora.kiosk.session-started-at')) return;
+    const startedAt = Number(window.sessionStorage.getItem('sora.kiosk.session-started-at'));
+    const expire = async () => {
+      await database().auth.signOut({ scope: 'local' });
+      window.sessionStorage.removeItem('sora.kiosk.session-started-at');
+      window.sessionStorage.removeItem('sora.kiosk.account');
+      applySession(null);
+    };
+    let idleTimer = window.setTimeout(() => void expire(), 2 * 60 * 1000);
+    const maxTimer = window.setTimeout(() => void expire(), Math.max(0, startedAt + 15 * 60 * 1000 - Date.now()));
+    const resetIdle = () => {
+      window.clearTimeout(idleTimer);
+      idleTimer = window.setTimeout(() => void expire(), 2 * 60 * 1000);
+    };
+    // Any interaction resets the idle timer; the max timer remains absolute.
+    (['pointerdown', 'keydown', 'touchstart'] as const).forEach(event => window.addEventListener(event, resetIdle));
+    return () => {
+      window.clearTimeout(idleTimer); window.clearTimeout(maxTimer);
+      (['pointerdown', 'keydown', 'touchstart'] as const).forEach(event => window.removeEventListener(event, resetIdle));
+    };
+  }, [session, applySession]);
   const dismissToast = useCallback((id: string) => {
     setToasts(items => items.filter(toast => toast.id !== id));
   }, []);
