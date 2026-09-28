@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpenIcon, ChevronDownIcon, LogOutIcon, SearchIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
 
-export function GameHUD({ query, onQueryChange }: { query: string; onQueryChange: (value: string) => void }) {
+export function GameHUD() {
   const [mode, setMode] = useState<'login' | 'preregister' | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageAccountOpen, setManageAccountOpen] = useState(false);
@@ -31,24 +31,18 @@ export function GameHUD({ query, onQueryChange }: { query: string; onQueryChange
   return (
     <>
       <header className="tb-hud sticky top-0 z-40 border-b border-gold/35 bg-cream/90 shadow-[0_8px_30px_rgba(84,56,34,.07)] backdrop-blur-xl">
-        <div className="mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-3 py-2.5 min-[390px]:px-4 sm:gap-x-3 sm:px-6 sm:py-3 lg:grid-cols-[auto_minmax(240px,430px)_auto] lg:gap-5">
-          <button type="button" onClick={() => setSection('archive')} className="group flex min-w-0 overflow-hidden items-center gap-2 text-left text-umber lg:gap-2.5">
-            <span className="tb-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-parch/25 transition group-hover:bg-parch/50 sm:h-10 sm:w-10">
+        <div className="mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5 min-[390px]:gap-3 min-[390px]:px-4 sm:px-6 sm:py-3">
+          <button type="button" onClick={() => setSection('archive')} className="group flex min-w-0 items-center gap-2 text-left text-umber sm:gap-3">
+            <span className="tb-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-parch/25 transition group-hover:bg-parch/50 sm:h-11 sm:w-11">
               <BookOpenIcon aria-hidden="true" className="h-5 w-5 text-rust" />
             </span>
-            <span className="min-w-0 overflow-hidden font-display text-[12px] font-900 uppercase tracking-[0.04em] min-[390px]:text-[13px] lg:text-lg lg:tracking-[0.08em]">
-              <span className="block truncate">Tankobonbon</span>
-              <small className="hidden truncate font-body text-[9px] font-800 tracking-[.18em] text-gold lg:block">S.O.R.A. Reading Adventure</small>
+            <span className="min-w-0 font-display font-900 uppercase leading-none tracking-[0.04em] sm:tracking-[0.07em]">
+              <span className="block truncate text-[15px] min-[390px]:text-lg sm:text-2xl lg:text-[28px]">Tankobonbon</span>
+              <small className="mt-1 block truncate font-body text-[7px] font-800 leading-tight tracking-[.11em] text-gold min-[390px]:text-[8px] sm:mt-1.5 sm:text-[10px] sm:tracking-[.17em] lg:text-xs">S.O.R.A. Reading Adventure</small>
             </span>
           </button>
 
-          <label className="tb-input tb-search-rune order-3 col-span-2 flex w-full items-center gap-2.5 rounded-full px-3.5 lg:order-none lg:col-span-1 lg:px-4">
-            <SearchIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-gold" />
-            <input aria-label="Search catalog" value={query} onChange={(event) => { onQueryChange(event.target.value); setSection('catalog'); }} placeholder="Search title, author, or genre" className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-umber/45" />
-            {query && <button type="button" onClick={() => onQueryChange('')} className="rounded-full px-1 text-xs font-800 text-umber/50 hover:text-rust" aria-label="Clear search">Clear</button>}
-          </label>
-
-          <div className="justify-self-end">
+          <div className="min-w-0 justify-self-end">
             {session ? (
               <div className="relative">
                 <button type="button" aria-expanded={accountOpen} aria-haspopup="menu" onClick={() => setAccountOpen((value) => !value)} className="tb-button-secondary tb-cut-sm min-h-11 px-2.5 py-1.5 text-left">
