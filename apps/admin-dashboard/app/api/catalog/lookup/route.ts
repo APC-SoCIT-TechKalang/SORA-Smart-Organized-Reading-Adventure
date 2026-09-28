@@ -239,15 +239,24 @@ async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | nu
       "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://sora-admin.vercel.app",
       "X-Title": "SORA Admin catalog matcher",
   };
-  const requestBody = { model, messages: [{ role: "user", content: prompt }], temperature: 0.1, max_tokens: 400 };
+  const metadataProperties = {
+    original_title: { type: "string" }, romanized_title: { type: "string" }, series_name: { type: "string" },
+    volume_number: { type: "string" }, imprint: { type: "string" }, age_rating: { type: "string" },
+    book_type: { type: "string" }, demographic: { type: "string" }, themes: { type: "string" },
+    genres: { type: "string" }, confidence: { type: "string", enum: ["low", "medium", "high"] },
+  };
+  const tool = { type: "function", function: { name: "return_catalog_metadata", description: "Return normalized book metadata", parameters: { type: "object", properties: metadataProperties, required: Object.keys(metadataProperties), additionalProperties: false } } };
+  const requestBody = {
+    model, messages: [{ role: "user", content: prompt }], temperature: 0.1, max_tokens: 400,
+    tools: [tool], tool_choice: { type: "function", function: { name: "return_catalog_metadata" } },
+  };
   let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST", headers, body: JSON.stringify({ ...requestBody, response_format: { type: "json_object" } }), signal: AbortSignal.timeout(15000),
+    method: "POST", headers, body: JSON.stringify(requestBody), signal: AbortSignal.timeout(15000),
   });
-  // Some inexpensive providers do not implement OpenAI JSON mode even though
-  // they reliably follow a JSON-only prompt. Retry once without that option.
+  // Retry with a JSON-only prompt when the selected provider lacks tool calls.
   if (!response.ok && [400, 404, 422].includes(response.status)) {
     response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST", headers, body: JSON.stringify(requestBody), signal: AbortSignal.timeout(15000),
+      method: "POST", headers, body: JSON.stringify({ model, messages: [{ role: "user", content: prompt }], temperature: 0.1, max_tokens: 400, response_format: { type: "json_object" } }), signal: AbortSignal.timeout(15000),
     });
   }
   if (!response.ok) {
@@ -255,8 +264,11 @@ async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | nu
     console.error("OpenRouter catalog enrichment failed", response.status, failure?.error?.message || "Unknown provider error");
     return null;
   }
-  const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const output = result.choices?.[0]?.message?.content?.trim() ?? "";
+  const result = await response.json() as { choices?: Array<{ message?: { content?: string | Array<{type?:string;text?:string}>; tool_calls?: Array<{function?:{arguments?:string}}> } }> };
+  const message = result.choices?.[0]?.message;
+  const toolArguments = message?.tool_calls?.[0]?.function?.arguments ?? "";
+  const content = typeof message?.content === "string" ? message.content : message?.content?.map(item => item.text ?? "").join("") ?? "";
+  const output = toolArguments || content;
   const objectText = output.match(/\{[\s\S]*\}/)?.[0] ?? "";
   try {
     const enrichment = parseEnrichment(JSON.parse(objectText));
