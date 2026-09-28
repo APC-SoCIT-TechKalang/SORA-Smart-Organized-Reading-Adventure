@@ -233,24 +233,39 @@ async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | nu
     description: metadata.description, series: metadata.series_name, volume: metadata.volume_number,
   };
   const prompt = `Normalize this library book for manga/light-novel cataloging. Extract original_title, romanized_title, and the canonical series title from an edition title such as "Series 1: Subtitle". Use the ISBN, title, author, publisher, and your learned catalog knowledge to make best-effort suggestions for missing volume, imprint, age rating, demographic, genres, and themes; leave a field empty when the evidence is genuinely uncertain. Never override a non-empty source value. Return JSON only with exactly these string fields: original_title, romanized_title, series_name, volume_number, imprint, age_rating, book_type, demographic, themes, genres, confidence. book_type must be Manga, Light Novel, Novel, Comic, or Other. demographic must be Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. genres/themes are short comma-separated labels. Evidence:\n${JSON.stringify(evidence)}`;
-  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-    method: "POST",
-    headers: {
+  const headers = {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
       "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://sora-admin.vercel.app",
       "X-Title": "SORA Admin catalog matcher",
-    },
-    body: JSON.stringify({
-      model, messages: [{ role: "user", content: prompt }], temperature: 0.1, max_tokens: 300,
-      response_format: { type: "json_object" },
-    }),
-    signal: AbortSignal.timeout(10000),
+  };
+  const requestBody = { model, messages: [{ role: "user", content: prompt }], temperature: 0.1, max_tokens: 400 };
+  let response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST", headers, body: JSON.stringify({ ...requestBody, response_format: { type: "json_object" } }), signal: AbortSignal.timeout(15000),
   });
-  if (!response.ok) return null;
+  // Some inexpensive providers do not implement OpenAI JSON mode even though
+  // they reliably follow a JSON-only prompt. Retry once without that option.
+  if (!response.ok && [400, 404, 422].includes(response.status)) {
+    response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST", headers, body: JSON.stringify(requestBody), signal: AbortSignal.timeout(15000),
+    });
+  }
+  if (!response.ok) {
+    const failure = await response.json().catch(() => null) as { error?: { message?: string } } | null;
+    console.error("OpenRouter catalog enrichment failed", response.status, failure?.error?.message || "Unknown provider error");
+    return null;
+  }
   const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
-  const output = result.choices?.[0]?.message?.content?.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim() ?? "";
-  try { const parsed: unknown = JSON.parse(output); return parseEnrichment(parsed); } catch { return null; }
+  const output = result.choices?.[0]?.message?.content?.trim() ?? "";
+  const objectText = output.match(/\{[\s\S]*\}/)?.[0] ?? "";
+  try {
+    const enrichment = parseEnrichment(JSON.parse(objectText));
+    if (!enrichment) console.error("OpenRouter catalog enrichment returned an invalid confidence value");
+    return enrichment;
+  } catch {
+    console.error("OpenRouter catalog enrichment did not return valid JSON");
+    return null;
+  }
 }
 
 function applyGemini(metadata: FormMetadata, enrichment: GeminiEnrichment) {
