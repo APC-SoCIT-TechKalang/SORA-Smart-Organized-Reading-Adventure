@@ -35,7 +35,10 @@ is required after changing them.
 ## Supabase configuration
 
 1. Apply `supabase/migrations/001_initial_schema.sql` through
-   `006_isbn_cataloging.sql` to a staging project, then production.
+   `008_repair_auth_profiles.sql` to a staging project, then production.
+   Run `seed.sql` before `003_application_integration.sql` so the reader role
+   and starting rank are available to the Auth trigger. Migration 008 is
+   idempotent and repairs Auth users that are missing their `profiles` row.
 2. Configure Supabase Auth **Site URL** and **Additional Redirect URLs** for the
    reader site's production URL, preview URL if used, and local development URL.
    Email confirmation uses the reader site's current origin.
