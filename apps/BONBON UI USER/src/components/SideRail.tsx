@@ -52,11 +52,6 @@ export function SideRail({ open, onToggle }: { open: boolean; onToggle: () => vo
           })}
         </ul>
       </div>
-      <div className="mt-4 px-3">
-        <p className="tb-eyebrow">Library status</p>
-        <div className="mt-2 flex items-center gap-2 text-xs font-700 text-umber/65"><span aria-hidden="true" className="h-2 w-2 rounded-full bg-emerald-600" />Live collection data</div>
-        <p className="mt-2 text-[11px] font-600 leading-5 text-umber/50">Use keys 1–5 to move between sections.</p>
-      </div>
       </>}
     </nav>
   );
