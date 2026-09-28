@@ -27,6 +27,8 @@ type TitleCandidate = { id:string; source:string; title:string; subtitle:string;
 type GeminiEnrichment = {
   series_name: string;
   volume_number: string;
+  imprint: string;
+  age_rating: string;
   book_type: string;
   demographic: string;
   themes: string;
@@ -171,7 +173,7 @@ async function jikanCandidates(search: string, isbn: string): Promise<TitleCandi
 function validGeminiEnrichment(value: unknown): value is GeminiEnrichment {
   if (!value || typeof value !== "object") return false;
   const item = value as Record<string, unknown>;
-  const strings = ["series_name", "volume_number", "book_type", "demographic", "themes", "genres"];
+  const strings = ["series_name", "volume_number", "imprint", "age_rating", "book_type", "demographic", "themes", "genres"];
   return strings.every(key => typeof item[key] === "string") && ["low", "medium", "high"].includes(String(item.confidence));
 }
 
@@ -183,7 +185,7 @@ async function gemini(metadata: FormMetadata): Promise<GeminiEnrichment | null> 
     description: metadata.description, source_categories: metadata.genres,
     series: metadata.series_name, volume: metadata.volume_number,
   };
-  const prompt = `Clean and classify library metadata using ONLY this evidence JSON. Never add unstated factual claims. Keep existing series and volume. Return empty strings when evidence is insufficient. book_type: Manga, Light Novel, Novel, Comic, or Other. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Genres and themes are short comma-separated labels; exclude awards, formats, demographics, and marketing phrases.\n${JSON.stringify(evidence)}`;
+  const prompt = `Clean and classify this library metadata. Preserve existing values. Use learned catalog knowledge only for strong, recognizable matches; otherwise return empty strings rather than guessing. Return series_name, volume_number, imprint, age_rating, book_type, demographic, themes, genres, and confidence as JSON. book_type: Manga, Light Novel, Novel, Comic, or Other. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Genres and themes are short comma-separated labels; exclude awards, formats, demographics, and marketing phrases.\n${JSON.stringify(evidence)}`;
   const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": process.env.GEMINI_API_KEY },
@@ -194,11 +196,11 @@ async function gemini(metadata: FormMetadata): Promise<GeminiEnrichment | null> 
         responseSchema: {
           type: "OBJECT",
           properties: {
-            series_name: { type: "STRING" }, volume_number: { type: "STRING" }, book_type: { type: "STRING" },
+        series_name: { type: "STRING" }, volume_number: { type: "STRING" }, imprint: { type: "STRING" }, age_rating: { type: "STRING" }, book_type: { type: "STRING" },
             demographic: { type: "STRING" }, themes: { type: "STRING" }, genres: { type: "STRING" },
             confidence: { type: "STRING", enum: ["low", "medium", "high"] },
           },
-          required: ["series_name", "volume_number", "book_type", "demographic", "themes", "genres", "confidence"],
+          required: ["series_name", "volume_number", "imprint", "age_rating", "book_type", "demographic", "themes", "genres", "confidence"],
         },
       },
     }),
@@ -221,7 +223,7 @@ async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | nu
     title: metadata.title, author: metadata.author, publisher: metadata.publisher,
     description: metadata.description, series: metadata.series_name, volume: metadata.volume_number,
   };
-  const prompt = `Normalize this library book evidence for manga/light-novel catalog search. Do not invent facts. Extract the canonical series title from an edition title such as "Series 1: Subtitle". Return JSON only with exactly these string fields: series_name, volume_number, book_type, demographic, themes, genres, confidence. Use empty strings when uncertain. book_type must be Manga, Light Novel, Novel, Comic, or Other. demographic must be Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. genres/themes are short comma-separated labels. Evidence:\n${JSON.stringify(evidence)}`;
+  const prompt = `Normalize this library book for manga/light-novel cataloging. Extract the canonical series title from an edition title such as "Series 1: Subtitle". Use the ISBN, title, author, publisher, and your learned catalog knowledge to make best-effort suggestions for missing volume, imprint, age rating, demographic, genres, and themes; leave a field empty when the evidence is genuinely uncertain. Never override a non-empty source value. Return JSON only with exactly these string fields: series_name, volume_number, imprint, age_rating, book_type, demographic, themes, genres, confidence. book_type must be Manga, Light Novel, Novel, Comic, or Other. demographic must be Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. genres/themes are short comma-separated labels. Evidence:\n${JSON.stringify(evidence)}`;
   const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -245,6 +247,8 @@ async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | nu
 function applyGemini(metadata: FormMetadata, enrichment: GeminiEnrichment) {
   metadata.series_name ||= enrichment.series_name.trim();
   metadata.volume_number ||= enrichment.volume_number.trim();
+  metadata.imprint ||= enrichment.imprint.trim();
+  metadata.age_rating ||= enrichment.age_rating.trim();
   metadata.book_type = metadata.book_type === "Other" ? enrichment.book_type.trim() || metadata.book_type : metadata.book_type;
   metadata.demographic ||= enrichment.demographic.trim();
   metadata.themes ||= cleanLabels(enrichment.themes.split(",")).join(", ");
