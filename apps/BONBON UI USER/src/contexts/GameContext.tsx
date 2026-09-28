@@ -27,9 +27,22 @@ function useLibraryState() {
   const generation = useRef(0);
   const mutation = useRef(false);
   const authEventVersion = useRef(0);
+  const sessionRef = useRef<Session | null>(null);
+  // True once library data for the current account has been shown. Later
+  // refreshes then run in the background without flipping `loading`.
+  const loaded = useRef(false);
   const applySession = useCallback((next: Session | null) => {
-    generation.current++;
-    setState(empty);
+    const previousUserId = sessionRef.current?.user.id ?? null;
+    const nextUserId = next?.user.id ?? null;
+    sessionRef.current = next;
+    // Supabase emits SIGNED_IN again when a hidden tab becomes visible and can
+    // emit TOKEN_REFRESHED for the same user. Those are credential updates,
+    // not account changes, so keep the already-rendered library state intact.
+    if (previousUserId !== nextUserId) {
+      generation.current++;
+      loaded.current = false;
+      setState(empty);
+    }
     setSession(next);
   }, []);
 
@@ -65,24 +78,25 @@ function useLibraryState() {
 
   const refresh = useCallback(async () => {
     if (!supabase) return;
+    const currentSession = sessionRef.current;
     const current = ++generation.current;
-    setLoading(true);
+    if (!loaded.current) setLoading(true);
     try {
       const books = await readRows<BookRow>('books', 'book_id,title,author,volume_number,description,cover_image_url,isbn,publisher,original_title,book_genres(genre),book_copies(status)', 'book_id');
       // Keep the browse experience useful for visitors while the live catalog is
       // empty or still being seeded. Signed-in actions continue to use Supabase.
-      const catalog = books.length || session ? books.map(book => ({
+      const catalog = books.length || currentSession ? books.map(book => ({
         id: String(book.book_id), title: book.title || 'Untitled book', author: book.author ?? 'Unknown author',
         volume: Number(book.volume_number) || 0, genre: (Array.isArray(book.book_genres) ? book.book_genres : []).map(g => g.genre).filter(Boolean).join(', ') || 'Uncategorized',
-        synopsis: book.description ?? 'No description recorded.', copies: session ? book.book_copies.filter(c => c.status === 'IN_SHELF').length : -1,
+        synopsis: book.description ?? 'No description recorded.', copies: currentSession ? book.book_copies.filter(c => c.status === 'IN_SHELF').length : -1,
         rating: 0, rarity: 3 as const, chapters: 0, plate: [(book.title || 'Untitled book').toUpperCase()], plateColor: '#59351e', plateInk: '#fff9ef',
         coverImage: book.cover_image_url ?? undefined, isbn: book.isbn, publisher: book.publisher, originalTitle: book.original_title,
       })) : demoVolumes;
       let next: LibraryState = { ...empty, volumes: catalog };
-      if (session) {
+      if (currentSession) {
         const results = await Promise.all([
-          supabase.from('profiles').select('user_id,first_name,last_name,birthday,bio').eq('user_id', session.user.id).maybeSingle(),
-          supabase.from('reader_progress').select('total_points,current_streak_days,membership_ranks(name)').eq('user_id', session.user.id).maybeSingle(),
+          supabase.from('profiles').select('user_id,first_name,last_name,birthday,bio').eq('user_id', currentSession.user.id).maybeSingle(),
+          supabase.from('reader_progress').select('total_points,current_streak_days,membership_ranks(name)').eq('user_id', currentSession.user.id).maybeSingle(),
           readRows<ReadingLog>('reading_logs', 'reading_log_id,book_id,started_at,returned_at,total_reading_minutes', 'reading_log_id'),
           readRows<Quest>('quests', 'quest_id,name,description,quest_type,points_reward,badge_name', 'quest_id'),
           readRows<QuestProgress>('quest_progress', 'quest_id,status', 'quest_progress_id'),
@@ -100,23 +114,29 @@ function useLibraryState() {
             seal: q.badge_name ?? 'Quest', coins: q.points_reward, xp: 0, participants: 0,
             progress: results[4].some(p => p.quest_id === q.quest_id && p.status === 'COMPLETED') ? 100 : 0 })) };
       }
-      if (current === generation.current) { setState(next); setError(''); }
+      if (current === generation.current) { loaded.current = true; setState(next); setError(''); }
     } catch (err) {
       if (current === generation.current) {
-        if (!session) setState({ ...empty, volumes: demoVolumes });
+        // A background refresh failure must not erase or replace data that was
+        // already loaded. Demo books are only an initial guest fallback.
+        if (!currentSession) setState(previous => previous.volumes.length ? previous : { ...empty, volumes: demoVolumes });
         setError(errorMessage(err));
       }
     }
     finally { if (current === generation.current) setLoading(false); }
-  }, [session]);
+  }, []);
 
+  const sessionUserId = session?.user.id ?? null;
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 30000);
-    const focus = () => void refresh();
-    window.addEventListener('focus', focus);
-    return () => { clearInterval(timer); window.removeEventListener('focus', focus); generation.current++; };
-  }, [refresh]);
+    // Background refreshes are non-destructive (same-user auth events and
+    // failed fetches keep current data), so it is safe to pick up changes when
+    // the reader returns to the tab. Skip polling while the tab is hidden.
+    const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 30000);
+    const onVisible = () => { if (!document.hidden) void refresh(); };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => { clearInterval(timer); document.removeEventListener('visibilitychange', onVisible); generation.current++; };
+  }, [refresh, sessionUserId]);
 
   const message = (title: string, detail: string) => {
     setToasts(items => [...items.slice(-2), { id: crypto.randomUUID(), title, detail, kind: 'info' }]);

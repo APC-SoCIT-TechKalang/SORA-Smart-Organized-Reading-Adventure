@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ChevronDownIcon, FilterIcon, LayoutGridIcon, ListIcon, SearchIcon, XIcon } from 'lucide-react';
 import { CatalogGrid } from '../components/CatalogGrid';
 import { VolumeDrawer } from '../components/VolumeDrawer';
@@ -23,6 +23,10 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [sortOpen, setSortOpen] = useState(false);
   const [selected, setSelected] = useState<Volume | null>(null);
+
+  useEffect(() => {
+    if (genre !== 'All' && !volumes.some((volume) => volume.genre === genre)) setGenre('All');
+  }, [genre, volumes]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();

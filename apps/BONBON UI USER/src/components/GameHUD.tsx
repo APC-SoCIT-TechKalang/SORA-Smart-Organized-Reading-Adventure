@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserPlusIcon, UserRoundIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
@@ -71,7 +71,7 @@ export function GameHUD() {
             ) : (
               <div className="flex shrink-0 gap-2">
                 <button type="button" onClick={() => setMode('login')} className="tb-button-secondary tb-cut-sm whitespace-nowrap px-3 text-xs lg:px-4 lg:text-sm">Sign in</button>
-                <button type="button" onClick={() => setMode('preregister')} className="tb-button-primary tb-cut-sm hidden whitespace-nowrap px-4 text-sm lg:inline-flex">Pre-register</button>
+                <button type="button" onClick={() => setMode('preregister')} className="tb-button-primary tb-cut-sm min-w-11 whitespace-nowrap px-3 text-xs sm:px-4 lg:text-sm"><UserPlusIcon aria-hidden="true" className="h-4 w-4 shrink-0 sm:hidden" /><span className="max-sm:sr-only">Pre-register</span></button>
               </div>
             )}
           </div>

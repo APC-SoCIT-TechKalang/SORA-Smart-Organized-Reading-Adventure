@@ -33,7 +33,7 @@ export function CatalogGrid({ items, layout, onSelect }: CatalogGridProps) {
               <Cover volume={volume} compact />
               <span className="min-w-0 text-left"><span className="block truncate font-display text-sm font-800 text-umber sm:text-base">{volume.title}</span><span className="mt-0.5 block truncate text-xs font-600 text-umber/55">{volume.author} · {volume.genre}</span><span className="mt-1 flex items-center gap-1 text-[11px] font-800 text-gold"><StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />{volume.rating || 'New'}</span></span>
             </button>
-            <button type="button" disabled={busy || isBorrowed(volume.id) || Boolean(session && volume.copies <= 0)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm min-h-11 w-full px-3 text-[10px] uppercase tracking-[.08em] sm:w-auto sm:px-4 sm:text-xs">{actionLabel(volume)}</button>
+            {!(session && volume.copies <= 0) && <button type="button" disabled={busy || isBorrowed(volume.id)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm min-h-11 w-full px-3 text-[10px] uppercase tracking-[.08em] sm:w-auto sm:px-4 sm:text-xs">{actionLabel(volume)}</button>}
           </li>
         ))}
       </ul>
@@ -50,7 +50,7 @@ export function CatalogGrid({ items, layout, onSelect }: CatalogGridProps) {
             <span className="mt-0.5 block truncate text-[11px] font-600 text-umber/55 sm:text-xs">{volume.author}</span>
             <span className="mt-2 flex items-center justify-between gap-2"><span className="truncate text-[10px] font-800 uppercase tracking-[.1em] text-gold">{volume.genre}</span><span className="flex shrink-0 items-center gap-1 text-[11px] font-800 text-gold"><StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />{volume.rating || 'New'}</span></span>
           </button>
-          <button type="button" disabled={busy || isBorrowed(volume.id) || Boolean(session && volume.copies <= 0)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm mt-3 min-h-10 w-full px-2 text-[10px] uppercase tracking-[.08em] sm:text-[11px]"><BookOpenIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />{actionLabel(volume)}</button>
+          {!(session && volume.copies <= 0) && <button type="button" disabled={busy || isBorrowed(volume.id)} onClick={() => startReading(volume.id)} className="tb-button-secondary tb-cut-sm mt-3 min-h-10 w-full px-2 text-[10px] uppercase tracking-[.08em] sm:text-[11px]"><BookOpenIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />{actionLabel(volume)}</button>}
         </motion.li>
       ))}
     </ul>

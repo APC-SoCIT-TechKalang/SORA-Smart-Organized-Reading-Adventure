@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { LayoutGroup } from 'framer-motion';
 import { BookOpenIcon } from 'lucide-react';
 import { HeroReading } from '../components/HeroReading';
@@ -25,6 +25,16 @@ export function Archive() {
     rating: volume.rating,
     volume,
   }));
+
+  useEffect(() => {
+    if (!arrivalItems.length) {
+      setActiveArrivalIndex(0);
+      setOpenedBook(null);
+      return;
+    }
+    if (activeArrivalIndex >= arrivalItems.length) setActiveArrivalIndex(arrivalItems.length - 1);
+    if (openedBook && !volumes.some((volume) => volume.id === openedBook.volume.id)) setOpenedBook(null);
+  }, [activeArrivalIndex, arrivalItems.length, openedBook, volumes]);
 
   return (
     <div className="space-y-8 sm:space-y-10">

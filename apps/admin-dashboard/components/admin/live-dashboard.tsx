@@ -51,15 +51,13 @@ export function LiveDashboard() {
         readRows<Shelf>('shelves', 'shelf_id,name', 'shelf_id'),
       ]);
       if (version === generation.current) { setState({ books, copies, readers, memberships, plans, visits, logs, quests, enrollments, shelves }); setError(''); }
-    } catch (err) { if (version === generation.current) { setState(empty); setError(errorMessage(err)); } }
+    } catch (err) { if (version === generation.current) setError(errorMessage(err)); }
     finally { if (version === generation.current) setLoading(false); }
   }, []);
   useEffect(() => {
     void refresh();
     const timer = setInterval(() => void refresh(), 30000);
-    const focus = () => void refresh();
-    window.addEventListener('focus', focus);
-    return () => { clearInterval(timer); window.removeEventListener('focus', focus); generation.current++; };
+    return () => { clearInterval(timer); generation.current++; };
   }, [refresh]);
   async function run(action: () => PromiseLike<{ error: unknown }>, success: string) {
     if (mutation.current) return false;
