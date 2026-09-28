@@ -213,6 +213,35 @@ async function gemini(metadata: FormMetadata): Promise<GeminiEnrichment | null> 
   } catch { return null; }
 }
 
+async function openRouter(metadata: FormMetadata): Promise<GeminiEnrichment | null> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) return null;
+  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash-lite";
+  const evidence = {
+    title: metadata.title, author: metadata.author, publisher: metadata.publisher,
+    description: metadata.description, series: metadata.series_name, volume: metadata.volume_number,
+  };
+  const prompt = `Normalize this library book evidence for manga/light-novel catalog search. Do not invent facts. Extract the canonical series title from an edition title such as "Series 1: Subtitle". Return JSON only with exactly these string fields: series_name, volume_number, book_type, demographic, themes, genres, confidence. Use empty strings when uncertain. book_type must be Manga, Light Novel, Novel, Comic, or Other. demographic must be Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. genres/themes are short comma-separated labels. Evidence:\n${JSON.stringify(evidence)}`;
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://sora-admin.vercel.app",
+      "X-Title": "SORA Admin catalog matcher",
+    },
+    body: JSON.stringify({
+      model, messages: [{ role: "user", content: prompt }], temperature: 0.1, max_tokens: 300,
+      response_format: { type: "json_object" },
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!response.ok) return null;
+  const result = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const output = result.choices?.[0]?.message?.content?.replace(/^```json\s*/i, "").replace(/\s*```$/, "").trim() ?? "";
+  try { const parsed: unknown = JSON.parse(output); return validGeminiEnrichment(parsed) ? parsed : null; } catch { return null; }
+}
+
 function applyGemini(metadata: FormMetadata, enrichment: GeminiEnrichment) {
   metadata.series_name ||= enrichment.series_name.trim();
   metadata.volume_number ||= enrichment.volume_number.trim();
@@ -247,9 +276,20 @@ export async function POST(request: NextRequest) {
       const {data:allowed,error:limitError} = await client.rpc("consume_catalog_lookup");
       if (limitError) throw limitError;
       if (!allowed) return NextResponse.json({error:"Too many catalogue searches. Wait a few minutes and try again."},{status:429});
-      const results = await Promise.allSettled([aniListCandidates(query,canonicalIsbn),jikanCandidates(query,canonicalIsbn)]);
-      const candidates = results.flatMap(result=>result.status==="fulfilled"?result.value:[]);
-      return NextResponse.json({candidates});
+      let results = await Promise.allSettled([aniListCandidates(query,canonicalIsbn),jikanCandidates(query,canonicalIsbn)]);
+      let candidates = results.flatMap(result=>result.status==="fulfilled"?result.value:[]);
+      let normalizedQuery = query;
+      if (!candidates.length && process.env.OPENROUTER_API_KEY) {
+        const hint = emptyBookMetadata(canonicalIsbn);
+        hint.title = query;
+        const normalized = await openRouter(toFormMetadata(hint));
+        if (normalized?.series_name && normalized.series_name.toLowerCase() !== query.toLowerCase()) {
+          normalizedQuery = normalized.series_name;
+          results = await Promise.allSettled([aniListCandidates(normalizedQuery,canonicalIsbn),jikanCandidates(normalizedQuery,canonicalIsbn)]);
+          candidates = results.flatMap(result=>result.status==="fulfilled"?result.value:[]);
+        }
+      }
+      return NextResponse.json({candidates, normalizedQuery: normalizedQuery !== query ? normalizedQuery : undefined});
     }
 
     const { data: existing, error: existingError } = await client.from("books")
@@ -315,7 +355,7 @@ export async function POST(request: NextRequest) {
     const needsAiCleanup = !metadata.series_name || !metadata.volume_number || !metadata.genres || !metadata.themes || !metadata.demographic || metadata.book_type === "Other";
     if (needsAiCleanup) {
       try {
-        const enrichment = await gemini(metadata);
+        const enrichment = await openRouter(metadata) ?? await gemini(metadata);
         if (enrichment) { applyGemini(metadata, enrichment); aiConfidence = enrichment.confidence; }
       } catch { /* The deterministic multi-source result remains usable. */ }
     }

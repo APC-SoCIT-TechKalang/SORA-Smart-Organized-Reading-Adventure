@@ -121,10 +121,12 @@ export function CompleteAddVolume({data,close,run}:Props) {
       const {data:{session}}=await database().auth.getSession();
       if(!session)throw new Error("Your staff session has expired. Sign in again.");
       const response=await fetch("/api/catalog/lookup",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({action:"title-search",isbn:form.isbn,query:titleQuery})});
-      const result=await response.json() as {candidates?:TitleCandidate[];error?:string};
+      const result=await response.json() as {candidates?:TitleCandidate[];normalizedQuery?:string;error?:string};
       if(!response.ok)throw new Error(result.error||"The title search failed.");
       setTitleCandidates(result.candidates||[]);
+      if(result.normalizedQuery) setTitleQuery(result.normalizedQuery);
       if(!result.candidates?.length)setTitleSearchMessage("No manga or light novel matches were found. Try a shorter series title.");
+      else if(result.normalizedQuery) setTitleSearchMessage(`Matches found for the normalized series title “${result.normalizedQuery}”. Review the correct edition before saving.`);
     }catch(error){setTitleSearchMessage(error instanceof Error?error.message:"The title search failed.");}
     finally{setSearchingTitles(false);}
   };
