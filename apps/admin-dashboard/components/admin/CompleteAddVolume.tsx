@@ -22,7 +22,6 @@ export function CompleteAddVolume({data,close,run}:Props) {
   const [localPreview,setLocalPreview] = useState("");
   const [lookingUp,setLookingUp] = useState(false);
   const [lookupMessage,setLookupMessage] = useState("");
-  const [lookupWarnings,setLookupWarnings] = useState<string[]>([]);
   const [lookupSource,setLookupSource] = useState<"catalog"|"isbn"|null>(null);
   const [existingBookId,setExistingBookId] = useState<number|null>(null);
   const [titleQuery,setTitleQuery] = useState("");
@@ -59,7 +58,7 @@ export function CompleteAddVolume({data,close,run}:Props) {
     });
     setCoverCandidates([]);setCoverIndex(0);setCoverFailed(false);
     setTitleQuery("");setTitleCandidates([]);setTitleSearchMessage("");
-    setExistingBookId(null);setLookupSource(null);setLookupMessage("");setLookupWarnings([]);
+    setExistingBookId(null);setLookupSource(null);setLookupMessage("");
   };
   const clean = (value:string) => value.trim() || null;
   const input = "mt-2 w-full rounded-xl border border-[#dfcfbe] bg-[#fffbf5] px-3.5 py-3 text-sm font-normal normal-case text-[#4b301f] outline-none transition placeholder:text-[#b5a18e] focus:border-[#b86a18] focus:ring-4 focus:ring-[#d99b2b]/10 disabled:cursor-not-allowed disabled:opacity-50";
@@ -82,7 +81,7 @@ export function CompleteAddVolume({data,close,run}:Props) {
     lookupAbort.current?.abort();
     const controller=new AbortController();
     lookupAbort.current=controller;
-    setLookingUp(true);setLookupMessage("");setLookupWarnings([]);setLookupSource(null);setExistingBookId(null);
+    setLookingUp(true);setLookupMessage("");setLookupSource(null);setExistingBookId(null);
     try{
       const {data:{session}}=await database().auth.getSession();
       if(!session)throw new Error("Your staff session has expired. Sign in again.");
@@ -104,7 +103,7 @@ export function CompleteAddVolume({data,close,run}:Props) {
         const candidates=[...new Set((result.coverCandidates||[]).filter(Boolean))];
         setCoverCandidates(candidates);setCoverIndex(0);setCoverFailed(false);
       }
-      setExistingBookId(result.existingBookId);setLookupSource(result.source);setLookupWarnings(result.warnings||[]);
+      setExistingBookId(result.existingBookId);setLookupSource(result.source);
       setTitleQuery(String(result.metadata.series_name||result.metadata.title||""));
       setLookupMessage(result.source==="catalog"?"Existing title found. Add the barcode for this new physical copy.":"Metadata loaded. Review all suggested fields before saving.");
     }catch(error){
@@ -199,7 +198,7 @@ export function CompleteAddVolume({data,close,run}:Props) {
             <label className="relative flex-1"><span className="sr-only">ISBN-10 or ISBN-13</span><ScanLine className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#a17954]" size={18}/><input autoFocus value={form.isbn} onChange={event=>updateIsbn(event.target.value)} onKeyDown={event=>{if(event.key==="Enter"){event.preventDefault();void lookupIsbn();}}} placeholder="Scan or enter ISBN-10 / ISBN-13" className={`${input} mt-0 pl-11`}/></label>
             <button type="button" disabled={lookingUp||!form.isbn.trim()} onClick={()=>void lookupIsbn()} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#5b3924] px-5 text-xs font-bold text-white transition hover:bg-[#432617] disabled:cursor-not-allowed disabled:opacity-50">{lookingUp?<LoaderCircle className="animate-spin" size={16}/>:<Search size={16}/>} {lookingUp?"Looking up…":"Find book"}</button>
           </div>
-          {lookupMessage&&<div className={`mt-3 rounded-xl border px-3.5 py-3 text-xs leading-5 ${lookupSource?"border-[#d8bd82] bg-white text-[#5b3924]":"border-[#d89a82] bg-[#fff4ee] text-[#9a3515]"}`}><div className="flex flex-wrap items-center gap-2"><strong>{lookupMessage}</strong>{lookupSource&&<span className="rounded-full bg-[#f4dfb7] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider">{lookupSource==="catalog"?"Existing catalogue record":"ISBN metadata"}</span>}</div>{lookupWarnings.map((warning,index)=><p key={index} className="mt-1 text-[10px] text-[#927864]">• {warning}</p>)}</div>}
+          {lookupMessage&&!lookupSource&&<p role="alert" className="mt-3 rounded-xl border border-[#d89a82] bg-[#fff4ee] px-3.5 py-3 text-xs leading-5 text-[#9a3515]">{lookupMessage}</p>}
           {lookupSource==="isbn"&&<div className="mt-4 rounded-xl border border-[#e3d1bc] bg-white p-3.5">
             <p className="text-[10px] font-bold uppercase tracking-[.13em] text-[#795a42]">Missing manga or light novel details?</p>
             <p className="mt-1 text-[10px] leading-4 text-[#927864]">Search by series title, then choose the correct match. Only blank fields will be filled.</p>
