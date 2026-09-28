@@ -2380,3 +2380,15 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
 .parallax-track { height: 306px; perspective: 1300px; }
 .parallax-card { bottom: 8px; width: 150px; border: 1px solid rgba(122,75,35,.5); border-radius: 4px; background: #fffdf8; padding: 5px; filter: saturate(.88) brightness(.96); opacity: .8; box-shadow: 0 10px 24px rgba(84,56,34,.14); transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px), calc(var(--abs-offset) * -54px)) rotateY(calc(var(--offset) * -11deg)) scale(calc(1 - var(--abs-offset) * .1)); }
 .parallax-card.is-hovered:not(.is-active) { transform: translate3d(calc(-50% + var(--offset) * 128px + var(--pointer) * -5px), calc(var(--abs-offset) * 18px - 10px), calc(var(--abs-offset) * -35px)) rotateY(calc(var(--offset) * -7deg)) scale(calc(1 - var(--abs-offset) * .07)); filter: saturate(1) brightness(1); box-shadow: 0 18px 34px rgba(84,56,34,.22), 0 0 0 3px rgba(196,128,12,.12); }
+
+/* Featured hero: stacked showcase on phones, text + book column from sm up. */
+.tb-hero-grid { display: grid; grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "book" "body"; }
+.tb-hero-showcase { position: relative; isolation: isolate; }
+.tb-hero-showcase::after { content: ""; position: absolute; left: 50%; bottom: 1.35rem; z-index: -1; width: 150%; height: 1.25rem; translate: -50% 0; border-radius: 50%; background: radial-gradient(closest-side, rgba(84,56,34,.18), transparent); pointer-events: none; }
+@media (min-width: 640px) {
+  .tb-hero-grid { grid-template-columns: minmax(0, 1fr) 168px; grid-template-rows: auto 1fr; grid-template-areas: "eyebrow book" "body book"; column-gap: 1.75rem; }
+  .tb-hero-grid > [class*="eyebrow"] { align-self: start; }
+  .tb-hero-showcase::after { display: none; }
+}
+@media (min-width: 768px) { .tb-hero-grid { grid-template-columns: minmax(0, 1fr) 195px; } }
+@media (min-width: 1280px) { .tb-hero-grid { grid-template-columns: minmax(0, 1fr) 215px; column-gap: 2rem; } }
