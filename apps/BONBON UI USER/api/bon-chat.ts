@@ -45,11 +45,11 @@ function boundedNumber(value: unknown, max = 1_000_000_000) {
 
 function detectIntent(message: string): Intent {
   const value = message.toLowerCase();
-  if (/\b(reward|claim|prize|unlock)\b/.test(value)) return 'REWARD';
-  if (/\b(quest|commission|challenge)\b/.test(value)) return 'QUEST';
+  if (/\b(rewards?|claim|prizes?|unlocks?)\b/.test(value)) return 'REWARD';
+  if (/\b(quests?|commissions?|challenges?)\b/.test(value)) return 'QUEST';
   if (/\b(progress|reading|finished|completed|minutes?|history|streak)\b/.test(value)) return 'PROGRESS';
-  if (/\b(xp|points?|rank|level|achievement)\b/.test(value)) return 'ACCOUNT';
-  if (/\b(book|manga|title|author|genre|read next|recommend|similar|available|catalog)\b/.test(value)) return 'BOOK';
+  if (/\b(xp|points?|ranks?|levels?|achievements?)\b/.test(value)) return 'ACCOUNT';
+  if (/\b(books?|mangas?|titles?|authors?|genres?|read next|recommend|similar|available|catalog)\b/.test(value)) return 'BOOK';
   if (/\b(app|website|feature|navigate|where|how do i|s\.o\.r\.a|sora|tankobonbon)\b/.test(value)) return 'PROJECT';
   return 'GENERAL';
 }
@@ -75,7 +75,7 @@ function parseBody(body: unknown) {
   const input = body as Record<string, unknown>;
   const message = cleanText(input.message, 500);
   if (!message) return null;
-  const intent = detectIntent(message);
+  let intent = detectIntent(message);
   const history = Array.isArray(input.history) ? input.history.slice(-2).flatMap((item): ChatMessage[] => {
     if (!item || typeof item !== 'object') return [];
     const candidate = item as Record<string, unknown>;
@@ -84,6 +84,15 @@ function parseBody(body: unknown) {
     return role && content ? [{ role, content }] : [];
   }) : [];
   const raw = input.context && typeof input.context === 'object' ? input.context as Record<string, unknown> : {};
+  if (intent === 'GENERAL' && Array.isArray(raw.catalog)) {
+    const lowerMessage = message.toLowerCase();
+    const namesSuppliedBook = raw.catalog.some((value) => {
+      if (!value || typeof value !== 'object') return false;
+      const title = cleanText((value as Record<string, unknown>).title, 160).toLowerCase();
+      return title.length > 1 && lowerMessage.includes(title);
+    });
+    if (namesSuppliedBook) intent = 'BOOK';
+  }
   const context: ChatContext = { section: ALLOWED_SECTIONS.has(String(raw.section)) ? String(raw.section) : 'archive' };
 
   if (intent === 'ACCOUNT' || intent === 'PROGRESS' || intent === 'REWARD') {
@@ -189,7 +198,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
   const model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash-1017';
   const siteUrl = process.env.OPENROUTER_SITE_URL || 'https://sora-reader.vercel.app';
   const appName = process.env.OPENROUTER_APP_NAME || 'S.O.R.A. BON';
-  const system = `You are BON, S.O.R.A.'s cheerful reading guide. Answer the question first in 1 to 3 concise, jolly sentences. General questions need no forced library reference. For project questions, use only PROJECT CONTEXT and say when data is unavailable. Never invent data or actions. Recommend at most 3 supplied books with availableCopies above 0. Protect secrets and other users' data. Never use em dash or en dash characters. Return JSON only: {"message":"...","navigateTo":"archive|catalog|shelf|commissions|guide|null","recommendationIds":[]}.`;
+  const system = `You are BON, S.O.R.A.'s cheerful reading guide. Answer first in 1 to 3 concise, jolly sentences. General questions need no forced library reference. For project or named-book questions, use only PROJECT CONTEXT and say when data is unavailable. Never add outside book facts, invent data, or claim actions. Recommend at most 3 supplied books with availableCopies above 0. Protect secrets and other users' data. Never use em dash or en dash characters. Return JSON only: {"message":"...","navigateTo":"archive|catalog|shelf|commissions|guide|null","recommendationIds":[]}.`;
   try {
     const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
