@@ -172,10 +172,17 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   async function askBon(text: string) {
     const trimmed = text.trim().slice(0, 500);
     if (!trimmed || thinking) return;
-    const recentHistory = messages.slice(-4).map((message) => ({
+    const recentHistory = messages.slice(-2).map((message) => ({
       role: message.from === 'bon' ? 'assistant' : 'user',
-      content: message.text.slice(0, 400),
+      content: message.text.slice(0, 300),
     }));
+    const queryWords = trimmed.toLowerCase().match(/[a-z0-9]+/g)?.filter((word) => word.length > 2 && !['book', 'books', 'what', 'which', 'there', 'about', 'should', 'read'].includes(word)) ?? [];
+    const matchingBooks = queryWords.length ? volumes.filter((volume) => {
+      const searchable = `${volume.title} ${volume.author} ${volume.genre}`.toLowerCase();
+      return queryWords.some((word) => searchable.includes(word));
+    }) : [];
+    const availableBooks = volumes.filter((volume) => volume.copies > 0);
+    const catalogForBon = (matchingBooks.length ? matchingBooks : availableBooks.length ? availableBooks : volumes).slice(0, 8);
     setMessages((current) => [...current, { id: `u-${crypto.randomUUID()}`, from: 'user', text: trimmed }]);
     setDraft('');
     setThinking(true);
@@ -211,7 +218,12 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               points: quest.coins,
               status: 'ready to claim',
             })),
-            catalog: volumes.slice(0, 12).map((volume) => ({
+            catalogSummary: {
+              totalTitles: volumes.length,
+              availableTitles: volumes.filter((volume) => volume.copies > 0).length,
+              availabilityPending: volumes.filter((volume) => volume.copies <= 0).length,
+            },
+            catalog: catalogForBon.map((volume) => ({
               id: volume.id,
               title: volume.title,
               author: volume.author,
