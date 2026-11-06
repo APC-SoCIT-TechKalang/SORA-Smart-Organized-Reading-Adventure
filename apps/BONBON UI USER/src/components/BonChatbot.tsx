@@ -17,28 +17,13 @@ const EASE = [0.23, 1, 0.32, 1] as const;
 
 interface Suggestion {
   label: string;
-  reply: string;
-  go?: SectionId;
 }
 
-const SUGGESTIONS: Suggestion[] = [
-{
-  label: 'What should I read next?',
-  reply:
-  'Opening the library catalog. Choose a title to see its details.',
-  go: 'catalog'
-},
-{
-  label: 'Any rewards ready?',
-  reply:
-  'Opening your quest board. Completed quests show any points you can claim.',
-  go: 'commissions'
-},
-{
-  label: 'What is due soon?',
-  reply: 'Your shortest fuse is on the shelf — let us take a look.',
-  go: 'shelf'
-}];
+const DEFAULT_SUGGESTIONS: Suggestion[] = [
+  { label: 'What should I read next?' },
+  { label: 'Show my progress' },
+  { label: 'Any rewards ready?' },
+];
 
 
 interface BonChatbotProps {
@@ -47,7 +32,7 @@ interface BonChatbotProps {
 }
 
 export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
-  const { section, setSection, borrowed, rank, coins, volumeById, volumes } = useGame();
+  const { section, setSection, borrowed, rank, coins, streak, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -56,11 +41,12 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   const showBonSparkles = false;
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>(DEFAULT_SUGGESTIONS);
   const [messages, setMessages] = useState<BonMessage[]>([
   {
     id: 'bon-hello',
     from: 'bon',
-    text: 'Hi! I am BON, keeper of the Tankobonbon archive. Ask me anything, or press 1–5 to jump between halls.'
+    text: 'Hi! I am BON, your Tankobonbon reading guide. Ask me about books, progress, quests, or anything else.'
   }]
   );
   const logRef = useRef<HTMLDivElement>(null);
@@ -153,58 +139,45 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     }
   }, [messages, open]);
 
-  function reply(text: string, response: string, go?: SectionId) {
+  function addBonReply(response: string, go?: SectionId) {
     setMessages((current) => [
-    ...current,
-    { id: `u-${Date.now()}`, from: 'user', text },
-    { id: `b-${Date.now()}`, from: 'bon', text: response }]
-    );
-    setDraft('');
+      ...current,
+      { id: `b-${crypto.randomUUID()}`, from: 'bon', text: response },
+    ]);
     if (go) {
       window.setTimeout(() => setSection(go), 320);
     }
   }
 
-  function answer(text: string) {
-    const trimmed = text.trim();
-    if (!trimmed) return;
-    const match = SUGGESTIONS.find(
-      (item) => item.label.toLowerCase() === trimmed.toLowerCase()
-    );
-    if (match) {
-      reply(trimmed, match.reply, match.go);
-      return;
-    }
-
-    const lower = trimmed.toLowerCase();
+  function fallbackAnswer(text: string) {
+    const lower = text.toLowerCase();
     if (lower.includes('due') || lower.includes('shelf')) {
       const soonest = [...borrowed].sort((a, b) => a.dueInDays - b.dueInDays)[0];
       const volume = soonest ? volumeById(soonest.volumeId) : undefined;
-      reply(
-        trimmed,
+      addBonReply(
         volume ?
         `${volume.title} is on your in-library reading shelf. Return it before checking out.` :
-        'Your shelf is empty right now — choose a book from the catalog after checking in.',
+        'Your shelf is empty right now. Choose a book from the catalog after checking in.',
         'shelf'
       );
       return;
     }
     if (lower.includes('rank') || lower.includes('coin')) {
-      reply(
-        trimmed,
-        `You are Archivist Rank ${rank} with ${coins.toLocaleString()} library points.`
-      );
+      addBonReply(`You are Archivist Rank ${rank} with ${coins.toLocaleString()} library points.`);
       return;
     }
-    reply(
-      trimmed,
-      `Let me search the stacks for that. Meanwhile you are in the ${section} hall — I can pull up your quests or your shelf if that helps.`
-    );
+    addBonReply('Looks like my library connection is taking a moment. Try asking me again.');
   }
 
   async function askBon(text: string) {
     const trimmed = text.trim().slice(0, 500);
     if (!trimmed || thinking) return;
+    const recentHistory = messages.slice(-4).map((message) => ({
+      role: message.from === 'bon' ? 'assistant' : 'user',
+      content: message.text.slice(0, 400),
+    }));
+    setMessages((current) => [...current, { id: `u-${crypto.randomUUID()}`, from: 'user', text: trimmed }]);
+    setDraft('');
     setThinking(true);
     try {
       const response = await fetch('/api/bon-chat', {
@@ -212,35 +185,60 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: trimmed,
-          history: messages.slice(-6).map((message) => ({
-            role: message.from === 'bon' ? 'assistant' : 'user',
-            content: message.text.slice(0, 500),
-          })),
+          history: recentHistory,
           context: {
             section,
             rank,
             points: coins,
-            activeReading: borrowed.map((item) => volumeById(item.volumeId)?.title).filter(Boolean),
-            catalog: volumes.slice(0, 20).map((volume) => ({
+            streak,
+            booksCompleted: logs.filter((log) => Boolean(log.returned_at)).length,
+            activeReading: borrowed.flatMap((item) => {
+              const volume = volumeById(item.volumeId);
+              const log = logs.find((entry) => String(entry.book_id) === item.volumeId && !entry.returned_at);
+              return volume ? [{ title: volume.title, minutes: log?.total_reading_minutes ?? 0, status: 'reading' }] : [];
+            }),
+            quests: commissions.filter((quest) => enrolled.includes(quest.id)).map((quest) => ({
+              id: quest.id,
+              name: quest.name,
+              detail: quest.detail,
+              points: quest.coins,
+              status: quest.progress === 100 ? 'completed' : 'active',
+            })),
+            availableRewards: commissions.filter((quest) => quest.progress === 100 && !claimed.includes(quest.id)).map((quest) => ({
+              id: quest.id,
+              name: quest.name,
+              detail: quest.detail,
+              points: quest.coins,
+              status: 'ready to claim',
+            })),
+            catalog: volumes.slice(0, 12).map((volume) => ({
               id: volume.id,
               title: volume.title,
               author: volume.author,
               genre: volume.genre,
+              synopsis: volume.synopsis,
               availableCopies: volume.copies,
             })),
           },
         }),
       });
-      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; error?: unknown };
+      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; error?: unknown };
       if (!response.ok || typeof payload.message !== 'string' || !payload.message.trim()) {
         throw new Error(typeof payload.error === 'string' ? payload.error : 'BON request failed');
       }
       const destination = typeof payload.navigateTo === 'string' && ['archive', 'catalog', 'shelf', 'commissions', 'guide'].includes(payload.navigateTo)
         ? payload.navigateTo as SectionId
         : undefined;
-      reply(trimmed, payload.message, destination);
+      addBonReply(payload.message, destination);
+      if (Array.isArray(payload.suggestions)) {
+        const next = payload.suggestions
+          .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
+          .slice(0, 3)
+          .map((label) => ({ label }));
+        if (next.length) setSuggestions(next);
+      }
     } catch {
-      answer(trimmed);
+      fallbackAnswer(trimmed);
     } finally {
       setThinking(false);
     }
@@ -315,7 +313,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             )}
 
               {thinking ?
-              <p aria-live="polite" className="tb-cut-sm w-fit rounded-2xl rounded-tl-sm border border-gold/45 bg-parch/40 px-3.5 py-2.5 font-body text-[13px] font-600 text-umber/65 shadow-sm sm:text-sm">
+              <p role="status" aria-live="polite" className="tb-cut-sm w-fit rounded-2xl rounded-tl-sm border border-gold/45 bg-parch/40 px-3.5 py-2.5 font-body text-[13px] font-600 text-umber/65 shadow-sm sm:text-sm">
                 BON is searching the stacks...
               </p> : null}
 
@@ -334,7 +332,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
 
             <div className="bon-chat-footer shrink-0 border-t border-gold/25 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:pb-3">
               <div className="bon-chat-suggestions flex gap-2 overflow-x-auto px-4 pb-1 pt-3 lg:flex-wrap">
-                {SUGGESTIONS.map((suggestion) =>
+                {suggestions.map((suggestion) =>
               <button
                 key={suggestion.label}
                 type="button"
