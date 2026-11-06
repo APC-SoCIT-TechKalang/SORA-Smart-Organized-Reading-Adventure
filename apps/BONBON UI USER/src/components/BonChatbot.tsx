@@ -47,7 +47,7 @@ interface BonChatbotProps {
 }
 
 export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
-  const { section, setSection, borrowed, rank, coins, volumeById } = useGame();
+  const { section, setSection, borrowed, rank, coins, volumeById, volumes } = useGame();
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -55,6 +55,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   const [excitedFrame, setExcitedFrame] = useState(0);
   const showBonSparkles = false;
   const [draft, setDraft] = useState('');
+  const [thinking, setThinking] = useState(false);
   const [messages, setMessages] = useState<BonMessage[]>([
   {
     id: 'bon-hello',
@@ -201,6 +202,50 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     );
   }
 
+  async function askBon(text: string) {
+    const trimmed = text.trim().slice(0, 500);
+    if (!trimmed || thinking) return;
+    setThinking(true);
+    try {
+      const response = await fetch('/api/bon-chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: trimmed,
+          history: messages.slice(-6).map((message) => ({
+            role: message.from === 'bon' ? 'assistant' : 'user',
+            content: message.text.slice(0, 500),
+          })),
+          context: {
+            section,
+            rank,
+            points: coins,
+            activeReading: borrowed.map((item) => volumeById(item.volumeId)?.title).filter(Boolean),
+            catalog: volumes.slice(0, 20).map((volume) => ({
+              id: volume.id,
+              title: volume.title,
+              author: volume.author,
+              genre: volume.genre,
+              availableCopies: volume.copies,
+            })),
+          },
+        }),
+      });
+      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; error?: unknown };
+      if (!response.ok || typeof payload.message !== 'string' || !payload.message.trim()) {
+        throw new Error(typeof payload.error === 'string' ? payload.error : 'BON request failed');
+      }
+      const destination = typeof payload.navigateTo === 'string' && ['archive', 'catalog', 'shelf', 'commissions', 'guide'].includes(payload.navigateTo)
+        ? payload.navigateTo as SectionId
+        : undefined;
+      reply(trimmed, payload.message, destination);
+    } catch {
+      answer(trimmed);
+    } finally {
+      setThinking(false);
+    }
+  }
+
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-[calc(72px+env(safe-area-inset-bottom))] right-0 z-50 flex items-end justify-end lg:bottom-4 lg:z-40">
       <AnimatePresence>
@@ -269,6 +314,11 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
                 </p>
             )}
 
+              {thinking ?
+              <p aria-live="polite" className="tb-cut-sm w-fit rounded-2xl rounded-tl-sm border border-gold/45 bg-parch/40 px-3.5 py-2.5 font-body text-[13px] font-600 text-umber/65 shadow-sm sm:text-sm">
+                BON is searching the stacks...
+              </p> : null}
+
               {/* Empty-state hint lives inside the scrollable log so it can
                   never push the composer out of the panel. */}
               {messages.length <= 1 ?
@@ -288,8 +338,9 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               <button
                 key={suggestion.label}
                 type="button"
-                onClick={() => answer(suggestion.label)}
-                className="min-h-10 shrink-0 whitespace-nowrap rounded-full border border-gold/50 bg-parch/20 px-3.5 py-2 font-body text-[12px] font-700 leading-tight text-umber/80 transition-all duration-150 ease-out hover:-translate-y-px hover:border-gold hover:bg-parch/60 hover:text-umber lg:min-h-9 lg:py-1.5">
+                disabled={thinking}
+                onClick={() => void askBon(suggestion.label)}
+                className="min-h-10 shrink-0 whitespace-nowrap rounded-full border border-gold/50 bg-parch/20 px-3.5 py-2 font-body text-[12px] font-700 leading-tight text-umber/80 transition-all duration-150 ease-out hover:-translate-y-px hover:border-gold hover:bg-parch/60 hover:text-umber disabled:cursor-wait disabled:opacity-50 lg:min-h-9 lg:py-1.5">
 
                     {suggestion.label}
                   </button>
@@ -300,7 +351,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               className="bon-chat-composer flex items-center gap-2 px-4 pb-0 pt-3"
               onSubmit={(event) => {
                 event.preventDefault();
-                answer(draft);
+                void askBon(draft);
               }}>
             
               <label className="sr-only" htmlFor="bon-input">
@@ -309,13 +360,16 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               <input
               id="bon-input"
               value={draft}
+              disabled={thinking}
+              maxLength={500}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="Ask BON…"
               className="tb-cut-sm h-11 min-w-0 flex-1 border border-gold/50 bg-parch/20 px-4 font-body text-[16px] font-600 text-umber outline-none transition-colors duration-150 placeholder:text-umber/45 focus:border-gold focus:bg-parch/40" />
             
               <button
               type="submit"
-              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gold bg-rust text-sand shadow-[0_3px_0_rgba(84,56,34,0.2)] transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-umber active:translate-y-0 active:scale-95"
+              disabled={thinking || !draft.trim()}
+              className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gold bg-rust text-sand shadow-[0_3px_0_rgba(84,56,34,0.2)] transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-umber active:translate-y-0 active:scale-95 disabled:cursor-wait disabled:opacity-50"
               aria-label="Send message">
               
                 <SendIcon aria-hidden="true" className="h-4 w-4 transition-transform duration-150 ease-out group-hover:-rotate-12" />
