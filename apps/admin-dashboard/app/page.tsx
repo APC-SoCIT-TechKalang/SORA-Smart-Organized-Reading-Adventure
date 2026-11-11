@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
-import { database, errorMessage, supabase } from "../lib/supabase";
-import { PastUIDashboard } from "../components/admin/past-ui-dashboard";
+import { database, errorMessage, supabase, usesReplacementSchema } from "../lib/supabase";
+import { AdminDashboard } from "../components/admin/AdminDashboard";
 import { ChevronRight, Eye, EyeOff, KeyRound, LockKeyhole, Sparkles } from "lucide-react";
 
 export default function Home() {
@@ -27,14 +27,26 @@ export default function Home() {
   useEffect(() => {
     let cancelled = false;
     if (!session) return;
+    setIsAdmin(false);
     setCheckingRole(true);
     void (async () => {
       try {
-        const { data, error } = await database().rpc("has_role", { required_role: "admin" });
+        const { data, error } = usesReplacementSchema
+          ? await database().schema("sora_v2").rpc("is_librarian")
+          : await database().rpc("has_role", { required_role: "admin" });
         if (error) throw error;
+        if (data !== true) {
+          await database().auth.signOut();
+          if (!cancelled) {
+            setSession(null);
+            setIsAdmin(false);
+            setAccessError("This account is not authorized for the new librarian database.");
+          }
+          return;
+        }
         if (!cancelled) {
-          setIsAdmin(data === true);
-          setAccessError(data ? "" : "This account is not an active staff administrator.");
+          setIsAdmin(true);
+          setAccessError("");
         }
       } catch (error) {
         if (!cancelled) setAccessError(errorMessage(error));
@@ -47,7 +59,7 @@ export default function Home() {
 
   if (checkingRole) return <main className="grid min-h-screen place-items-center bg-[#28140d] text-[#fff9ef]">Checking staff access…</main>;
   if (!isAdmin) return <LockScreen accessError={accessError} onSignedIn={setSession} />;
-  return <PastUIDashboard />;
+  return <AdminDashboard />;
 }
 
 function LockScreen({accessError,onSignedIn}:{accessError:string;onSignedIn:(session:Session)=>void}) {

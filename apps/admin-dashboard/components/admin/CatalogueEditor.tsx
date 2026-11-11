@@ -1,10 +1,9 @@
 "use client";
 
 import { Edit3, Plus, Search } from "lucide-react";
+import type { Book, DashboardData } from "./dashboard-data";
 
-type Book = { book_id:number; title:string; author:string|null; cover_image_url:string|null; acquisition_status:string; book_genres:{genre:string}[]; book_copies:{copy_id:number;status:string;identifier_value:string}[] };
-type Data = {books:Book[];copies:{status:string}[];logs:{book_id:number}[]};
-type Props = { rows:Book[];data:Data;query:string;setQuery:(value:string)=>void;setDrawer:(value:boolean)=>void;setEditingCover:(book:Book)=>void };
+type Props = { rows:Book[];data:Pick<DashboardData,"books"|"copies"|"logs">;query:string;setQuery:(value:string)=>void;setDrawer:(value:boolean)=>void;setEditingCover:(book:Book)=>void };
 
 export function CatalogueEditor({rows,data,query,setQuery,setDrawer,setEditingCover}:Props) {
   return <><div className="mb-5 grid gap-3 sm:grid-cols-3">{[["Total titles",data.books.length],["In shelf",data.copies.filter(copy=>copy.status==="IN_SHELF").length],["Needs action",data.copies.filter(copy=>copy.status==="RETURN_CART").length]].map(([label,value])=><div key={String(label)} className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-4 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]">{label}</p><b className="mt-2 block font-serif text-3xl">{value}</b></div>)}</div>

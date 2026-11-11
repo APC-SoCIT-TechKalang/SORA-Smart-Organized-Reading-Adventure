@@ -1,0 +1,154 @@
+import type { Session } from '@supabase/supabase-js';
+import type { Commission, Volume } from '../types/library';
+import { database } from './supabase';
+
+export const usesReplacementSchema = import.meta.env.VITE_SORA_SCHEMA === 'sora_v2';
+
+interface ReplacementBook {
+  book_id: number;
+  title: string;
+  original_title: string | null;
+  isbn: string | null;
+  volume_number: number | null;
+  publisher: string | null;
+  book_description: string | null;
+  coverimage_url: string | null;
+  book_genre: string | null;
+  authors: { author_firstname: string; author_lastname: string } | null;
+  book_copies?: { copy_status: string }[];
+}
+
+interface ReplacementUser {
+  user_id: number;
+  first_name: string;
+  last_name: string;
+  birthdate: string;
+}
+
+interface ReplacementSession {
+  session_id: number;
+  copy_id: number;
+  borrow_date: string | null;
+  return_date: string | null;
+}
+
+interface ReplacementQuest {
+  quest_id: number;
+  quest_name: string;
+  quest_description: string;
+  points_reward: number;
+  time_limit_days: number | null;
+}
+
+interface ReplacementEnrollment {
+  quest_id: number;
+  quest_status: string;
+  points_awarded: number;
+}
+
+export interface ReplacementLibraryData {
+  volumes: Volume[];
+  profile: { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: null } | null;
+  logs: { reading_log_id: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null }[];
+  rank: string;
+  coins: number;
+  streak: 0;
+  claimed: string[];
+  enrolled: string[];
+  commissions: Commission[];
+}
+
+const api = () => database().schema('sora_v2');
+
+async function readAll<T>(table: string, columns: string, order: string): Promise<T[]> {
+  const result: T[] = [];
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await api().from(table).select(columns).order(order).range(offset, offset + 499);
+    if (error) throw error;
+    result.push(...(data as unknown as T[]));
+    if (data.length < 500) return result;
+  }
+}
+
+function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
+  return {
+    id: String(book.book_id),
+    title: book.title,
+    author: book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : 'Unknown author',
+    genre: book.book_genre || 'General',
+    volume: book.volume_number ?? 0,
+    chapters: 0,
+    rating: 0,
+    rarity: 3,
+    copies: signedIn ? (book.book_copies ?? []).filter(copy => copy.copy_status === 'In-Shelf').length : -1,
+    synopsis: book.book_description ?? 'No description recorded.',
+    plate: [book.title.toUpperCase()],
+    plateColor: '#59351e',
+    plateInk: '#fff9ef',
+    coverImage: book.coverimage_url ?? undefined,
+    isbn: book.isbn,
+    publisher: book.publisher,
+    originalTitle: book.original_title,
+  };
+}
+
+export async function loadReplacementLibrary(session: Session | null): Promise<ReplacementLibraryData> {
+  const books = await readAll<ReplacementBook>(
+    'books',
+    'book_id,title,original_title,isbn,volume_number,publisher,book_description,coverimage_url,book_genre,authors(author_firstname,author_lastname)'
+      + (session ? ',book_copies(copy_status)' : ''),
+    'book_id',
+  );
+  const base: ReplacementLibraryData = {
+    volumes: books.map(book => toVolume(book, !!session)),
+    profile: null, logs: [], rank: 'F', coins: 0, streak: 0,
+    claimed: [], enrolled: [], commissions: [],
+  };
+  if (!session) return base;
+
+  const account = await api().rpc('current_user_id');
+  if (account.error) throw account.error;
+  if (account.data == null) throw new Error('This sign-in has not been linked to a library account yet. Ask staff for help.');
+  const userId = Number(account.data);
+  const [user, copies, sessions, memberships, quests, enrollments, balance] = await Promise.all([
+    api().from('users').select('user_id,first_name,last_name,birthdate').eq('user_id', userId).single(),
+    readAll<{ copy_id: number; book_id: number }>('book_copies', 'copy_id,book_id', 'copy_id'),
+    readAll<ReplacementSession>('sessions', 'session_id,copy_id,borrow_date,return_date', 'session_id'),
+    api().from('memberships').select('membership_rank').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    readAll<ReplacementQuest>('quests', 'quest_id,quest_name,quest_description,points_reward,time_limit_days', 'quest_id'),
+    readAll<ReplacementEnrollment>('user_quests', 'quest_id,quest_status,points_awarded', 'user_quest_id'),
+    api().rpc('points_balance'),
+  ]);
+  if (user.error) throw user.error;
+  if (memberships.error) throw memberships.error;
+  if (balance.error) throw balance.error;
+  const copyBookIds = new Map(copies.map(copy => [copy.copy_id, copy.book_id]));
+  const profile = user.data as ReplacementUser;
+  return {
+    ...base,
+    profile: { user_id: String(profile.user_id), first_name: profile.first_name,
+      last_name: profile.last_name, birthday: profile.birthdate, bio: null },
+    logs: sessions.map(item => ({
+      reading_log_id: item.session_id,
+      book_id: copyBookIds.get(item.copy_id) ?? 0,
+      started_at: item.borrow_date ?? '',
+      returned_at: item.return_date,
+      total_reading_minutes: item.return_date && item.borrow_date
+        ? Math.max(0, Math.floor((new Date(item.return_date).getTime() - new Date(item.borrow_date).getTime()) / 60000))
+        : null,
+    })),
+    rank: (memberships.data as { membership_rank: string } | null)?.membership_rank ?? 'F',
+    coins: Number(balance.data ?? 0),
+    claimed: enrollments.filter(item => item.points_awarded > 0).map(item => String(item.quest_id)),
+    enrolled: enrollments.map(item => String(item.quest_id)),
+    commissions: quests.map(quest => ({
+      id: String(quest.quest_id), name: quest.quest_name,
+      detail: quest.quest_description,
+      track: quest.time_limit_days === 7 ? 'weekly' : 'daily',
+      seal: 'Quest', coins: quest.points_reward, xp: 0, participants: 0,
+      progress: enrollments.some(item => item.quest_id === quest.quest_id && item.quest_status === 'COMPLETED') ? 100 : 0,
+    })),
+  };
+}
+
+export function replacementApi() { return api(); }

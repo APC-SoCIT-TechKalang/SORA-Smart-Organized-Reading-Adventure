@@ -3,11 +3,11 @@ import type { Session } from '@supabase/supabase-js';
 import type { Commission, SectionId, Toast, Volume } from '../types/library';
 import { database, errorMessage, readRows, setupMessage, supabase } from '../lib/supabase';
 import { volumes as demoVolumes } from '../data/manga';
+import { bookToVolume, questToCommission, type BookRow, type QuestRow } from '../lib/library-mappers';
+import { loadReplacementLibrary, replacementApi, usesReplacementSchema } from '../lib/replacement-library';
 
 export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
 export interface ReadingLog { reading_log_id: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null; }
-interface BookRow { book_id: number; title: string; author: string | null; volume_number: string | null; description: string | null; cover_image_url: string | null; isbn: string | null; publisher: string | null; original_title: string | null; book_genres: { genre: string }[]; book_copies: { status: string }[]; }
-interface Quest { quest_id: number; name: string; description: string; quest_type: string; points_reward: number; badge_name: string | null; }
 interface QuestProgress { quest_id: number; status: string; }
 interface Progress { total_points: number; current_streak_days: number; membership_ranks: { name: string } | null; }
 interface LibraryState {
@@ -82,23 +82,22 @@ function useLibraryState() {
     const current = ++generation.current;
     if (!loaded.current) setLoading(true);
     try {
+      if (usesReplacementSchema) {
+        const next = await loadReplacementLibrary(currentSession);
+        if (current === generation.current) { loaded.current = true; setState(next); setError(''); }
+        return;
+      }
       const books = await readRows<BookRow>('books', 'book_id,title,author,volume_number,description,cover_image_url,isbn,publisher,original_title,book_genres(genre),book_copies(status)', 'book_id');
       // Keep the browse experience useful for visitors while the live catalog is
       // empty or still being seeded. Signed-in actions continue to use Supabase.
-      const catalog = books.length || currentSession ? books.map(book => ({
-        id: String(book.book_id), title: book.title || 'Untitled book', author: book.author ?? 'Unknown author',
-        volume: Number(book.volume_number) || 0, genre: (Array.isArray(book.book_genres) ? book.book_genres : []).map(g => g.genre).filter(Boolean).join(', ') || 'Uncategorized',
-        synopsis: book.description ?? 'No description recorded.', copies: currentSession ? book.book_copies.filter(c => c.status === 'IN_SHELF').length : -1,
-        rating: 0, rarity: 3 as const, chapters: 0, plate: [(book.title || 'Untitled book').toUpperCase()], plateColor: '#59351e', plateInk: '#fff9ef',
-        coverImage: book.cover_image_url ?? undefined, isbn: book.isbn, publisher: book.publisher, originalTitle: book.original_title,
-      })) : demoVolumes;
+      const catalog = books.length || currentSession ? books.map(book => bookToVolume(book, !!currentSession)) : demoVolumes;
       let next: LibraryState = { ...empty, volumes: catalog };
       if (currentSession) {
         const results = await Promise.all([
           supabase.from('profiles').select('user_id,first_name,last_name,birthday,bio').eq('user_id', currentSession.user.id).maybeSingle(),
           supabase.from('reader_progress').select('total_points,current_streak_days,membership_ranks(name)').eq('user_id', currentSession.user.id).maybeSingle(),
           readRows<ReadingLog>('reading_logs', 'reading_log_id,book_id,started_at,returned_at,total_reading_minutes', 'reading_log_id'),
-          readRows<Quest>('quests', 'quest_id,name,description,quest_type,points_reward,badge_name', 'quest_id'),
+          readRows<QuestRow>('quests', 'quest_id,name,description,quest_type,points_reward,badge_name', 'quest_id'),
           readRows<QuestProgress>('quest_progress', 'quest_id,status', 'quest_progress_id'),
           readRows<{ reason_type: string; reference_id: string }>('points_ledger', 'reason_type,reference_id', 'ledger_id'),
         ]);
@@ -109,17 +108,14 @@ function useLibraryState() {
           rank: progress?.membership_ranks?.name ?? 'F', coins: progress?.total_points ?? 0, streak: progress?.current_streak_days ?? 0,
           claimed: results[5].filter(p => p.reason_type === 'QUEST_REWARD').map(p => p.reference_id),
           enrolled: results[4].map(p => String(p.quest_id)),
-          commissions: results[3].map(q => ({ id: String(q.quest_id), name: q.name, detail: q.description,
-            track: q.quest_type === 'WEEKLY' ? 'weekly' : q.quest_type === 'EVENT' ? 'seasonal' : 'daily',
-            seal: q.badge_name ?? 'Quest', coins: q.points_reward, xp: 0, participants: 0,
-            progress: results[4].some(p => p.quest_id === q.quest_id && p.status === 'COMPLETED') ? 100 : 0 })) };
+          commissions: results[3].map(q => questToCommission(q, results[4].some(p => p.quest_id === q.quest_id && p.status === 'COMPLETED'))) };
       }
       if (current === generation.current) { loaded.current = true; setState(next); setError(''); }
     } catch (err) {
       if (current === generation.current) {
         // A background refresh failure must not erase or replace data that was
         // already loaded. Demo books are only an initial guest fallback.
-        if (!currentSession) setState(previous => previous.volumes.length ? previous : { ...empty, volumes: demoVolumes });
+        if (!currentSession && !usesReplacementSchema) setState(previous => previous.volumes.length ? previous : { ...empty, volumes: demoVolumes });
         setError(errorMessage(err));
       }
     }
@@ -209,18 +205,22 @@ function useLibraryState() {
   const borrowed = state.logs.filter(log => !log.returned_at).map(log => ({ volumeId: String(log.book_id), dueInDays: 0, progress: 0 }));
   return {
     ...state, session, section, setSection, loading, error, busy, refresh, borrowed, toasts,
-    xp: 0, xpPercent: 0, lanterns: Math.max(0, 3 - borrowed.length), maxLanterns: 3,
+    xp: 0, xpPercent: 0, lanterns: Math.max(0, (usesReplacementSchema ? 1 : 3) - borrowed.length), maxLanterns: usesReplacementSchema ? 1 : 3,
     joinedEvents: [] as string[], joinedClubs: [] as string[],
     volumeById: (id: string) => state.volumes.find(v => v.id === id),
     isBorrowed: (id: string) => borrowed.some(v => v.volumeId === id),
-    borrow: (id: string) => run(() => database().rpc('start_reading', { p_book_id: Number(id) }), 'Reading started'),
+    borrow: (id: string) => run(() => usesReplacementSchema
+      ? replacementApi().rpc('start_reading', { p_book_id: Number(id) })
+      : database().rpc('start_reading', { p_book_id: Number(id) }), 'Reading started'),
     giveBack: (id: string) => {
       const log = state.logs.find(l => String(l.book_id) === id && !l.returned_at);
-      return log ? run(() => database().rpc('finish_reading', { p_log_id: log.reading_log_id }), 'Reading finished — place the book on the return cart') : Promise.resolve(false);
+      return log ? run(() => usesReplacementSchema
+        ? replacementApi().rpc('finish_reading', { p_session_id: log.reading_log_id })
+        : database().rpc('finish_reading', { p_log_id: log.reading_log_id }), 'Reading finished — place the book on the return cart') : Promise.resolve(false);
     },
     logSession: (_id: string) => { message('Reading time is recorded automatically', 'Finish reading and return the book to complete your session.'); },
-    claim: (q: Commission) => run(() => database().rpc('claim_quest', { p_quest_id: Number(q.id) }), 'Quest points claimed'),
-    joinQuest: (id: string) => run(() => database().rpc('join_quest', { p_quest_id: Number(id) }), 'Quest joined'),
+    claim: (q: Commission) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('claim_quest', { p_quest_id: Number(q.id) }), 'Quest points claimed'),
+    joinQuest: (id: string) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('join_quest', { p_quest_id: Number(id) }), 'Quest joined'),
     toggleEvent: (_id: string, _name: string, _xp: number) => message('Event registration unavailable', 'Ask library staff about current events.'),
     toggleClub: (_id: string, _name: string) => message('Club registration unavailable', 'Ask library staff about current clubs.'),
     dismissToast,
@@ -228,6 +228,12 @@ function useLibraryState() {
     signOut,
     saveProfile: (profile: Pick<Profile, 'first_name' | 'last_name' | 'birthday' | 'bio'>) => run(() => {
       if (!session) throw new Error('Sign in first');
+      if (usesReplacementSchema) {
+        if (!profile.birthday) throw new Error('Birthday is required.');
+        return replacementApi().from('users').update({
+          first_name: profile.first_name, last_name: profile.last_name, birthdate: profile.birthday,
+        }).eq('user_id', Number(state.profile?.user_id)).select('user_id,first_name,last_name,birthdate').single();
+      }
       return database().from('profiles').update(profile).eq('user_id', session.user.id).select().single();
     }, 'Profile updated'),
   };

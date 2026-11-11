@@ -25,12 +25,15 @@ key must never be placed in either frontend build or committed to the repository
 | Deployment | Required variables |
 | --- | --- |
 | Reader site | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
-| Admin dashboard | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` |
+| Admin dashboard | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SORA_SCHEMA` (defaults to `sora_v2`; set to `public` only for a legacy database) |
 | Admin dashboard, optional | `GOOGLE_BOOKS_API_KEY` |
 
 Use the matching `.env.example` only for local development. `VITE_*` and
 `NEXT_PUBLIC_*` values are embedded in browser code at build time, so rebuilding
-is required after changing them.
+is required after changing them. For the replacement database, configure
+Supabase's API settings to expose the `sora_v2` schema, then rebuild and
+redeploy the admin dashboard. Its librarian login check calls
+`sora_v2.is_librarian`; it must not use the removed `public.has_role` RPC.
 
 ## Supabase configuration
 

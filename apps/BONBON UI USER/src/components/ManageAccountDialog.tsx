@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { CheckCircle2Icon, KeyRoundIcon, LogOutIcon, UserRoundIcon, XIcon } from 'lucide-react';
 import { database, errorMessage } from '../lib/supabase';
 import { useGame } from '../contexts/GameContext';
+import { usesReplacementSchema } from '../lib/replacement-library';
 
 interface ManageAccountDialogProps {
   open: boolean;
@@ -78,7 +79,7 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
         first_name: String(form.get('firstName')).trim(),
         last_name: String(form.get('lastName')).trim(),
         birthday: String(form.get('birthday')) || null,
-        bio: String(form.get('bio')).trim() || null,
+        bio: String(form.get('bio') ?? '').trim() || null,
       });
       if (!saved) throw new Error('Your profile could not be saved.');
       setProfileMessage('Profile details saved.');
@@ -114,7 +115,7 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
             <div className="space-y-5">
               <form onSubmit={updateProfile} className="tb-ornate-panel tb-cut-sm p-5">
                 <div className="flex items-center gap-2"><UserRoundIcon className="h-4 w-4 text-gold" /><h3 className="font-display text-base font-800 uppercase tracking-[.08em] text-umber">Profile details</h3></div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label="First name"><input className={inputClass} name="firstName" required defaultValue={profile?.first_name ?? ''} /></Field><Field label="Last name"><input className={inputClass} name="lastName" required defaultValue={profile?.last_name ?? ''} /></Field><Field label="Birthday"><input className={inputClass} type="date" name="birthday" max={new Date().toISOString().slice(0, 10)} defaultValue={profile?.birthday ?? ''} /></Field><Field label="About you"><textarea className={`${inputClass} min-h-20 resize-y py-2`} name="bio" maxLength={180} defaultValue={profile?.bio ?? ''} /></Field></div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label="First name"><input className={inputClass} name="firstName" required defaultValue={profile?.first_name ?? ''} /></Field><Field label="Last name"><input className={inputClass} name="lastName" required defaultValue={profile?.last_name ?? ''} /></Field><Field label="Birthday"><input className={inputClass} type="date" name="birthday" required={usesReplacementSchema} max={new Date().toISOString().slice(0, 10)} defaultValue={profile?.birthday ?? ''} /></Field>{!usesReplacementSchema && <Field label="About you"><textarea className={`${inputClass} min-h-20 resize-y py-2`} name="bio" maxLength={180} defaultValue={profile?.bio ?? ''} /></Field>}</div>
                 {profileError && <p role="alert" className="mt-3 text-xs font-700 text-rust">{profileError}</p>}{profileMessage && <p className="mt-3 text-xs font-700 text-emerald-700">{profileMessage}</p>}
                 <button type="submit" disabled={profileBusy || busy} className="tb-button-primary tb-cut-sm mt-4 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">{profileBusy ? 'Saving…' : 'Save profile'}</button>
               </form>

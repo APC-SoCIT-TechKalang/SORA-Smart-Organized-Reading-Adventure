@@ -302,9 +302,13 @@ export async function POST(request: NextRequest) {
     const client = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authorization } }, auth: { persistSession: false },
     });
+    const replacementSchema = process.env.NEXT_PUBLIC_SORA_SCHEMA !== "public";
+    const replacementClient = client.schema("sora_v2");
     const { error: userError } = await client.auth.getUser();
     if (userError) return NextResponse.json({ error: "Your staff session has expired." }, { status: 401 });
-    const { data: isAdmin, error: roleError } = await client.rpc("has_role", { required_role: "admin" });
+    const { data: isAdmin, error: roleError } = replacementSchema
+      ? await replacementClient.rpc("is_librarian")
+      : await client.rpc("has_role", { required_role: "admin" });
     if (roleError || !isAdmin) return NextResponse.json({ error: "Administrator access is required." }, { status: 403 });
 
     const body = await request.json() as {isbn?: string; action?: string; query?: string};
@@ -315,9 +319,11 @@ export async function POST(request: NextRequest) {
     if (body.action === "title-search") {
       const query = String(body.query ?? "").replace(/\s+/g, " ").trim();
       if (query.length < 2) return NextResponse.json({ error:"Enter at least 2 characters to search by title." }, {status:400});
-      const {data:allowed,error:limitError} = await client.rpc("consume_catalog_lookup");
-      if (limitError) throw limitError;
-      if (!allowed) return NextResponse.json({error:"Too many catalogue searches. Wait a few minutes and try again."},{status:429});
+      if (!replacementSchema) {
+        const {data:allowed,error:limitError} = await client.rpc("consume_catalog_lookup");
+        if (limitError) throw limitError;
+        if (!allowed) return NextResponse.json({error:"Too many catalogue searches. Wait a few minutes and try again."},{status:429});
+      }
       let results = await Promise.allSettled([aniListCandidates(query,canonicalIsbn),jikanCandidates(query,canonicalIsbn)]);
       let candidates = results.flatMap(result=>result.status==="fulfilled"?result.value:[]);
       let normalizedQuery = query;
@@ -334,7 +340,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({candidates, normalizedQuery: normalizedQuery !== query ? normalizedQuery : undefined});
     }
 
-    const { data: existing, error: existingError } = await client.from("books")
+    const { data: existing, error: existingError } = replacementSchema ? {data:null,error:null} : await client.from("books")
       .select("book_id,title,original_title,romanized_title,author,contributors,series_name,volume_number,isbn,publisher,imprint,format,book_type,demographic,age_rating,themes,description,cover_image_url,book_genres(genre)")
       .eq("isbn", canonicalIsbn).maybeSingle();
     if (existingError) throw existingError;
@@ -348,9 +354,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const { data: allowed, error: limitError } = await client.rpc("consume_catalog_lookup");
-    if (limitError) throw limitError;
-    if (!allowed) return NextResponse.json({ error: "Too many ISBN lookups. Wait a few minutes and try again." }, { status: 429 });
+    if (!replacementSchema) {
+      const { data: allowed, error: limitError } = await client.rpc("consume_catalog_lookup");
+      if (limitError) throw limitError;
+      if (!allowed) return NextResponse.json({ error: "Too many ISBN lookups. Wait a few minutes and try again." }, { status: 429 });
+    }
 
     const bibliographicResults = await Promise.allSettled([googleBooks(canonicalIsbn), openLibrary(canonicalIsbn)]);
     const found = bibliographicResults.flatMap(result => result.status === "fulfilled" && result.value.metadata ? [result.value] : []);
@@ -373,7 +381,7 @@ export async function POST(request: NextRequest) {
 
     const metadata = toFormMetadata(normalized);
     let inheritedFrom = "";
-    if (metadata.series_name) {
+    if (metadata.series_name && !replacementSchema) {
       let templateQuery = await client.from("books").select("title,author,contributors,series_name,format,publisher,imprint,book_type,demographic,themes,age_rating,book_genres(genre)").ilike("series_name", metadata.series_name).order("book_id", { ascending: false }).limit(1).maybeSingle();
       if (!templateQuery.data && !templateQuery.error) templateQuery = await client.from("books").select("title,author,contributors,series_name,format,publisher,imprint,book_type,demographic,themes,age_rating,book_genres(genre)").ilike("title", `${metadata.series_name}%`).order("book_id", { ascending: false }).limit(1).maybeSingle();
       if (templateQuery.error) throw templateQuery.error;

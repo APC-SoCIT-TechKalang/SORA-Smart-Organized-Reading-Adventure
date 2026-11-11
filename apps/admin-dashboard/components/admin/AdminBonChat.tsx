@@ -2,8 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { MessageCircle, Send, X } from "lucide-react";
+import type { DashboardData } from "./dashboard-data";
 
-type ChatData = { books: { book_id: number; title: string; author: string | null }[]; copies: { book_id: number; status: string }[]; readers: unknown[]; visits: { status: string }[]; logs: { book_id: number; returned_at: string | null }[] };
+type ChatData = Pick<DashboardData, "books" | "copies" | "readers" | "visits" | "logs">;
 type Message = { id: number; from: "bon" | "admin"; text: string };
 
 const BUTTON = 62; // assistive-touch circle size
