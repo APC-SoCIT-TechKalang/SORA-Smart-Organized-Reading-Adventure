@@ -9,3 +9,9 @@ Supabase:
   policies, and seed data
 
 Read [DEPLOYMENT.md](DEPLOYMENT.md) before provisioning a production environment.
+
+## S.O.R.A. fixed database
+
+The project now uses the corrected 16-table database design and matching
+reader/admin workflows. The technical migration and verification notes are in
+[supabase/replacement/TEACHER_UPDATE.md](supabase/replacement/TEACHER_UPDATE.md).

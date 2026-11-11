@@ -20,7 +20,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
-  const { section, setSection, loading, error, refresh } = useGame();
+  const { section, setSection, error, refresh } = useGame();
   const [query, setQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -62,7 +62,7 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
       </main>
       <ToastStack />
       <MobileNav />
-      <BonChatbot autoPeek={bonAutoPeek} />
+      {section !== 'shelf' ? <BonChatbot autoPeek={bonAutoPeek} /> : null}
     </div>
   );
 }

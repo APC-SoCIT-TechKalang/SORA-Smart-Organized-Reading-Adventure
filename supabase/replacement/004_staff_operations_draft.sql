@@ -126,7 +126,8 @@ begin
   insert into sora_v2.books(author_id, title, book_type, age_rating,
     book_genre, isbn)
   values (v_author_id, btrim(p_title), p_book_type, p_age_rating,
-    coalesce(nullif(btrim(p_genre), ''), 'General'), nullif(btrim(p_isbn), ''))
+    left(coalesce(nullif(btrim(p_genre), ''), 'General'), 100),
+    nullif(left(btrim(p_isbn), 50), ''))
   returning book_id into new_book_id;
   return new_book_id;
 end;

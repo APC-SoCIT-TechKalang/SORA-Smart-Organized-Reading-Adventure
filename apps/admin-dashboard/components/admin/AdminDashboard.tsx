@@ -43,11 +43,7 @@ import { CatalogueEditor } from "./CatalogueEditor";
 import { KioskRequests } from "./KioskRequests";
 
 type Page =
-  | "Overview"
-  | "Catalogue"
-  | "Challenges"
-  | "Readers"
-  | "Top-up terminal";
+  "Overview" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
 type Data = DashboardData;
 const nav: { icon: typeof LayoutDashboard; page: Page; label: string }[] = [
   { icon: LayoutDashboard, page: "Overview", label: "Overview" },
@@ -647,7 +643,7 @@ function Catalogue({
                             );
                             if (copy)
                               void run(
-                              () => shelveCopy(copy.copy_id),
+                                () => shelveCopy(copy.copy_id),
                                 "Copy returned to shelf",
                               );
                           }}
@@ -834,25 +830,26 @@ function Challenges({
             event.preventDefault();
             if (
               await run(
-                () => usesReplacementSchema
-                  ? replacementDb().rpc("admin_create_quest", {
-                      p_name: title,
-                      p_difficulty: "Easy",
-                      p_description: description,
-                      p_requirement: description,
-                      p_points: Number(points),
-                      p_target_genre: null,
-                    })
-                  : database()
-                      .from("quests")
-                      .insert({
-                        name: title,
-                        description,
-                        quest_type: "SIDE",
-                        requirement_type: "STAFF_VERIFIED",
-                        points_reward: Number(points),
-                        status: "ACTIVE",
-                      }),
+                () =>
+                  usesReplacementSchema
+                    ? replacementDb().rpc("admin_create_quest", {
+                        p_name: title,
+                        p_difficulty: "Easy",
+                        p_description: description,
+                        p_requirement: description,
+                        p_points: Number(points),
+                        p_target_genre: null,
+                      })
+                    : database()
+                        .from("quests")
+                        .insert({
+                          name: title,
+                          description,
+                          quest_type: "SIDE",
+                          requirement_type: "STAFF_VERIFIED",
+                          points_reward: Number(points),
+                          status: "ACTIVE",
+                        }),
                 "Quest created",
               )
             ) {
@@ -904,26 +901,30 @@ function Challenges({
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#fff0c9] text-lg text-[#a65b1e]">
                   ★
                 </span>
-                {!usesReplacementSchema && <button
-                  onClick={() =>
-                    void run(
-                      () =>
-                        database()
-                          .from("quests")
-                          .update({
-                            status:
-                              quest.status === "ACTIVE" ? "ARCHIVED" : "ACTIVE",
-                          })
-                          .eq("quest_id", quest.quest_id)
-                          .select()
-                          .single(),
-                      `Quest ${quest.status === "ACTIVE" ? "archived" : "activated"}`,
-                    )
-                  }
-                  className="rounded-lg p-2 text-[#a83d12] hover:bg-[#fce8d8]"
-                >
-                  <Edit3 size={15} />
-                </button>}
+                {!usesReplacementSchema && (
+                  <button
+                    onClick={() =>
+                      void run(
+                        () =>
+                          database()
+                            .from("quests")
+                            .update({
+                              status:
+                                quest.status === "ACTIVE"
+                                  ? "ARCHIVED"
+                                  : "ACTIVE",
+                            })
+                            .eq("quest_id", quest.quest_id)
+                            .select()
+                            .single(),
+                        `Quest ${quest.status === "ACTIVE" ? "archived" : "activated"}`,
+                      )
+                    }
+                    className="rounded-lg p-2 text-[#a83d12] hover:bg-[#fce8d8]"
+                  >
+                    <Edit3 size={15} />
+                  </button>
+                )}
               </div>
               <p className="mt-6 font-serif text-xl font-semibold">
                 {quest.name}
@@ -984,6 +985,15 @@ function Readers({
   const [membershipNumber, setMembershipNumber] = useState("");
   const [rfid, setRfid] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [newReader, setNewReader] = useState({
+    email: "",
+    password: "",
+    firstName: "",
+    lastName: "",
+    username: "",
+    birthdate: "",
+    mobileNumber: "",
+  });
   const readers = data.readers.filter((reader) =>
     `${reader.first_name} ${reader.last_name}`
       .toLowerCase()
@@ -1040,6 +1050,90 @@ function Readers({
           </div>
         ))}
       </div>
+      {usesReplacementSchema && (
+        <section className="mb-6 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+          <SectionTitle
+            title="Create reader account"
+            copy="Create the reader's secure login and exact-ERD user record together."
+          />
+          <form
+            className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+            onSubmit={async (event) => {
+              event.preventDefault();
+              const ok = await run(async () => {
+                const session = await database().auth.getSession();
+                const token = session.data.session?.access_token;
+                if (!token)
+                  return { error: new Error("Librarian session expired.") };
+                const response = await fetch("/api/readers", {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify(newReader),
+                });
+                const result = (await response.json()) as { error?: string };
+                return {
+                  error: response.ok
+                    ? null
+                    : new Error(
+                        result.error ?? "Reader account could not be created.",
+                      ),
+                };
+              }, "Reader login and profile created");
+              if (ok)
+                setNewReader({
+                  email: "",
+                  password: "",
+                  firstName: "",
+                  lastName: "",
+                  username: "",
+                  birthdate: "",
+                  mobileNumber: "",
+                });
+            }}
+          >
+            {(
+              [
+                ["First name", "firstName", "text"],
+                ["Last name", "lastName", "text"],
+                ["Username", "username", "text"],
+                ["Birthdate", "birthdate", "date"],
+                ["Mobile number", "mobileNumber", "tel"],
+                ["Email", "email", "email"],
+                ["Temporary password", "password", "password"],
+              ] as const
+            ).map(([label, key, type]) => (
+              <label
+                key={key}
+                className="text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]"
+              >
+                {label}
+                <input
+                  required
+                  type={type}
+                  minLength={key === "password" ? 12 : undefined}
+                  value={newReader[key]}
+                  onChange={(event) =>
+                    setNewReader((current) => ({
+                      ...current,
+                      [key]: event.target.value,
+                    }))
+                  }
+                  className="mt-2 w-full rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-3 text-sm font-normal normal-case"
+                />
+              </label>
+            ))}
+            <div className="flex items-end">
+              <ActionButton onClick={() => {}}>
+                <Plus size={15} />
+                Create reader
+              </ActionButton>
+            </div>
+          </form>
+        </section>
+      )}
       <section className="mb-6 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
         <SectionTitle
           title="Activate reader account"
@@ -1051,22 +1145,23 @@ function Readers({
             event.preventDefault();
             if (
               await run(
-                () => usesReplacementSchema
-                  ? replacementDb().rpc("admin_activate_membership", {
-                      p_user_id: Number(readerId),
-                      p_membership_type: selectedPlan?.name,
-                      p_membership_rank: "F",
-                      p_remaining_minutes: 0,
-                      p_expires_at: new Date(expiresAt).toISOString(),
-                      p_rfid: rfid.trim() || null,
-                    })
-                  : database().rpc("admin_activate_member", {
-                      p_user_id: readerId,
-                      p_type_id: Number(planId),
-                      p_number: membershipNumber.trim(),
-                      p_rfid: rfid.trim(),
-                      p_expires_at: new Date(expiresAt).toISOString(),
-                    }),
+                () =>
+                  usesReplacementSchema
+                    ? replacementDb().rpc("admin_activate_membership", {
+                        p_user_id: Number(readerId),
+                        p_membership_type: selectedPlan?.name,
+                        p_membership_rank: "F",
+                        p_remaining_minutes: 0,
+                        p_expires_at: new Date(expiresAt).toISOString(),
+                        p_rfid: rfid.trim() || null,
+                      })
+                    : database().rpc("admin_activate_member", {
+                        p_user_id: readerId,
+                        p_type_id: Number(planId),
+                        p_number: membershipNumber.trim(),
+                        p_rfid: rfid.trim(),
+                        p_expires_at: new Date(expiresAt).toISOString(),
+                      }),
                 "Reader membership and physical card activated",
               )
             ) {
@@ -1114,16 +1209,18 @@ function Readers({
               ))}
             </select>
           </label>
-          {!usesReplacementSchema && <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">
-            Membership number
-            <input
-              required
-              value={membershipNumber}
-              onChange={(event) => setMembershipNumber(event.target.value)}
-              className="mt-2 w-full rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-3 text-sm font-normal normal-case"
-              placeholder="MEM-000123"
-            />
-          </label>}
+          {!usesReplacementSchema && (
+            <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">
+              Membership number
+              <input
+                required
+                value={membershipNumber}
+                onChange={(event) => setMembershipNumber(event.target.value)}
+                className="mt-2 w-full rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-3 text-sm font-normal normal-case"
+                placeholder="MEM-000123"
+              />
+            </label>
+          )}
           <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">
             Physical RFID UID
             <input
@@ -1266,8 +1363,11 @@ function TopUp({
   ) => Promise<boolean>;
 }) {
   const hourly = data.memberships.filter(
-    (item) => item.status === "ACTIVE" && item.remaining_minutes !== null
-      && (!usesReplacementSchema || !item.membership_number.startsWith("Guild Adventurer")),
+    (item) =>
+      item.status === "ACTIVE" &&
+      item.remaining_minutes !== null &&
+      (!usesReplacementSchema ||
+        !item.membership_number.startsWith("Guild Adventurer")),
   );
   const [membership, setMembership] = useState("");
   const [minutes, setMinutes] = useState("60");
@@ -1326,41 +1426,46 @@ function TopUp({
                 className="mt-3 w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
                 placeholder="Receipt / payment reference"
               />
-              {usesReplacementSchema && <div className="mt-3 grid grid-cols-2 gap-3">
-                <input
-                  required
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  className="w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
-                  placeholder="Amount paid"
-                />
-                <select
-                  value={method}
-                  onChange={(event) => setMethod(event.target.value)}
-                  className="w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
-                >
-                  <option>Cash</option><option>Gcash</option><option>Card</option>
-                </select>
-              </div>}
+              {usesReplacementSchema && (
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <input
+                    required
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={amount}
+                    onChange={(event) => setAmount(event.target.value)}
+                    className="w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
+                    placeholder="Amount paid"
+                  />
+                  <select
+                    value={method}
+                    onChange={(event) => setMethod(event.target.value)}
+                    className="w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
+                  >
+                    <option>Cash</option>
+                    <option>Gcash</option>
+                    <option>Card</option>
+                  </select>
+                </div>
+              )}
               <button
                 onClick={() =>
                   void run(
-                    () => usesReplacementSchema
-                      ? replacementDb().rpc("admin_top_up", {
-                          p_membership_id: selected.membership_id,
-                          p_minutes: Number(minutes),
-                          p_amount: Number(amount),
-                          p_method: method,
-                          p_reference: reference,
-                        })
-                      : database().rpc("admin_top_up", {
-                          p_membership_id: selected.membership_id,
-                          p_minutes: Number(minutes),
-                          p_reason: reference,
-                        }),
+                    () =>
+                      usesReplacementSchema
+                        ? replacementDb().rpc("admin_top_up", {
+                            p_membership_id: selected.membership_id,
+                            p_minutes: Number(minutes),
+                            p_amount: Number(amount),
+                            p_method: method,
+                            p_reference: reference,
+                          })
+                        : database().rpc("admin_top_up", {
+                            p_membership_id: selected.membership_id,
+                            p_minutes: Number(minutes),
+                            p_reason: reference,
+                          }),
                     "Top-up saved",
                   )
                 }

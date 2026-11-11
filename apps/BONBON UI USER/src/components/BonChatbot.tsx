@@ -32,7 +32,7 @@ interface BonChatbotProps {
 }
 
 export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
-  const { section, setSection, borrowed, rank, coins, streak, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
+  const { section, setSection, session, profile, borrowed, rank, coins, streak, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -149,24 +149,10 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     }
   }
 
-  function fallbackAnswer(text: string) {
-    const lower = text.toLowerCase();
-    if (lower.includes('due') || lower.includes('shelf')) {
-      const soonest = [...borrowed].sort((a, b) => a.dueInDays - b.dueInDays)[0];
-      const volume = soonest ? volumeById(soonest.volumeId) : undefined;
-      addBonReply(
-        volume ?
-        `${volume.title} is on your in-library reading shelf. Return it before checking out.` :
-        'Your shelf is empty right now. Choose a book from the catalog after checking in.',
-        'shelf'
-      );
-      return;
-    }
-    if (lower.includes('rank') || lower.includes('coin')) {
-      addBonReply(`You are Archivist Rank ${rank} with ${coins.toLocaleString()} library points.`);
-      return;
-    }
-    addBonReply('Looks like my library connection is taking a moment. Try asking me again.');
+  function fallbackAnswer(reason?: string) {
+    addBonReply(reason === 'BON is not configured yet.'
+      ? 'BON’s AI service is not configured yet. I can still answer catalog, progress, quest, and reward questions from the data available to me.'
+      : 'Looks like my library connection is taking a moment. Try asking me again.');
   }
 
   async function askBon(text: string) {
@@ -195,6 +181,8 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
           history: recentHistory,
           context: {
             section,
+            signedIn: Boolean(session),
+            userName: profile ? `${profile.first_name} ${profile.last_name}`.trim() : undefined,
             rank,
             points: coins,
             streak,
@@ -249,8 +237,8 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
           .map((label) => ({ label }));
         if (next.length) setSuggestions(next);
       }
-    } catch {
-      fallbackAnswer(trimmed);
+    } catch (error) {
+      fallbackAnswer(error instanceof Error ? error.message : undefined);
     } finally {
       setThinking(false);
     }

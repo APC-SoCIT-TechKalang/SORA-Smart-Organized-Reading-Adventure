@@ -409,7 +409,8 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               p_author_lastname: authorLast,
               p_book_type: form.book_type,
               p_age_rating: ageRating,
-              p_genre: genres.join(", ") || "General",
+              // The exact ERD limits book_genre to varchar(100).
+              p_genre: (genres.join(", ") || "General").slice(0, 100),
               p_isbn: clean(form.isbn),
             });
           if (created.error) return { error: created.error };

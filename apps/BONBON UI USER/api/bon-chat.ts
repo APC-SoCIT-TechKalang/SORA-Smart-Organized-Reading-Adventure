@@ -1,12 +1,12 @@
 type RequestLike = { method?: string; body?: unknown; headers: Record<string, string | string[] | undefined> };
 type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unknown) => void; setHeader: (name: string, value: string) => void };
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
-type Intent = 'BOOK' | 'PROGRESS' | 'QUEST' | 'REWARD' | 'ACCOUNT' | 'PROJECT' | 'GENERAL';
+type Intent = 'BOOK' | 'PROGRESS' | 'QUEST' | 'REWARD' | 'ACCOUNT' | 'IDENTITY' | 'PROJECT' | 'GENERAL';
 type CatalogBook = { id: string; title: string; author: string; genre: string; synopsis: string; availableCopies: number };
 type Quest = { id: string; name: string; detail: string; points: number; status: string };
 type Reading = { title: string; minutes: number; status: string };
 type CatalogSummary = { totalTitles: number; availableTitles: number; availabilityPending: number };
-type ChatContext = { section: string; rank?: string; points?: number; streak?: number; booksCompleted?: number; activeReading?: Reading[]; quests?: Quest[]; availableRewards?: Quest[]; catalog?: CatalogBook[]; catalogSummary?: CatalogSummary };
+type ChatContext = { section: string; signedIn?: boolean; userName?: string; rank?: string; points?: number; streak?: number; booksCompleted?: number; activeReading?: Reading[]; quests?: Quest[]; availableRewards?: Quest[]; catalog?: CatalogBook[]; catalogSummary?: CatalogSummary };
 
 const ALLOWED_SECTIONS = new Set(['archive', 'catalog', 'shelf', 'commissions', 'guide']);
 const WINDOW_MS = 60 * 60 * 1000;
@@ -45,11 +45,12 @@ function boundedNumber(value: unknown, max = 1_000_000_000) {
 
 function detectIntent(message: string): Intent {
   const value = message.toLowerCase();
+  if (/\b(who am i|what(?:'s| is) my name|do you know me)\b/.test(value)) return 'IDENTITY';
   if (/\b(rewards?|claim|prizes?|unlocks?)\b/.test(value)) return 'REWARD';
   if (/\b(quests?|commissions?|challenges?)\b/.test(value)) return 'QUEST';
   if (/\b(progress|reading|finished|completed|minutes?|history|streak)\b/.test(value)) return 'PROGRESS';
   if (/\b(xp|points?|ranks?|levels?|achievements?)\b/.test(value)) return 'ACCOUNT';
-  if (/\b(books?|mangas?|titles?|authors?|genres?|read next|recommend|similar|available|catalog)\b/.test(value)) return 'BOOK';
+  if (/\b(books?|mangas?|titles?|authors?|genres?|read next|recommend|similar|available|catalog)\b|\b(do you have|is there|in the library|in your library)\b/.test(value)) return 'BOOK';
   if (/\b(app|website|feature|navigate|where|how do i|s\.o\.r\.a|sora|tankobonbon)\b/.test(value)) return 'PROJECT';
   return 'GENERAL';
 }
@@ -94,6 +95,11 @@ function parseBody(body: unknown) {
     if (namesSuppliedBook) intent = 'BOOK';
   }
   const context: ChatContext = { section: ALLOWED_SECTIONS.has(String(raw.section)) ? String(raw.section) : 'archive' };
+
+  if (intent === 'IDENTITY') {
+    context.signedIn = raw.signedIn === true;
+    context.userName = cleanText(raw.userName, 120);
+  }
 
   if (intent === 'ACCOUNT' || intent === 'PROGRESS' || intent === 'REWARD') {
     context.rank = cleanText(raw.rank, 20) || 'F';
@@ -155,6 +161,75 @@ function directReply(input: ReturnType<typeof parseBody>) {
       return { message: `The catalog has ${summary.totalTitles.toLocaleString()} titles right now. ${summary.availableTitles.toLocaleString()} have a shelf copy ready, and ${summary.availabilityPending.toLocaleString()} need an availability check. Happy searching!`, navigateTo: 'catalog', recommendationIds: [], suggestions: ['What books are available?', 'Recommend a book to me'] };
     }
   }
+  // Keep core reading companion features usable even when the optional model
+  // provider is not configured. These replies are generated only from the
+  // compact, current-session context sent by the app.
+  if (input.intent === 'ACCOUNT') {
+    if (/\b(xp|experience|level|achievement|streak)\b/.test(normalized)) {
+      return { message: 'I can see your rank and library points, but I do not have reliable XP, level, or achievement details to share right now.', navigateTo: 'archive', recommendationIds: [], suggestions: ['How many points do I have?', 'Show my progress'] };
+    }
+    const { rank, points } = input.context;
+    if (rank !== undefined && points !== undefined) {
+      return { message: `You are Rank ${rank} with ${points.toLocaleString()} library points.`, navigateTo: null, recommendationIds: [], suggestions: ['Show my progress', 'What is my current quest?'] };
+    }
+  }
+  if (input.intent === 'IDENTITY') {
+    return input.context.signedIn && input.context.userName
+      ? { message: `You are ${input.context.userName}, the reader signed in for this session.`, navigateTo: null, recommendationIds: [], suggestions: ['Show my progress', 'What is my current quest?'] }
+      : { message: 'I cannot identify a signed-in reader right now. Sign in so I can connect your questions to your reading journey.', navigateTo: null, recommendationIds: [], suggestions: [] };
+  }
+  if (input.intent === 'PROGRESS') {
+    const reading = input.context.activeReading ?? [];
+    const quests = input.context.quests ?? [];
+    const summary = [
+      `${input.context.booksCompleted ?? 0} books completed`,
+      `${input.context.streak ?? 0} day reading streak`,
+      reading.length ? `currently reading ${reading.map((book) => book.title).join(', ')}` : 'no books currently marked as reading',
+      quests.length ? `${quests.length} quest${quests.length === 1 ? '' : 's'} in your list` : 'no quests in your list right now',
+    ];
+    return { message: `Here is the progress I can see: ${summary.join('; ')}.`, navigateTo: 'archive', recommendationIds: [], suggestions: ['What is my current quest?', 'How many points do I have?'] };
+  }
+  if (input.intent === 'QUEST') {
+    const quests = input.context.quests ?? [];
+    return { message: quests.length ? `Your quests: ${quests.map((quest) => `${quest.name} (${quest.status})`).join(', ')}.` : 'I cannot see any quests on your account right now. You can browse available quests in the Quests section.', navigateTo: 'commissions', recommendationIds: [], suggestions: ['Show my progress', 'Any rewards ready?'] };
+  }
+  if (input.intent === 'REWARD') {
+    const rewards = input.context.availableRewards ?? [];
+    return { message: rewards.length ? `These quest rewards look ready to claim: ${rewards.map((reward) => `${reward.name} (${reward.points} points)`).join(', ')}. Open Quests to claim one.` : 'I cannot see any unclaimed quest rewards for you right now. Check Quests again after completing one.', navigateTo: 'commissions', recommendationIds: [], suggestions: ['Show my progress', 'What is my current quest?'] };
+  }
+  if (input.intent === 'BOOK') {
+    const candidates = input.context.catalog ?? [];
+    const summary = input.context.catalogSummary;
+    if (/\b(available|availability|in stock|on shelf|shelf copy|shelf copies)\b/.test(normalized) && summary) {
+      const total = summary.totalTitles.toLocaleString();
+      const available = summary.availableTitles.toLocaleString();
+      return {
+        message: summary.availableTitles
+          ? `There ${summary.availableTitles === 1 ? 'is' : 'are'} ${available} title${summary.availableTitles === 1 ? '' : 's'} available right now, out of ${total} in the catalog. Use Catalog search to find a title without loading the entire list.`
+          : `There are no titles marked available right now. The catalog currently has ${total} title${summary.totalTitles === 1 ? '' : 's'}.`,
+        navigateTo: 'catalog', recommendationIds: [],
+        suggestions: ['What should I read next?', 'How many books are there?'],
+      };
+    }
+    const mentioned = candidates.find((book) => {
+      const title = book.title.toLowerCase();
+      if (normalized.includes(title)) return true;
+      // Match meaningful title words, so “is there a Naruto book?” finds
+      // a catalogued volume titled “Naruto 01”.
+      return title.split(/[^a-z0-9]+/).some((word) => word.length >= 3 && normalized.includes(word));
+    });
+    if (mentioned) {
+      const availability = mentioned.availableCopies > 0 ? `${mentioned.availableCopies} ${mentioned.availableCopies === 1 ? 'copy is' : 'copies are'} available` : 'I cannot see an available shelf copy';
+      return { message: `${mentioned.title} by ${mentioned.author}: ${availability}.${mentioned.synopsis ? ` ${mentioned.synopsis}` : ''}`, navigateTo: 'catalog', recommendationIds: [], suggestions: ['Show me available books', 'What should I read next?'] };
+    }
+    if (/recommend|read next|suggest/.test(normalized)) {
+      const available = candidates.filter((book) => book.availableCopies > 0).slice(0, 3);
+      return available.length
+        ? { message: `Here are some books currently listed as available: ${available.map((book) => book.title).join(', ')}.`, navigateTo: 'catalog', recommendationIds: available.map((book) => book.id), suggestions: ['Show me available books'] }
+        : { message: 'I cannot see any available books in the catalog data right now. Try browsing the Catalog or ask library staff to check availability.', navigateTo: 'catalog', recommendationIds: [], suggestions: ['Open the Catalog'] };
+    }
+    return { message: 'I cannot confirm that title from the catalog information I can access right now. Try searching the Catalog or ask library staff to check.', navigateTo: 'catalog', recommendationIds: [], suggestions: ['Show me available books', 'What should I read next?'] };
+  }
   return null;
 }
 
@@ -198,12 +273,16 @@ export default async function handler(request: RequestLike, response: ResponseLi
   const model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash-1017';
   const siteUrl = process.env.OPENROUTER_SITE_URL || 'https://sora-reader.vercel.app';
   const appName = process.env.OPENROUTER_APP_NAME || 'S.O.R.A. BON';
-  const system = `You are BON, S.O.R.A.'s cheerful reading guide. Answer first in 1 to 3 concise, jolly sentences. General questions need no forced library reference. For project or named-book questions, use only PROJECT CONTEXT and say when data is unavailable. Never add outside book facts, invent data, or claim actions. Recommend at most 3 supplied books with availableCopies above 0. Protect secrets and other users' data. Never use em dash or en dash characters. Return JSON only: {"message":"...","navigateTo":"archive|catalog|shelf|commissions|guide|null","recommendationIds":[]}.`;
+  const system = `You are BON, S.O.R.A.'s friendly, concise reading-adventure guide. Answer the actual question first in 1 to 3 natural sentences. General questions need no forced reading reference. For any S.O.R.A. account, catalog, book, quest, reward, progress, or feature question, treat PROJECT CONTEXT as the only source of project facts. It contains only the data available for this request. If the needed data is absent or empty, say you cannot see it right now; do not infer, fill gaps, or use outside knowledge to describe a library book. Recommend at most 3 books, and only books present in PROJECT CONTEXT with availableCopies above 0. Return their exact IDs in recommendationIds, and do not mention a recommendation unless its ID is included. You cannot perform actions, so explain where the user can do them instead of claiming completion. Protect secrets and private information. Never use em dash or en dash characters. Return JSON only: {"message":"...","navigateTo":"archive|catalog|shelf|commissions|guide|null","recommendationIds":[]}.`;
   try {
     const upstream = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json', 'HTTP-Referer': siteUrl, 'X-Title': appName },
-      body: JSON.stringify({ model, temperature: 0.35, max_tokens: 150, response_format: { type: 'json_object' }, messages: [
+      body: JSON.stringify({ model, temperature: 0.35, max_tokens: 180,
+        // This model spends the shared output budget on reasoning by default,
+        // sometimes leaving no JSON content for BON to display.
+        ...(model === 'deepseek/deepseek-v4.1-flash-1017' ? { reasoning: { effort: 'none' } } : {}),
+        response_format: { type: 'json_object' }, messages: [
         { role: 'system', content: system }, ...input.history,
         { role: 'user', content: `INTENT: ${input.intent}\nPROJECT CONTEXT: ${JSON.stringify(input.context)}\nQUESTION: ${input.message}` },
       ] }),

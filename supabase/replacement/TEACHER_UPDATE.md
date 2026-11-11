@@ -1,16 +1,15 @@
-# S.O.R.A. database replacement update
+# S.O.R.A. fixed database update
 
 ## Objective
 
 Convert the team's revised MySQL ERD to Supabase PostgreSQL while preserving
 the 16 requested tables and preparing the current reader and librarian apps to
-use it. Existing test data will not be migrated. The same Supabase project may
-be reused only after the replacement has been tested.
+use the fixed database. Existing test data was intentionally not migrated.
 
 ## Completed
 
-- Translated all 16 MySQL tables to PostgreSQL under an isolated `sora_v2`
-  schema. Existing `public` tables and data remain untouched.
+- Translated all 16 MySQL tables to PostgreSQL under an isolated internal
+  schema, then completed the verified production cutover.
 - Preserved the ERD's table and column structure. PostgreSQL checks replace
   MySQL enums, identity columns replace `AUTO_INCREMENT`, and a trigger
   replaces MySQL's automatic `updated_at` behavior.
@@ -23,8 +22,7 @@ be reused only after the replacement has been tested.
   records, copies, quests, and quest verification.
 - Added a protected server endpoint for librarians to create a Supabase Auth
   account and matching integer ERD user record.
-- Added feature flags so current deployments continue using the old schema
-  until the replacement is enabled deliberately.
+- Added feature flags so the applications use the fixed database deliberately.
 - Removed replacement-mode kiosk approval and check-in controls that the exact
   ERD cannot store. A reading session begins when a registered reader starts a
   book and receives an available seat.
@@ -39,18 +37,19 @@ be reused only after the replacement has been tested.
 - Reader application production build passed.
 - Admin application production build and TypeScript checking passed.
 
-## Current limitation
+## Cutover status
 
-The replacement is not deployed to the live Supabase project yet. The code and
-SQL are prepared behind feature flags so the live project is not changed until
-the team deliberately applies and tests the replacement scripts.
+The fixed database is installed in the Supabase project. Verification returned
+16 ERD tables, one linked librarian, one remaining Auth account, and zero
+legacy application tables. The admin now provisions reader Auth accounts and
+ERD user records together.
 
 ## Safe demonstration sequence
 
-1. Show `001_schema.sql` and the `sora_v2` table design.
+1. Show `001_schema.sql` and the 16-table ERD design.
 2. Show `002_access_draft.sql` for Auth and RLS.
 3. Show `003_reader_operations_draft.sql` and
    `004_staff_operations_draft.sql` for business operations.
 4. Show that both applications build while the feature flags remain off.
-5. Apply and test the files in `sora_v2`; only reset `public` after all admin
-   forms and end-to-end workflows pass.
+5. Demonstrate that the legacy application tables were removed only after the
+   fixed database, account link, and access controls were verified.
