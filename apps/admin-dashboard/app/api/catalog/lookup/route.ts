@@ -413,7 +413,8 @@ async function openRouter(
 ): Promise<GeminiEnrichment | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
-  const model = process.env.OPENROUTER_MODEL || "google/gemini-2.5-flash-lite";
+  const model =
+    process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
   const evidence = {
     title: metadata.title,
     author: metadata.author,
@@ -461,6 +462,9 @@ async function openRouter(
     messages: [{ role: "user", content: prompt }],
     temperature: 0.1,
     max_tokens: 400,
+    ...(model.startsWith("deepseek/")
+      ? { reasoning: { enabled: false } }
+      : {}),
     tools: [tool],
     tool_choice: {
       type: "function",
@@ -483,6 +487,9 @@ async function openRouter(
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         max_tokens: 400,
+        ...(model.startsWith("deepseek/")
+          ? { reasoning: { enabled: false } }
+          : {}),
         response_format: { type: "json_object" },
       }),
       signal: AbortSignal.timeout(15000),

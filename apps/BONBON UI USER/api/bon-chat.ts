@@ -326,7 +326,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
   }
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return response.status(503).json({ error: 'BON is not configured yet.' });
-  const model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash-1017';
+  const model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash-0731';
   const siteUrl = process.env.OPENROUTER_SITE_URL || 'https://sora-reader.vercel.app';
   const appName = process.env.OPENROUTER_APP_NAME || 'S.O.R.A. BON';
   const system = `You are BON, S.O.R.A.'s friendly, concise reading-adventure guide. Answer the actual question first in 1 to 3 natural sentences. General questions need no forced reading reference. For any S.O.R.A. account, catalog, book, quest, reward, progress, or feature question, treat PROJECT CONTEXT as the only source of project facts. It contains only the data available for this request. If the needed data is absent or empty, say you cannot see it right now; do not infer, fill gaps, or use outside knowledge to describe a library book. Recommend at most 3 books, and only books present in PROJECT CONTEXT with availableCopies above 0. Return their exact IDs in recommendationIds, and do not mention a recommendation unless its ID is included. You cannot perform actions, so explain where the user can do them instead of claiming completion. Protect secrets and private information. Never use em dash or en dash characters. Return JSON only: {"message":"...","navigateTo":"archive|catalog|shelf|commissions|guide|null","recommendationIds":[]}.`;
@@ -337,7 +337,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
       body: JSON.stringify({ model, temperature: 0.35, max_tokens: 180,
         // This model spends the shared output budget on reasoning by default,
         // sometimes leaving no JSON content for BON to display.
-        ...(model === 'deepseek/deepseek-v4.1-flash-1017' ? { reasoning: { effort: 'none' } } : {}),
+        ...(model.startsWith('deepseek/') ? { reasoning: { enabled: false } } : {}),
         response_format: { type: 'json_object' }, messages: [
         { role: 'system', content: system }, ...input.history,
         { role: 'user', content: `INTENT: ${input.intent}\nPROJECT CONTEXT: ${JSON.stringify(input.context)}\nQUESTION: ${input.message}` },
