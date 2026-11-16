@@ -42,7 +42,7 @@ begin
   if normalized ~ '(explicit sexual|porn|nude|rape|how to kill|make a bomb|self[ -]?harm|suicide instructions)' then
     return 'Request contains inappropriate or harmful content';
   end if;
-  if normalized !~ '(book|manga|novel|read|reading|author|genre|catalog|library|shelf|available|recommend|quest|reward|progress|account|membership|rank|points|sora|bon|hello|hi|help|thank)' then
+  if normalized !~ '(book|manga|novel|read|reading|author|genre|catalog|library|shelf|available|recommend|quest|reward|progress|account|profile|membership|rank|points|who am i|my name|know me|identify me|sora|bon|hello|hi|help|thank)' then
     return 'Request is unrelated to the library system';
   end if;
   return null;

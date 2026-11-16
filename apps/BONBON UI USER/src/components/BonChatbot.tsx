@@ -46,7 +46,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   {
     id: 'bon-hello',
     from: 'bon',
-    text: 'Hi! I am BON, your Tankobonbon reading guide. Ask me about books, progress, quests, or anything else.'
+    text: 'Hi! I am BON, your Tankobonbon reading guide. Ask me about books, your account, progress, quests, or rewards.'
   }]
   );
   const logRef = useRef<HTMLDivElement>(null);

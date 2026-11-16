@@ -25,6 +25,8 @@ database, not a second product version.
 5. `005_bootstrap_librarian_template.sql` links the initial librarian.
 6. `008_uuid_users_merge_memberships.sql` upgrades an already-installed older
    S.O.R.A. schema while preserving its rows.
+7. `009_ai_identity_guardrail.sql` allows valid reader identity and profile
+   questions while retaining all inappropriate and unrelated-request checks.
 
 For an existing database, run `008` during maintenance, then rerun the updated
 `002`, `003`, and `004` files in that order. Take a Supabase backup first. The
