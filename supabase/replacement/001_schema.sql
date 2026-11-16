@@ -70,6 +70,7 @@ create table sora_v2.librarycard (
   user_id uuid not null references sora_v2.users(id),
   librarycard_rfid varchar(50) unique,
   created_at timestamptz not null default now(),
+  is_active boolean not null default true,
   deactivated_at timestamptz
 );
 

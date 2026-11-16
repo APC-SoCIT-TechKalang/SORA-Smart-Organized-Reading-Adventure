@@ -12,6 +12,9 @@ database, not a second product version.
   membership table.
 - `users.is_active` controls access. `users.deactivated_at` remains a timestamp
   recording when an account was disabled.
+- `librarycard.is_active` records whether a card is active and defaults to true.
+  Card activation/deactivation operations should keep it consistent with
+  `librarycard.deactivated_at`; adding this column alone does not change access checks.
 - `ai_requests.request_prompt` stores the actual request instead of a summary.
   Validation status and rejection reason record the guardrail decision.
 - All user relationships use the UUID `users.id` type.
@@ -27,6 +30,9 @@ database, not a second product version.
    S.O.R.A. schema while preserving its rows.
 7. `009_ai_identity_guardrail.sql` allows valid reader identity and profile
    questions while retaining all inappropriate and unrelated-request checks.
+8. `010_librarycard_is_active.sql` adds the card Boolean to an existing database
+   once, marking cards with a deactivation timestamp inactive. Fresh installations
+   already include the column in `001_schema.sql` and should skip `010`.
 
 For an existing database, run `008` during maintenance, then rerun the updated
 `002`, `003`, and `004` files in that order. Take a Supabase backup first. The
