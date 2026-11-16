@@ -152,7 +152,9 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   function fallbackAnswer(reason?: string) {
     addBonReply(reason === 'BON is not configured yet.'
       ? 'BON’s AI service is not configured yet. I can still answer catalog, progress, quest, and reward questions from the data available to me.'
-      : 'Looks like my library connection is taking a moment. Try asking me again.');
+      : reason && !reason.includes('connection') && !reason.includes('request failed')
+        ? reason
+        : 'Looks like my library connection is taking a moment. Try asking me again.');
   }
 
   async function askBon(text: string) {
@@ -175,7 +177,10 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     try {
       const response = await fetch('/api/bon-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
         body: JSON.stringify({
           message: trimmed,
           history: recentHistory,

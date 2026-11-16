@@ -3,15 +3,14 @@
 begin;
 
 create function sora_v2.admin_activate_membership(
-  p_user_id integer,
+  p_user_id uuid,
   p_membership_type text,
   p_membership_rank text,
   p_remaining_minutes integer,
   p_expires_at timestamptz,
   p_rfid text default null
 )
-returns integer language plpgsql security definer set search_path = '' as $$
-declare new_membership_id integer;
+returns uuid language plpgsql security definer set search_path = '' as $$
 begin
   if not sora_v2.is_librarian() then raise exception 'Librarian access required'; end if;
   if p_membership_type not in ('Guild Member', 'Guild Adventurer', 'Wanderer')
@@ -20,36 +19,75 @@ begin
     or p_expires_at is null or p_expires_at <= now() then
     raise exception 'Invalid membership details';
   end if;
-  perform 1 from sora_v2.users where user_id = p_user_id and user_role = 'Reader' for update;
+  perform 1 from sora_v2.users
+  where id = p_user_id and user_role = 'Reader' and is_active for update;
   if not found then raise exception 'Reader not found'; end if;
-  update sora_v2.memberships set membership_status = 'EXPIRED'
-  where user_id = p_user_id and membership_status = 'ACTIVE' and expires_at <= now();
-  if exists (
-    select 1 from sora_v2.memberships
-    where user_id = p_user_id and membership_status = 'ACTIVE' and expires_at > now()
-  ) then raise exception 'Reader already has an active membership'; end if;
-  insert into sora_v2.memberships(user_id, membership_type, membership_rank,
-    remaining_minutes, expires_at)
-  values (p_user_id, p_membership_type, btrim(p_membership_rank),
-    p_remaining_minutes, p_expires_at)
-  returning membership_id into new_membership_id;
-  if nullif(btrim(p_rfid), '') is not null then
-    insert into sora_v2.librarycard(user_id, librarycard_rfid, created_at)
-    values (p_user_id, btrim(p_rfid), now());
+  if exists (select 1 from sora_v2.users where id = p_user_id
+      and membership_status = 'ACTIVE' and membership_expires_at > now()) then
+    raise exception 'Reader already has an active membership';
   end if;
-  return new_membership_id;
+  update sora_v2.users
+  set membership_type = p_membership_type,
+      membership_rank = btrim(p_membership_rank),
+      membership_status = 'ACTIVE',
+      remaining_minutes = p_remaining_minutes,
+      membership_started_at = now(),
+      membership_expires_at = p_expires_at
+  where id = p_user_id;
+  if nullif(btrim(p_rfid), '') is not null then
+    if exists (
+      select 1 from sora_v2.librarycard
+      where librarycard_rfid = btrim(p_rfid) and user_id <> p_user_id
+    ) then
+      raise exception 'RFID card is already assigned to another reader';
+    end if;
+    update sora_v2.librarycard
+    set deactivated_at = null
+    where user_id = p_user_id and librarycard_rfid = btrim(p_rfid);
+    if not found then
+    insert into sora_v2.librarycard(user_id, librarycard_rfid)
+      values (p_user_id, btrim(p_rfid));
+    end if;
+  end if;
+  return p_user_id;
+end;
+$$;
+
+create function sora_v2.admin_set_user_active(
+  p_user_id uuid,
+  p_is_active boolean
+)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if not sora_v2.is_librarian() then raise exception 'Librarian access required'; end if;
+  if p_is_active is null then raise exception 'Active status is required'; end if;
+  if not p_is_active and exists (
+    select 1 from sora_v2.sessions
+    where user_id = p_user_id and released_at is null
+  ) then
+    raise exception 'End the active reading session before deactivating this reader';
+  end if;
+  update sora_v2.users
+  set is_active = p_is_active,
+      deactivated_at = case when p_is_active then null else now() end,
+      membership_status = case
+        when not p_is_active and membership_status = 'ACTIVE' then 'SUSPENDED'
+        else membership_status
+      end
+  where id = p_user_id and user_role = 'Reader';
+  if not found then raise exception 'Reader not found'; end if;
 end;
 $$;
 
 create function sora_v2.admin_top_up(
-  p_membership_id integer,
+  p_user_id uuid,
   p_minutes integer,
   p_amount numeric,
   p_method text,
   p_reference text default null
 )
 returns integer language plpgsql security definer set search_path = '' as $$
-declare membership sora_v2.memberships%rowtype;
+declare reader sora_v2.users%rowtype;
   new_topup_id integer;
 begin
   if not sora_v2.is_librarian() then raise exception 'Librarian access required'; end if;
@@ -57,21 +95,21 @@ begin
     or p_method not in ('Cash', 'Gcash', 'Card') then
     raise exception 'Invalid top-up details';
   end if;
-  select * into membership from sora_v2.memberships
-  where membership_id = p_membership_id for update;
-  if membership.membership_id is null or membership.membership_status <> 'ACTIVE'
-    or membership.expires_at <= now() then
+  select * into reader from sora_v2.users
+  where id = p_user_id and is_active for update;
+  if reader.id is null or reader.membership_status <> 'ACTIVE'
+    or reader.membership_expires_at <= now() then
     raise exception 'Active membership not found';
   end if;
-  if membership.membership_type = 'Guild Adventurer' then
+  if reader.membership_type = 'Guild Adventurer' then
     raise exception 'This membership has unlimited reading time';
   end if;
-  update sora_v2.memberships
+  update sora_v2.users
   set remaining_minutes = remaining_minutes + p_minutes
-  where membership_id = p_membership_id;
-  insert into sora_v2.topup_transactions(processed_by, membership_id,
+  where id = p_user_id;
+  insert into sora_v2.topup_transactions(processed_by, user_id,
     minutes_added, payment_status, amount_paid, payment_method, payment_reference)
-  values (sora_v2.current_user_id(), p_membership_id,
+  values (sora_v2.current_user_id(), p_user_id,
     p_minutes, 'PAID', p_amount, p_method, nullif(btrim(p_reference), ''))
   returning topup_id into new_topup_id;
   return new_topup_id;
@@ -200,16 +238,18 @@ begin
 end;
 $$;
 
-revoke all on function sora_v2.admin_activate_membership(integer,text,text,integer,timestamptz,text) from public, anon, authenticated;
-revoke all on function sora_v2.admin_top_up(integer,integer,numeric,text,text) from public, anon, authenticated;
+revoke all on function sora_v2.admin_activate_membership(uuid,text,text,integer,timestamptz,text) from public, anon, authenticated;
+revoke all on function sora_v2.admin_set_user_active(uuid,boolean) from public, anon, authenticated;
+revoke all on function sora_v2.admin_top_up(uuid,integer,numeric,text,text) from public, anon, authenticated;
 revoke all on function sora_v2.admin_shelve(integer) from public, anon, authenticated;
 revoke all on function sora_v2.admin_create_book(text,text,text,text,integer,text,text) from public, anon, authenticated;
 revoke all on function sora_v2.admin_add_copy(integer,text) from public, anon, authenticated;
 revoke all on function sora_v2.admin_update_book_cover(integer,text) from public, anon, authenticated;
 revoke all on function sora_v2.admin_create_quest(text,text,text,text,integer,text) from public, anon, authenticated;
 revoke all on function sora_v2.admin_complete_quest(integer) from public, anon, authenticated;
-grant execute on function sora_v2.admin_activate_membership(integer,text,text,integer,timestamptz,text) to authenticated;
-grant execute on function sora_v2.admin_top_up(integer,integer,numeric,text,text) to authenticated;
+grant execute on function sora_v2.admin_activate_membership(uuid,text,text,integer,timestamptz,text) to authenticated;
+grant execute on function sora_v2.admin_set_user_active(uuid,boolean) to authenticated;
+grant execute on function sora_v2.admin_top_up(uuid,integer,numeric,text,text) to authenticated;
 grant execute on function sora_v2.admin_shelve(integer) to authenticated;
 grant execute on function sora_v2.admin_create_book(text,text,text,text,integer,text,text) to authenticated;
 grant execute on function sora_v2.admin_add_copy(integer,text) to authenticated;

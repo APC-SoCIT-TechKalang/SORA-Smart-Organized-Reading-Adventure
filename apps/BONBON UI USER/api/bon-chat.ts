@@ -7,6 +7,7 @@ type Quest = { id: string; name: string; detail: string; points: number; status:
 type Reading = { title: string; minutes: number; status: string };
 type CatalogSummary = { totalTitles: number; availableTitles: number; availabilityPending: number };
 type ChatContext = { section: string; signedIn?: boolean; userName?: string; rank?: string; points?: number; streak?: number; booksCompleted?: number; activeReading?: Reading[]; quests?: Quest[]; availableRewards?: Quest[]; catalog?: CatalogBook[]; catalogSummary?: CatalogSummary };
+type AiAudit = { request_id?: string; status?: 'ALLOWED' | 'REJECTED'; reason?: string | null };
 
 const ALLOWED_SECTIONS = new Set(['archive', 'catalog', 'shelf', 'commissions', 'guide']);
 const WINDOW_MS = 60 * 60 * 1000;
@@ -55,6 +56,54 @@ function detectIntent(message: string): Intent {
   return 'GENERAL';
 }
 
+function requestCategory(intent: Intent) {
+  if (intent === 'BOOK') return 'CATALOG';
+  if (intent === 'QUEST' || intent === 'REWARD') return 'QUEST_HELP';
+  if (intent === 'ACCOUNT' || intent === 'PROGRESS' || intent === 'IDENTITY') return 'ACCOUNT_HELP';
+  return 'GENERAL_LIBRARY';
+}
+
+function guardMessage(message: string, intent: Intent) {
+  const normalized = message.toLowerCase().trim();
+  if (normalized.length < 2) return 'Please enter a complete library-related question.';
+  if (normalized.length > 500) return 'Requests are limited to 500 characters.';
+  if (/(ignore (all |the )?(previous|system)|system prompt|developer message|jailbreak|bypass (the )?(rules|guardrails)|api[_ -]?key|service[_ -]?role|password|drop table|delete from|alter table)/.test(normalized)) return 'That request contains unsafe instructions or asks for protected information.';
+  if (/(explicit sexual|porn|nude|rape|how to kill|make a bomb|self[ -]?harm|suicide instructions)/.test(normalized)) return 'That request is not appropriate for the library assistant.';
+  const conversational = /^(hi|hello|hey|good morning|good afternoon|good evening|kamusta|kumusta|thanks|thank you|salamat|help|help me)( bon)?[?!.]*$/.test(normalized);
+  if (intent === 'GENERAL' && !conversational) return 'Please ask BON about books, reading, your account, quests, rewards, or the S.O.R.A. library.';
+  return null;
+}
+
+async function recordAiRequest(request: RequestLike, prompt: string, intent: Intent): Promise<AiAudit | null> {
+  const authorization = header(request, 'authorization');
+  const url = process.env.VITE_SUPABASE_URL;
+  const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!authorization?.startsWith('Bearer ') || !url || !key) return null;
+  const result = await fetch(`${url}/rest/v1/rpc/record_ai_request`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: authorization, 'Content-Type': 'application/json', 'Content-Profile': 'sora_v2' },
+    body: JSON.stringify({ p_prompt: prompt, p_category: requestCategory(intent) }),
+  });
+  if (!result.ok) {
+    console.error('AI request audit failed', result.status, (await result.text()).slice(0, 200));
+    return null;
+  }
+  return await result.json() as AiAudit;
+}
+
+async function completeAiRequest(request: RequestLike, requestId: string | undefined, responseText: string) {
+  const authorization = header(request, 'authorization');
+  const url = process.env.VITE_SUPABASE_URL;
+  const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  if (!requestId || !authorization?.startsWith('Bearer ') || !url || !key) return;
+  const result = await fetch(`${url}/rest/v1/rpc/complete_ai_request`, {
+    method: 'POST',
+    headers: { apikey: key, Authorization: authorization, 'Content-Type': 'application/json', 'Content-Profile': 'sora_v2' },
+    body: JSON.stringify({ p_request_id: requestId, p_response_text: responseText }),
+  });
+  if (!result.ok) console.error('AI response audit failed', result.status, (await result.text()).slice(0, 200));
+}
+
 function parseQuest(value: unknown): Quest | null {
   if (!value || typeof value !== 'object') return null;
   const item = value as Record<string, unknown>;
@@ -74,7 +123,7 @@ function parseReading(value: unknown): Reading | null {
 function parseBody(body: unknown) {
   if (!body || typeof body !== 'object') return null;
   const input = body as Record<string, unknown>;
-  const message = cleanText(input.message, 500);
+  const message = cleanText(input.message, 2_000);
   if (!message) return null;
   let intent = detectIntent(message);
   const history = Array.isArray(input.history) ? input.history.slice(-2).flatMap((item): ChatMessage[] => {
@@ -266,8 +315,15 @@ export default async function handler(request: RequestLike, response: ResponseLi
   if (!allowed(clientId(request))) return response.status(429).json({ error: 'BON needs a short rest. Please try again later.' });
   const input = parseBody(request.body);
   if (!input) return response.status(400).json({ error: 'Enter a message for BON.' });
+  const localRejection = guardMessage(input.message, input.intent);
+  const audit = await recordAiRequest(request, input.message, input.intent);
+  const rejection = localRejection || (audit?.status === 'REJECTED' ? audit.reason : null);
+  if (rejection) return response.status(400).json({ error: rejection });
   const direct = directReply(input);
-  if (direct) return response.status(200).json(direct);
+  if (direct) {
+    await completeAiRequest(request, audit?.request_id, direct.message);
+    return response.status(200).json(direct);
+  }
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return response.status(503).json({ error: 'BON is not configured yet.' });
   const model = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-v4.1-flash-1017';
@@ -300,6 +356,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
       return response.status(502).json({ error: 'Looks like my library connection is taking a moment. Try asking me again.' });
     }
     const suppliedIds = new Set((input.context.catalog ?? []).filter((book) => book.availableCopies > 0).map((book) => book.id));
+    await completeAiRequest(request, audit?.request_id, parsed.message);
     return response.status(200).json({ ...parsed, recommendationIds: parsed.recommendationIds.filter((id) => suppliedIds.has(id)), suggestions: suggestionsFor(input.intent) });
   } catch (error) {
     console.error('BON request failed', error instanceof Error ? error.message : 'Unknown error');

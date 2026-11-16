@@ -232,7 +232,7 @@ function useLibraryState() {
         if (!profile.birthday) throw new Error('Birthday is required.');
         return replacementApi().from('users').update({
           first_name: profile.first_name, last_name: profile.last_name, birthdate: profile.birthday,
-        }).eq('user_id', Number(state.profile?.user_id)).select('user_id,first_name,last_name,birthdate').single();
+        }).eq('id', state.profile?.user_id).select('id,first_name,last_name,birthdate').single();
       }
       return database().from('profiles').update(profile).eq('user_id', session.user.id).select().single();
     }, 'Profile updated'),

@@ -13,7 +13,7 @@ declare
   librarian_birthdate date := '2000-01-01';
   librarian_mobile text := 'REPLACE_MOBILE_NUMBER';
   auth_id uuid;
-  app_user_id integer;
+  app_user_id uuid;
 begin
   if auth_email like 'REPLACE_%'
     or librarian_first_name like 'REPLACE_%'
@@ -33,7 +33,7 @@ begin
     password_hash, birthdate, user_role, mobile_number)
   values (librarian_first_name, librarian_middle_name, librarian_last_name,
     librarian_username, null, librarian_birthdate, 'Librarian', librarian_mobile)
-  returning user_id into app_user_id;
+  returning id into app_user_id;
 
   update auth.users
   set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb)

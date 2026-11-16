@@ -40,7 +40,6 @@ import { AdminBonChat } from "./AdminBonChat";
 import { CompleteAddVolume } from "./CompleteAddVolume";
 import { EditBookCover } from "./EditBookCover";
 import { CatalogueEditor } from "./CatalogueEditor";
-import { KioskRequests } from "./KioskRequests";
 
 type Page =
   "Overview" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
@@ -1003,7 +1002,7 @@ function Readers({
     (reader) =>
       reader.is_active &&
       reader.roles?.name === "reader" &&
-      !data.memberships.some(
+      !data.memberAccounts.some(
         (item) => item.user_id === reader.user_id && item.status === "ACTIVE",
       ),
   );
@@ -1015,7 +1014,6 @@ function Readers({
   );
   return (
     <>
-      {!usesReplacementSchema && <KioskRequests />}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <label className="flex flex-1 items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 shadow-sm">
           <Search size={16} className="text-[#9a806b]" />
@@ -1038,7 +1036,7 @@ function Readers({
           ["Checked in now", active.length],
           [
             "Active memberships",
-            data.memberships.filter((item) => item.status === "ACTIVE").length,
+            data.memberAccounts.filter((item) => item.status === "ACTIVE").length,
           ],
         ].map(([label, value]) => (
           <div
@@ -1148,7 +1146,7 @@ function Readers({
                 () =>
                   usesReplacementSchema
                     ? replacementDb().rpc("admin_activate_membership", {
-                        p_user_id: Number(readerId),
+                        p_user_id: readerId,
                         p_membership_type: selectedPlan?.name,
                         p_membership_rank: "F",
                         p_remaining_minutes: 0,
@@ -1270,7 +1268,7 @@ function Readers({
               {readers
                 .filter((reader) => reader.roles?.name === "reader")
                 .map((reader) => {
-                  const member = data.memberships.find(
+                  const member = data.memberAccounts.find(
                     (item) =>
                       item.user_id === reader.user_id &&
                       item.status === "ACTIVE",
@@ -1287,11 +1285,15 @@ function Readers({
                         {reader.first_name} {reader.last_name}
                       </td>
                       <td className="px-4 py-4 text-[#80634c]">
-                        {member?.membership_number ?? "Awaiting activation"}
+                        {member?.membership_label ?? "Awaiting activation"}
                       </td>
                       <td className="px-4 py-4">
                         <span className="rounded-full bg-[#fff0c9] px-2.5 py-1 text-[10px] font-bold text-[#804916]">
-                          {visit ? "Active session" : "Not checked in"}
+                          {!reader.is_active
+                            ? "Deactivated"
+                            : visit
+                              ? "Active session"
+                              : "Not checked in"}
                         </span>
                       </td>
                       <td className="px-4 py-4 font-bold">
@@ -1301,11 +1303,33 @@ function Readers({
                       </td>
                       <td className="px-5 py-4 text-right">
                         {usesReplacementSchema ? (
-                          visit ? (
-                            "Reading"
-                          ) : (
-                            "Starts with book"
-                          )
+                          <button
+                            disabled={Boolean(visit)}
+                            onClick={() =>
+                              void run(
+                                () =>
+                                  replacementDb().rpc("admin_set_user_active", {
+                                    p_user_id: reader.user_id,
+                                    p_is_active: !reader.is_active,
+                                  }),
+                                reader.is_active
+                                  ? "Reader account deactivated"
+                                  : "Reader account reactivated",
+                              )
+                            }
+                            className="font-bold text-[#a83d12] hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                            title={
+                              visit
+                                ? "End the active reading session first"
+                                : undefined
+                            }
+                          >
+                            {visit
+                              ? "Reading"
+                              : reader.is_active
+                                ? "Deactivate"
+                                : "Reactivate"}
+                          </button>
                         ) : visit ? (
                           <button
                             onClick={() =>
@@ -1362,12 +1386,12 @@ function TopUp({
     success: string,
   ) => Promise<boolean>;
 }) {
-  const hourly = data.memberships.filter(
+  const hourly = data.memberAccounts.filter(
     (item) =>
       item.status === "ACTIVE" &&
       item.remaining_minutes !== null &&
       (!usesReplacementSchema ||
-        !item.membership_number.startsWith("Guild Adventurer")),
+        !item.membership_label.startsWith("Guild Adventurer")),
   );
   const [membership, setMembership] = useState("");
   const [minutes, setMinutes] = useState("60");
@@ -1375,7 +1399,7 @@ function TopUp({
   const [method, setMethod] = useState("Cash");
   const [reference, setReference] = useState("");
   const selected = hourly.find(
-    (item) => String(item.membership_id) === membership,
+    (item) => item.user_id === membership,
   );
   return (
     <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
@@ -1400,8 +1424,8 @@ function TopUp({
           >
             <option value="">Select membership</option>
             {hourly.map((item) => (
-              <option key={item.membership_id} value={item.membership_id}>
-                {item.membership_number} · {name(item.user_id)}
+              <option key={item.user_id} value={item.user_id}>
+                {item.membership_label} · {name(item.user_id)}
               </option>
             ))}
           </select>
@@ -1453,19 +1477,13 @@ function TopUp({
                 onClick={() =>
                   void run(
                     () =>
-                      usesReplacementSchema
-                        ? replacementDb().rpc("admin_top_up", {
-                            p_membership_id: selected.membership_id,
-                            p_minutes: Number(minutes),
-                            p_amount: Number(amount),
-                            p_method: method,
-                            p_reference: reference,
-                          })
-                        : database().rpc("admin_top_up", {
-                            p_membership_id: selected.membership_id,
-                            p_minutes: Number(minutes),
-                            p_reason: reference,
-                          }),
+                      replacementDb().rpc("admin_top_up", {
+                        p_user_id: selected.user_id,
+                        p_minutes: Number(minutes),
+                        p_amount: Number(amount),
+                        p_method: method,
+                        p_reference: reference,
+                      }),
                     "Top-up saved",
                   )
                 }
@@ -1486,12 +1504,12 @@ function TopUp({
           {hourly.map((item) => (
             <div
               className="flex items-center justify-between border-b border-[#eee5dc] py-4 text-xs"
-              key={item.membership_id}
+              key={item.user_id}
             >
               <div>
                 <b>{name(item.user_id)}</b>
                 <small className="mt-1 block text-[#8d735e]">
-                  {item.membership_number}
+                  {item.membership_label}
                 </small>
               </div>
               <span className="rounded-full bg-[#fff0c9] px-2.5 py-1 font-bold text-[#804916]">

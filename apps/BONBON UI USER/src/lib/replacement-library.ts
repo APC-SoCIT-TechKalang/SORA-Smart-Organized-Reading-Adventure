@@ -19,10 +19,12 @@ interface ReplacementBook {
 }
 
 interface ReplacementUser {
-  user_id: number;
+  id: string;
   first_name: string;
   last_name: string;
   birthdate: string;
+  is_active: boolean;
+  membership_rank: string | null;
 }
 
 interface ReplacementSession {
@@ -109,24 +111,23 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
   const account = await api().rpc('current_user_id');
   if (account.error) throw account.error;
   if (account.data == null) throw new Error('This sign-in has not been linked to a library account yet. Ask staff for help.');
-  const userId = Number(account.data);
-  const [user, copies, sessions, memberships, quests, enrollments, balance] = await Promise.all([
-    api().from('users').select('user_id,first_name,last_name,birthdate').eq('user_id', userId).single(),
+  const userId = String(account.data);
+  const [user, copies, sessions, quests, enrollments, balance] = await Promise.all([
+    api().from('users').select('id,first_name,last_name,birthdate,is_active,membership_rank').eq('id', userId).single(),
     readAll<{ copy_id: number; book_id: number }>('book_copies', 'copy_id,book_id', 'copy_id'),
     readAll<ReplacementSession>('sessions', 'session_id,copy_id,borrow_date,return_date', 'session_id'),
-    api().from('memberships').select('membership_rank').eq('user_id', userId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     readAll<ReplacementQuest>('quests', 'quest_id,quest_name,quest_description,points_reward,time_limit_days', 'quest_id'),
     readAll<ReplacementEnrollment>('user_quests', 'quest_id,quest_status,points_awarded', 'user_quest_id'),
     api().rpc('points_balance'),
   ]);
   if (user.error) throw user.error;
-  if (memberships.error) throw memberships.error;
   if (balance.error) throw balance.error;
   const copyBookIds = new Map(copies.map(copy => [copy.copy_id, copy.book_id]));
   const profile = user.data as ReplacementUser;
+  if (!profile.is_active) throw new Error('This reader account has been deactivated. Ask library staff for help.');
   return {
     ...base,
-    profile: { user_id: String(profile.user_id), first_name: profile.first_name,
+    profile: { user_id: profile.id, first_name: profile.first_name,
       last_name: profile.last_name, birthday: profile.birthdate, bio: null },
     logs: sessions.map(item => ({
       reading_log_id: item.session_id,
@@ -137,7 +138,7 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
         ? Math.max(0, Math.floor((new Date(item.return_date).getTime() - new Date(item.borrow_date).getTime()) / 60000))
         : null,
     })),
-    rank: (memberships.data as { membership_rank: string } | null)?.membership_rank ?? 'F',
+    rank: profile.membership_rank ?? 'F',
     coins: Number(balance.data ?? 0),
     claimed: enrollments.filter(item => item.points_awarded > 0).map(item => String(item.quest_id)),
     enrolled: enrollments.map(item => String(item.quest_id)),

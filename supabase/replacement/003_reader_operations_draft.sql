@@ -1,22 +1,20 @@
--- Reader operations for the exact ERD. Requires 001_schema.sql and
--- 002_access_draft.sql in a disposable/test environment first.
--- Only these RPCs may change session and quest state from browser clients.
+-- Reader operations for the merged users/membership design.
 begin;
 
-create unique index one_open_session_per_copy
+create unique index if not exists one_open_session_per_copy
   on sora_v2.sessions(copy_id) where session_status <> 'CLOSED';
-create unique index one_open_session_per_reader
+create unique index if not exists one_open_session_per_reader
   on sora_v2.sessions(user_id) where session_status <> 'CLOSED';
 
 create function sora_v2.start_reading(
   p_book_id integer,
-  p_user_id integer default null,
+  p_user_id uuid default null,
   p_seat_id integer default null
 )
 returns integer language plpgsql security definer set search_path = '' as $$
 declare
-  reader_id integer := coalesce(p_user_id, sora_v2.current_user_id());
-  active_membership sora_v2.memberships%rowtype;
+  reader_id uuid := coalesce(p_user_id, sora_v2.current_user_id());
+  reader sora_v2.users%rowtype;
   selected_seat sora_v2.seats%rowtype;
   selected_copy sora_v2.book_copies%rowtype;
   new_session_id integer;
@@ -26,19 +24,17 @@ begin
     and not sora_v2.is_librarian() then
     raise exception 'Librarian access is required for another reader';
   end if;
-  -- This row lock serializes starts from several tabs for the same reader.
-  perform 1 from sora_v2.users where user_id = reader_id for update;
-  if not found then raise exception 'Reader account not found'; end if;
-
-  select * into active_membership from sora_v2.memberships
-  where user_id = reader_id and membership_status = 'ACTIVE'
-    and created_at <= now() and expires_at > now()
-  order by created_at desc, membership_id desc limit 1 for update;
-  if active_membership.membership_id is null then
+  select * into reader from sora_v2.users where id = reader_id for update;
+  if reader.id is null or not reader.is_active then
+    raise exception 'Active reader account not found';
+  end if;
+  if reader.membership_status <> 'ACTIVE'
+    or reader.membership_expires_at is null
+    or reader.membership_expires_at <= now() then
     raise exception 'An active membership is required';
   end if;
-  if active_membership.membership_type <> 'Guild Adventurer'
-    and active_membership.remaining_minutes <= 0 then
+  if reader.membership_type <> 'Guild Adventurer'
+    and reader.remaining_minutes <= 0 then
     raise exception 'Ask staff to add reading time';
   end if;
   if exists (select 1 from sora_v2.sessions
@@ -77,9 +73,8 @@ declare
   book_id integer;
   used_minutes integer;
 begin
-  -- Match the start-reading lock order so checkout and a new start serialize.
   perform 1 from sora_v2.users
-  where user_id = (select user_id from sora_v2.sessions where session_id = p_session_id)
+  where id = (select user_id from sora_v2.sessions where session_id = p_session_id)
   for update;
   select * into active_session from sora_v2.sessions
   where session_id = p_session_id for update;
@@ -100,16 +95,12 @@ begin
   where copy_id = active_session.copy_id;
   update sora_v2.seats set seat_status = 'AVAILABLE'
   where seat_id = active_session.seat_id;
-  used_minutes := greatest(0, ceil(extract(epoch from (now() - active_session.borrow_date)) / 60)::integer);
-  update sora_v2.memberships m
-  set remaining_minutes = greatest(0, m.remaining_minutes - used_minutes)
-  where m.membership_id = (
-    select membership_id from sora_v2.memberships
-    where user_id = active_session.user_id
-      and created_at <= active_session.borrow_date
-      and membership_type <> 'Guild Adventurer'
-    order by created_at desc, membership_id desc limit 1
-  );
+  used_minutes := greatest(0, ceil(extract(epoch from
+    (now() - active_session.borrow_date)) / 60)::integer);
+  update sora_v2.users
+  set remaining_minutes = greatest(0, remaining_minutes - used_minutes)
+  where id = active_session.user_id
+    and membership_type <> 'Guild Adventurer';
   insert into sora_v2.session_activity_logs(session_id, user_id, book_id, copy_id, action)
   values (p_session_id, active_session.user_id, book_id,
           active_session.copy_id, 'READING_FINISHED');
@@ -118,10 +109,11 @@ $$;
 
 create function sora_v2.join_quest(p_quest_id integer)
 returns void language plpgsql security definer set search_path = '' as $$
-declare reader_id integer := sora_v2.current_user_id();
+declare reader_id uuid := sora_v2.current_user_id();
 begin
   if reader_id is null then raise exception 'Sign in to join a quest'; end if;
-  perform 1 from sora_v2.users where user_id = reader_id for update;
+  perform 1 from sora_v2.users where id = reader_id and is_active for update;
+  if not found then raise exception 'Active user account required'; end if;
   if not exists (
     select 1 from sora_v2.quests
     where quest_id = p_quest_id and review_decision = 'VERIFIED'
@@ -138,10 +130,11 @@ $$;
 
 create function sora_v2.claim_quest(p_quest_id integer)
 returns void language plpgsql security definer set search_path = '' as $$
-declare reader_id integer := sora_v2.current_user_id();
+declare reader_id uuid := sora_v2.current_user_id();
 begin
   if reader_id is null then raise exception 'Sign in to claim points'; end if;
-  perform 1 from sora_v2.users where user_id = reader_id for update;
+  perform 1 from sora_v2.users where id = reader_id and is_active for update;
+  if not found then raise exception 'Active user account required'; end if;
   update sora_v2.user_quests uq
   set points_awarded = q.points_reward
   from sora_v2.quests q
@@ -152,9 +145,7 @@ begin
     select 1 from sora_v2.user_quests
     where user_id = reader_id and quest_id = p_quest_id
       and quest_status = 'COMPLETED' and points_awarded > 0
-  ) then
-    raise exception 'Staff must verify quest completion first';
-  end if;
+  ) then raise exception 'Staff must verify quest completion first'; end if;
 end;
 $$;
 
@@ -168,12 +159,12 @@ returns integer language sql stable security definer set search_path = '' as $$
         and redemption_status <> 'CANCELLED'), 0)::integer;
 $$;
 
-revoke all on function sora_v2.start_reading(integer,integer,integer) from public, anon, authenticated;
+revoke all on function sora_v2.start_reading(integer,uuid,integer) from public, anon, authenticated;
 revoke all on function sora_v2.finish_reading(integer) from public, anon, authenticated;
 revoke all on function sora_v2.join_quest(integer) from public, anon, authenticated;
 revoke all on function sora_v2.claim_quest(integer) from public, anon, authenticated;
 revoke all on function sora_v2.points_balance() from public, anon, authenticated;
-grant execute on function sora_v2.start_reading(integer,integer,integer) to authenticated;
+grant execute on function sora_v2.start_reading(integer,uuid,integer) to authenticated;
 grant execute on function sora_v2.finish_reading(integer) to authenticated;
 grant execute on function sora_v2.join_quest(integer) to authenticated;
 grant execute on function sora_v2.claim_quest(integer) to authenticated;

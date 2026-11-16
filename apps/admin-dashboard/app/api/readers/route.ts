@@ -117,13 +117,13 @@ export async function POST(request: Request) {
         user_role: "Reader",
         mobile_number: mobileNumber,
       })
-      .select("user_id")
+      .select("id")
       .single();
     if (inserted.error) throw inserted.error;
     const linked = await admin.auth.admin.updateUserById(authUser.id, {
       app_metadata: {
         ...authUser.app_metadata,
-        sora_user_id: inserted.data.user_id,
+        sora_user_id: inserted.data.id,
       },
     });
     if (linked.error) {
@@ -131,11 +131,11 @@ export async function POST(request: Request) {
         .schema("sora_v2")
         .from("users")
         .delete()
-        .eq("user_id", inserted.data.user_id);
+        .eq("id", inserted.data.id);
       throw linked.error;
     }
     return NextResponse.json(
-      { userId: inserted.data.user_id },
+      { userId: inserted.data.id },
       { status: 201 },
     );
   } catch (cause) {
