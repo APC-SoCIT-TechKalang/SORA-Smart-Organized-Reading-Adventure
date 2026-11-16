@@ -1,5 +1,9 @@
 import { ArmchairIcon, InfoIcon } from 'lucide-react';
 import { SectionHeading } from '../components/OrnatePanel';
+import { KioskReading } from '../components/KioskReading';
+import { GuestPrompt } from '../components/GuestPrompt';
+import { useGame } from '../contexts/GameContext';
+import { usesReplacementSchema } from '../lib/replacement-library';
 
 const SEATS = Array.from({ length: 20 }, (_, index) => ({
   id: `${String.fromCharCode(65 + Math.floor(index / 5))}${index % 5 + 1}`,
@@ -7,6 +11,12 @@ const SEATS = Array.from({ length: 20 }, (_, index) => ({
 }));
 
 export function VisitorGuide() {
+  const { session, profile } = useGame();
+  if (usesReplacementSchema) return <div className="space-y-6">
+    <SectionHeading title="Reading hall seats" meta="In-library reading" />
+    {!session ? <GuestPrompt title="Sign in to choose a seat" detail="Sign in at the kiosk to view seat availability and scan a book to start reading." />
+      : profile ? <KioskReading /> : <p role="status">Loading your library account...</p>}
+  </div>;
   const available = SEATS.filter((seat) => !seat.taken).length;
   return (
     <div className="space-y-6">

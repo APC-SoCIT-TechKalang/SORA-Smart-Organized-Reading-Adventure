@@ -26,7 +26,7 @@ export function KioskApp() {
       window.sessionStorage.setItem(SESSION_STARTED_KEY, String(Date.now()));
       // The shared Supabase client now contains the same session used by the
       // regular BONBON UI. Do not render a second kiosk dashboard first.
-      window.location.replace('/');
+      window.location.replace('/?reading=1');
     } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
 

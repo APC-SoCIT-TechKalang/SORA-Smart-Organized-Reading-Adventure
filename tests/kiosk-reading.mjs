@@ -1,0 +1,104 @@
+// Isolated PostgreSQL tests; never connects to Supabase.
+// npm.cmd install --prefix work/kiosk-validation --no-save --package-lock=false @electric-sql/pglite
+// node tests/kiosk-reading.mjs
+import { PGlite } from '../work/kiosk-validation/node_modules/@electric-sql/pglite/dist/index.js';
+import { readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+
+const db = new PGlite();
+const reader = '00000000-0000-4000-8000-000000000001';
+const other = '00000000-0000-4000-8000-000000000002';
+const staff = '00000000-0000-4000-8000-000000000003';
+const sql = async file => db.exec(await readFile(new URL(`../supabase/replacement/${file}`, import.meta.url), 'utf8'));
+const scalar = async query => Object.values((await db.query(query)).rows[0])[0];
+const as = async id => { await db.exec('reset role'); await db.query("select set_config('test.user', $1, false)", [id]); await db.exec('set role authenticated'); };
+try {
+  await db.exec(`create role anon; create role authenticated; create role service_role;
+    create schema auth;
+    create function auth.uid() returns uuid language sql as $$ select nullif(current_setting('test.user', true), '')::uuid $$;
+    create function auth.jwt() returns jsonb language sql as $$ select jsonb_build_object('app_metadata', jsonb_build_object('sora_user_id', auth.uid())) $$;`);
+  for (const file of ['001_schema.sql', '002_access_draft.sql', '003_reader_operations_draft.sql']) await sql(file);
+  const schemaSnapshot = () => db.query("select table_name, column_name, data_type, is_nullable, column_default from information_schema.columns where table_schema='sora_v2' order by table_name, ordinal_position");
+  const before = (await schemaSnapshot()).rows;
+  await sql('011_kiosk_reading.sql');
+  await sql('011_kiosk_reading.sql'); // Reapplying only replaces routines/trigger.
+  assert.deepEqual((await schemaSnapshot()).rows, before, 'Adviser-reviewed tables, columns, types and defaults must stay unchanged');
+  console.log('PASS: no tables or columns added, removed or changed');
+  await db.query(`insert into sora_v2.users(id, first_name,last_name,username,birthdate,user_role,mobile_number,
+    membership_type,membership_rank,membership_status,membership_expires_at,remaining_minutes)
+    values ($1,'Reader','One','reader1','2000-01-01','Reader','1','Guild Member','F','ACTIVE',now()+interval '1 day',120),
+    ($2,'Reader','Two','reader2','2000-01-01','Reader','2','Guild Member','F','ACTIVE',now()+interval '1 day',120),
+    ($3,'Staff','One','staff','1990-01-01','Librarian','3',null,null,'INACTIVE',null,0)`, [reader, other, staff]);
+  await db.query("insert into sora_v2.librarycard(user_id,librarycard_rfid) values ($1,'CARD1'), ($2,'CARD2')", [reader, other]);
+  await db.exec(`insert into sora_v2.authors(author_firstname,author_lastname) values ('A','Writer');
+    insert into sora_v2.books(author_id,title,isbn,book_type,age_rating) values (1,'Book One','9781234567890','Manga',0), (1,'Book Two','9781234567891','Manga',0);
+    insert into sora_v2.book_copies(book_id,copy_number,barcode) values (1,1,'COPY1'), (1,2,'COPY2'), (2,1,'COPY3');
+    insert into sora_v2.seats(seat_number,seat_area) values (1,'Lounge'),(2,'Lounge');`);
+  await as(reader);
+  await assert.rejects(db.query("select sora_v2.approve_kiosk_checkin('CARD1')"), /Librarian/);
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('COPY1',1)"), /check-in/);
+  await assert.rejects(db.query('select sora_v2.start_reading(1,null,1)'), /permission denied/);
+  await assert.rejects(db.query(`select sora_v2.kiosk_checkin_time('${other}')`), /permission denied/);
+  console.log('PASS: reader cannot approve check-in or bypass scan validation');
+  await as(staff);
+  await db.query("select sora_v2.approve_kiosk_checkin('CARD1')");
+  await db.query("select sora_v2.approve_kiosk_checkin('CARD2')");
+  await db.exec("reset role; update sora_v2.librarycard set is_active=false where librarycard_rfid='CARD1'");
+  await as(reader);
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('COPY1',1)"), /Active library card/);
+  await db.exec("reset role; update sora_v2.librarycard set is_active=true where librarycard_rfid='CARD1'; update sora_v2.users set remaining_minutes=0 where username='reader1'");
+  await as(reader);
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('COPY1',1)"), /add reading time/);
+  await db.exec("reset role; update sora_v2.users set remaining_minutes=120, membership_expires_at=now()-interval '1 second' where username='reader1'");
+  await as(reader);
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('COPY1',1)"), /Active membership/);
+  await db.exec("reset role; update sora_v2.users set membership_expires_at=now()+interval '1 day' where username='reader1'; update sora_v2.books set age_rating=99 where book_id=1");
+  await as(reader);
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('COPY1',1)"), /age group/);
+  await db.exec('reset role; update sora_v2.books set age_rating=0 where book_id=1');
+  await as(reader);
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('COPY1',null)"), /Choose an available seat/);
+  console.log('PASS: inactive card, expired membership, zero time, age restrictions and missing seat are enforced');
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('UNKNOWN',1)"), /Book not found/);
+  assert.equal(await scalar('select count(*)::int from sora_v2.sessions'), 0);
+  await db.query("select sora_v2.kiosk_scan_book('COPY1',1)");
+  assert.equal(await scalar('select count(*)::int from sora_v2.sessions'), 1);
+  const start = await scalar('select borrow_date::text from sora_v2.sessions');
+  assert.equal(await scalar('select seat_status from sora_v2.seats where seat_id=1'), 'OCCUPIED');
+  assert.equal(await scalar('select copy_status from sora_v2.book_copies where copy_id=1'), 'With Reader');
+  console.log('PASS: first scan atomically links seat, copy and reader');
+  await as(other);
+  assert.equal((await scalar('select sora_v2.kiosk_reading_state()')).books.length, 0, 'State function must not expose another reader books');
+  await assert.rejects(db.query("select sora_v2.kiosk_scan_book('COPY3',1)"), /seat is no longer available/);
+  assert.equal(await scalar('select copy_status from sora_v2.book_copies where copy_id=3'), 'In-Shelf');
+  assert.match((await scalar("select sora_v2.kiosk_scan_book('COPY1',2)")).error, /unavailable/);
+  assert.deepEqual((await scalar('select sora_v2.kiosk_reading_state()')).alerts, [], 'Inventory alerts are staff-only');
+  assert.equal(await scalar('select count(*)::int from sora_v2.sessions'), 0, 'RLS hides the other reader session');
+  console.log('PASS: occupied seat rejected with no partial changes; duplicate copy produces alert');
+  await as(staff);
+  assert.equal((await scalar('select sora_v2.kiosk_reading_state()')).alerts.length, 1);
+  assert.equal(await scalar("select count(*)::int from sora_v2.session_activity_logs where action='INVENTORY_DISCREPANCY'"), 1);
+  await as(reader);
+  await db.query("select sora_v2.kiosk_scan_book('978-1-234567-890',null)");
+  assert.equal((await scalar('select sora_v2.kiosk_reading_state()')).books.length, 2);
+  assert.equal(await scalar('select borrow_date::text from sora_v2.sessions'), start);
+  await db.query('select sora_v2.kiosk_change_seat(2)');
+  assert.equal(await scalar('select seat_status from sora_v2.seats where seat_id=1'), 'AVAILABLE');
+  assert.equal(await scalar('select seat_id from sora_v2.sessions'), 2);
+  console.log('PASS: ISBN allocates free copy; additional book preserves timer; seat move frees old seat');
+  await db.query('select sora_v2.finish_reading(1)');
+  assert.equal(await scalar("select count(*)::int from sora_v2.book_copies where copy_status='In Return Cart'"), 2);
+  assert.equal(await scalar("select count(*)::int from sora_v2.seats where seat_status='AVAILABLE'"), 2);
+  assert.equal((await scalar('select sora_v2.kiosk_reading_state()')).checked_in, false);
+  assert.equal((await scalar('select sora_v2.kiosk_reading_state()')).books.length, 0);
+  console.log('PASS: checkout releases all books, seat and check-in');
+  await db.exec("reset role; update sora_v2.seats set seat_status='OCCUPIED'");
+  await as(other);
+  await db.query('select sora_v2.kiosk_join_waitlist()');
+  await db.query('select sora_v2.kiosk_join_waitlist()');
+  assert.equal((await scalar('select sora_v2.kiosk_reading_state()')).waiting, true);
+  await db.exec('reset role');
+  assert.equal(await scalar("select count(*)::int from sora_v2.session_activity_logs where action='SEAT_WAITLIST_JOINED'"), 1);
+  console.log('PASS: full lounge waitlist prevents duplicate entries');
+} catch (error) { console.error(error.message, error.where || ''); process.exitCode = 1; }
+finally { await db.close(); }

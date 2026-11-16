@@ -1,5 +1,14 @@
 # S.O.R.A. fixed database
 
+For the UC-03/UC-04 kiosk update, apply the revised `011_kiosk_reading.sql` to the
+existing database after the library card Boolean change. It uses the existing
+tables and columns, adding only functions and a trigger. Activity events record
+check-in, extra book scans and waitlist state in `session_activity_logs`. Follow
+[the kiosk setup guide](../../docs/kiosk-reading.md) for prerequisites,
+run instructions, behavior changes and verification. Fresh installations also
+apply `011` after the base schema/access/reader operations (skip `010` because
+`001` already contains the card Boolean).
+
 This directory contains the PostgreSQL/Supabase definition used by the reader
 and librarian applications. The internal schema name remains `sora_v2` so the
 existing deployment configuration does not break; it is the current S.O.R.A.

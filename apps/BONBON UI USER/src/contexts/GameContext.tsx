@@ -19,7 +19,7 @@ const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs:
 function useLibraryState() {
   const [state, setState] = useState<LibraryState>(empty);
   const [session, setSession] = useState<Session | null>(null);
-  const [section, setSection] = useState<SectionId>('archive');
+  const [section, setSection] = useState<SectionId>(new URLSearchParams(window.location.search).has('reading') ? 'shelf' : 'archive');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -209,9 +209,14 @@ function useLibraryState() {
     joinedEvents: [] as string[], joinedClubs: [] as string[],
     volumeById: (id: string) => state.volumes.find(v => v.id === id),
     isBorrowed: (id: string) => borrowed.some(v => v.volumeId === id),
-    borrow: (id: string) => run(() => usesReplacementSchema
-      ? replacementApi().rpc('start_reading', { p_book_id: Number(id) })
-      : database().rpc('start_reading', { p_book_id: Number(id) }), 'Reading started'),
+    borrow: (id: string) => {
+      if (usesReplacementSchema) {
+        setSection('shelf');
+        message('Choose a seat and scan your book', 'Use the kiosk reading panel in My shelf to start your session.');
+        return Promise.resolve(false);
+      }
+      return run(() => database().rpc('start_reading', { p_book_id: Number(id) }), 'Reading started');
+    },
     giveBack: (id: string) => {
       const log = state.logs.find(l => String(l.book_id) === id && !l.returned_at);
       return log ? run(() => usesReplacementSchema
