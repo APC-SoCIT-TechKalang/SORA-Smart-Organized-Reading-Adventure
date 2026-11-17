@@ -13,6 +13,7 @@ interface ManageAccountDialogProps {
 
 export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps) {
   const { session, profile, rank, coins, saveProfile, signOut, busy } = useGame();
+  const [currentPassword, setCurrentPassword] = useState('');
   const [passwordMessage, setPasswordMessage] = useState('');
   const [passwordError, setPasswordError] = useState('');
   const [profileMessage, setProfileMessage] = useState('');
@@ -35,6 +36,7 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
     if (!open) {
       setPasswordMessage('');
       setPasswordError('');
+      setCurrentPassword('');
       setProfileMessage('');
       setProfileError('');
     }
@@ -42,11 +44,16 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
 
   async function updatePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const passwordForm = event.currentTarget;
+    const form = new FormData(passwordForm);
     const nextPassword = String(form.get('newPassword'));
     const confirmPassword = String(form.get('confirmPassword'));
     setPasswordMessage('');
     setPasswordError('');
+    if (!currentPassword) {
+      setPasswordError('Enter your current password before choosing a new one.');
+      return;
+    }
     if (nextPassword.length < 8) {
       setPasswordError('Use at least 8 characters for your new password.');
       return;
@@ -57,9 +64,19 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
     }
     setPasswordBusy(true);
     try {
-      const { error } = await database().auth.updateUser({ password: nextPassword });
+      const email = session?.user.email;
+      if (!email) throw new Error('Your account email is unavailable. Please sign in again.');
+      const reauthenticated = await database().auth.signInWithPassword({ email, password: currentPassword });
+      if (reauthenticated.error) throw reauthenticated.error;
+      // Supabase requires the current password on the update request itself,
+      // even after a successful sign-in with that password.
+      const { error } = await database().auth.updateUser({
+        password: nextPassword,
+        current_password: currentPassword,
+      });
       if (error) throw error;
-      event.currentTarget.reset();
+      passwordForm.reset();
+      setCurrentPassword('');
       setPasswordMessage('Password updated successfully.');
     } catch (error) {
       setPasswordError(errorMessage(error));
@@ -120,7 +137,7 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
                 <button type="submit" disabled={profileBusy || busy} className="tb-button-primary tb-cut-sm mt-4 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">{profileBusy ? 'Saving…' : 'Save profile'}</button>
               </form>
 
-              <form onSubmit={updatePassword} className="tb-ornate-panel tb-cut-sm p-5"><div className="flex items-center gap-2"><KeyRoundIcon className="h-4 w-4 text-gold" /><h3 className="font-display text-base font-800 uppercase tracking-[.08em] text-umber">Change password</h3></div><p className="mt-2 text-xs leading-5 text-umber/55">Choose a new password with at least 8 characters.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><Field label="New password"><input className={inputClass} type="password" name="newPassword" minLength={8} required autoComplete="new-password" /></Field><Field label="Confirm password"><input className={inputClass} type="password" name="confirmPassword" minLength={8} required autoComplete="new-password" /></Field></div>{passwordError && <p role="alert" className="mt-3 text-xs font-700 text-rust">{passwordError}</p>}{passwordMessage && <p className="mt-3 text-xs font-700 text-emerald-700">{passwordMessage}</p>}<button type="submit" disabled={passwordBusy} className="tb-button-secondary tb-cut-sm mt-4 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">{passwordBusy ? 'Updating…' : 'Update password'}</button></form>
+              <form onSubmit={updatePassword} className="tb-ornate-panel tb-cut-sm p-5"><div className="flex items-center gap-2"><KeyRoundIcon className="h-4 w-4 text-gold" /><h3 className="font-display text-base font-800 uppercase tracking-[.08em] text-umber">Change password</h3></div><p className="mt-2 text-xs leading-5 text-umber/55">Confirm your current password, then choose a new password with at least 8 characters.</p><div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="sm:col-span-2"><Field label="Current password"><input className={inputClass} type="password" name="currentPassword" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required autoComplete="current-password" /></Field></div><Field label="New password"><input className={inputClass} type="password" name="newPassword" minLength={8} required autoComplete="new-password" /></Field><Field label="Confirm password"><input className={inputClass} type="password" name="confirmPassword" minLength={8} required autoComplete="new-password" /></Field></div>{passwordError && <p role="alert" className="mt-3 text-xs font-700 text-rust">{passwordError}</p>}{passwordMessage && <p className="mt-3 text-xs font-700 text-emerald-700">{passwordMessage}</p>}<button type="submit" disabled={passwordBusy} className="tb-button-secondary tb-cut-sm mt-4 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">{passwordBusy ? 'Updating…' : 'Update password'}</button></form>
             </div>
           </div>
         </motion.section>

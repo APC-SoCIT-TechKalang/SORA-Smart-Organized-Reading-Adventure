@@ -108,7 +108,7 @@ export async function POST(request: Request) {
       .schema("sora_v2")
       .from("users")
       .insert({
-        // The live ERD requires an explicit UUID; it has no id default.
+        // Match this profile with the Supabase Auth UUID created above.
         id: authUser.id,
         first_name: firstName,
         middle_name: middleName || null,
