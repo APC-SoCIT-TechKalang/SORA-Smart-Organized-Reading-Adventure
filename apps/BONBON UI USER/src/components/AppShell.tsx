@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { GameHUD } from './GameHUD';
 import { SideRail } from './SideRail';
 import { MobileNav } from './MobileNav';
@@ -23,6 +22,11 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
   const { section, setSection, error, refresh } = useGame();
   const [query, setQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    // Navigation must reveal the new page even after scrolling the previous one.
+    window.scrollTo({ top: 0, behavior: 'instant' });
+  }, [section]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -49,15 +53,14 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
               <button type="button" onClick={() => void refresh()} className="tb-button-secondary tb-cut-sm min-h-9 px-3 py-1.5 text-xs">Try again</button>
             </div>
           )}
-          <AnimatePresence mode="wait">
-            <motion.div key={section} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2, ease: [0.23, 1, 0.32, 1] }}>
+          {/* Mount pages immediately; a suspended exit animation must not hide navigation. */}
+          <div key={section}>
               {section === 'archive' ? <Archive /> : null}
               {section === 'catalog' ? <Catalog query={query} onQueryChange={setQuery} initialLayout={catalogLayout} /> : null}
               {section === 'shelf' ? <Shelf /> : null}
               {section === 'commissions' ? <Commissions /> : null}
               {section === 'guide' ? <VisitorGuide /> : null}
-            </motion.div>
-          </AnimatePresence>
+          </div>
         </div>
       </main>
       <ToastStack />

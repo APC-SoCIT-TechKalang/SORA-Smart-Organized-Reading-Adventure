@@ -5,7 +5,7 @@ import { ArrowLeftIcon, LockKeyholeIcon, XIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 
 export function AccountDialog({ mode, onClose }: { mode: 'login' | null; onClose: () => void }) {
-  const { signIn, session } = useGame();
+  const { signIn } = useGame();
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
   const [busy, setBusy] = useState(false);
@@ -38,8 +38,6 @@ export function AccountDialog({ mode, onClose }: { mode: 'login' | null; onClose
     document.body.style.overflow = 'hidden';
     return () => { document.removeEventListener('keydown', onKeyDown); document.body.style.overflow = ''; };
   }, [mode, onClose]);
-
-  useEffect(() => { if (mode === 'login' && session) onClose(); }, [mode, onClose, session]);
 
   return createPortal(<AnimatePresence>{mode && <motion.div className="fixed inset-0 z-[100] flex items-end justify-center bg-umber/70 backdrop-blur-md sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={event => event.target === event.currentTarget && onClose()}>
     <motion.section role="dialog" aria-modal="true" aria-labelledby="account-title" className="relative max-h-[94dvh] w-full max-w-lg overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_24px_80px_rgba(67,39,20,0.38)] sm:tb-cut-lg sm:rounded-none sm:pb-0" initial={{ y: 24, scale: .96 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: .97 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>

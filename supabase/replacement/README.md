@@ -1,5 +1,11 @@
 # S.O.R.A. fixed database
 
+For the reference-based 20-seat lounge map, apply `012_library_seat_layout.sql`
+**after** `011`. It seeds the existing empty seats table and installs exclusive
+five-minute seat holds without adding tables or columns. Existing seat records
+and occupancy are preserved. Keep `012` last when installing/upgrading the kiosk
+routines, since it replaces the older scan/state definitions in `011`.
+
 For the UC-03/UC-04 kiosk update, apply the revised `011_kiosk_reading.sql` to the
 existing database after the library card Boolean change. It uses the existing
 tables and columns, adding only functions and a trigger. Activity events record

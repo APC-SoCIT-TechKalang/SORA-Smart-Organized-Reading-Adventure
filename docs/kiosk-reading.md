@@ -1,5 +1,51 @@
 # Kiosk seat selection and book scanning (UC-03 / UC-04)
 
+## Library floor plan and confirmed seats
+
+After `011`, run the complete `supabase/replacement/012_library_seat_layout.sql`
+in Supabase SQL Editor. If `011` is already installed, run only `012` for this
+update. Do not rerun `011` afterward: its older scan/state routines do not include
+confirmed seat holds. Deploy the reader app update together with `012`.
+
+The floor plan follows the reference library's arrangement: reception and desk
+seats on the left, shared center seating, L pods on the right/bottom, and a separate
+quiet wing with U pods. It is a schematic seating selector, not an architectural
+plan. The approved initial capacity is:
+
+| Area (`seat_area`) | Seat numbers | Count |
+| --- | --- | --- |
+| Desk Area | 1–4 | 4 |
+| Center Seating | 5–10 | 6 |
+| L Pods A | 11–12 | 2 |
+| L Pods B | 13–15 | 3 |
+| U Pods A | 16–17 | 2 |
+| U Pods B | 18–20 | 3 |
+
+`012` inserts these 20 records into the **existing** `seats` table only if that
+table is empty. It never adds tables/columns, deletes records or resets an
+existing seat's occupancy. If you already configured seats, their records are
+preserved: match `seat_area` to the names above in Table Editor to position them
+on the map. Unrecognized areas appear as other configured seating below the map.
+
+Seat colors and icons distinguish available, selected, your seat and unavailable.
+Selecting a seat highlights it locally. Clicking **Confirm seat** claims it in
+Supabase immediately, so other readers see it unavailable on their next refresh
+(at most about 3 seconds). A confirmed seat is held for 5 minutes while the reader
+scans a book; the reading timer starts only on a successful book scan. Holds can
+be released or switched, survive page refresh, and expire automatically when a
+reader next loads/polls the map. Active reading sessions never expire through
+this hold mechanism. The map scrolls horizontally on narrow screens and keeps
+seat buttons large enough to tap.
+
+Hold ownership is stored in existing `session_activity_logs` events:
+`KIOSK_SEAT_RESERVED`, `KIOSK_SEAT_RELEASED`, `KIOSK_SEAT_CONSUMED`. Their `details`
+contain the seat ID, and the existing `created_at` supplies the five-minute expiry.
+Reserved seats use the existing `OCCUPIED` status. SQL functions lock and recheck
+the seat to reject conflicting claims; readers cannot cancel someone else's hold.
+
+Restart the reader Vite server and refresh the browser after applying `012`.
+Librarian check-in approval remains in **Admin dashboard → Readers → Reader check-in**.
+
 ## Apply the database update
 
 For your existing Supabase project, open `supabase/replacement/011_kiosk_reading.sql`,
@@ -50,18 +96,32 @@ restriction on running `npm.ps1`. Node.js 20.9 or later is required.
 
 ## Try the complete flow
 
-1. Sign in with an existing librarian account in the **reader app**, then open
-   **My shelf**. This provides a small staff check-in form so these use cases can
-   be tested without building the full UC-01 counter screen.
+If a valid available ISBN does not start reading, check **Reading time** beside
+the scanner. An active Guild Member membership can still have **0 minutes**.
+In the admin dashboard, open **Top-up terminal**, select that reader, enter the
+minutes to add, amount paid, payment method and receipt/reference, and click
+**Confirm top-up**. For a test, 60 minutes is enough; record it as a test transaction
+with accurate payment details. The reader page detects the updated balance within
+about 3 seconds. Guild Adventurer accounts do not require a minute balance.
+Scan errors and success messages appear beside the scanner; errors scroll into
+view. This balance/feedback UI update does not require additional SQL.
+
+1. Keep the reader app running (normally port 5173). In another terminal, start
+   the librarian app from `apps/admin-dashboard` with `npm.cmd run dev`
+   (normally port 3000). Sign in with the librarian account **only in the admin
+   dashboard**, then open **Readers → Reader check-in**.
 2. Enter/scan the reader's `librarycard_rfid`, click **Look up reader**, physically
-   verify the displayed name and username against the person, then click
-   **Identity verified — approve check-in**. The reader must have an active card,
+   verify the displayed name, username and birthdate against the person, tick
+   **I verified this reader's identity**, then click **Approve check-in**.
+   The reader must have an active card,
    active account and unexpired active membership. This form does not provide
    profile photo verification; the current users schema has no photo field.
-3. Sign out. Sign in with that reader account and open **View Seats** or **My shelf**. For testing
-   staff and reader accounts simultaneously, use separate browser profiles or
-   an incognito window; ordinary tabs share the Supabase sign-in.
-4. Select an available seat, focus **Book ISBN or copy barcode**, scan a barcode
+3. The reader signs into the **reader app** with their own reader account and
+   opens **View Seats** or **My shelf**. Keep the librarian signed into the admin
+   dashboard. Their sessions are separate on the two localhost origins/ports.
+   The reader page automatically detects approval within 3 seconds, so the
+   reader does not need to sign out or sign in as staff.
+4. Select an available seat and click **Confirm seat**. Focus **Book ISBN or copy barcode**, scan a barcode
    and press Enter (or click **Scan & start session**). A USB scanner operating
    as a keyboard works with this field. Typing a real barcode manually also
    works for testing. The reader needs reading minutes unless their membership
@@ -76,7 +136,7 @@ restriction on running `npm.ps1`. Node.js 20.9 or later is required.
    the original seat becomes available.
 7. For an unavailable physical copy, scan its exact copy barcode. The app rejects
    it and records an `INVENTORY_DISCREPANCY` activity log. Librarians can see
-   recent alerts in their My shelf panel. The alert is a database/dashboard
+   recent alerts under **Readers → Reader check-in** in the admin dashboard. The alert is a database/dashboard
    notice, not an email or push notification.
 8. When every configured seat is occupied, a reader without a session can
    **Join seat waitlist**. While this page stays open, it shows a notice when a
@@ -104,11 +164,10 @@ the interface groups numbered seat buttons in a grid and displays their area.
 
 ## Behavior and design choices
 
-- A seat selection before scanning is provisional. The first successful book
-  scan commits the seat assignment and starts the timer atomically. The existing
-  schema requires both a copy and a seat when creating a session; this avoids
-  inventing an incomplete timed session merely to hold a seat. During a session,
-  a confirmed seat change takes effect immediately.
+- A highlighted seat is provisional until **Confirm seat** is clicked. Confirmation
+  holds the seat immediately without creating an incomplete timed session.
+  The first successful book scan consumes that hold and creates the session.
+  During a session, a confirmed seat change takes effect immediately.
 - Seat status refreshes every 3 seconds through polling, including other users'
   changes. No Supabase Realtime publication configuration is required. Database
   locks recheck availability when saving; a stale available button cannot claim
@@ -133,6 +192,10 @@ the interface groups numbered seat buttons in a grid and displays their area.
 - Raw activity logs retain the existing staff-only RLS policy. The reader state
   function returns only the signed-in reader's session, books and event status;
   only librarians receive inventory alerts.
+- Check-in approval and inventory alert controls exist only in the admin
+  dashboard. Librarian credentials are rejected by reader sign-in and kiosk
+  authentication, and existing librarian sessions in the reader app are cleared.
+  The existing SQL function still enforces librarian authorization on approval.
 - The timer derives from the database start time, so page refresh, kiosk logout,
   changing seats or adding books does not restart the reading session.
 - Normal sign-in supports local testing. `/kiosk` still requires the existing
@@ -146,16 +209,26 @@ the interface groups numbered seat buttons in a grid and displays their area.
 - `supabase/replacement/011_kiosk_reading.sql`: functions and a checkout trigger
   for staff check-in, scan validation, seat changes, waitlist, inventory notices
   and multi-book cleanup. No tables, columns or RLS policies are added.
+- `supabase/replacement/012_library_seat_layout.sql`: initial 20 seat records
+  when empty, exclusive five-minute holds, release/expiry and scan conversion.
+- `apps/BONBON UI USER/src/components/LibrarySeatMap.tsx` and `library-seat-map.css`:
+  library floor plan, interactive seat icons, status legend and mobile map scrolling.
 - `apps/BONBON UI USER/src/components/KioskReading.tsx`: numbered seat map,
-  scanner form, session timer, books, waitlist notices and staff prerequisite form.
+  scanner form, session timer, books, waitlist notices and approval status.
+- `apps/admin-dashboard/components/admin/ReaderCheckIn.tsx`: card lookup,
+  identity verification, check-in approval and recent inventory alerts under Readers.
 - `src/pages/Shelf.tsx`: displays the new panel for signed-in `sora_v2` accounts.
 - `src/pages/VisitorGuide.tsx`: replaces the demo seat preview with the functional
   panel on **View Seats** for `sora_v2` accounts, with a sign-in prompt for guests.
 - `src/contexts/GameContext.tsx`: opens My shelf for `?reading=1`; directs catalog
-  reading actions to the seat/scan flow.
+  reading actions to the seat/scan flow and rejects librarian sessions in the reader app.
 - `src/KioskApp.tsx`: directs successful card authentication to `/?reading=1`.
 - `tests/kiosk-reading.mjs`: PostgreSQL validation using an isolated PGlite database.
 - `tests/kiosk-reading-ui.mjs`: browser interaction checks with mocked API responses.
+- `tests/admin-checkin-ui.mjs`: checks admin-only approval and automatic updates
+  to the reader screen using isolated browser contexts and mocked Supabase calls.
+- `tests/library-seat-map-ui.mjs`: verifies all 20 seat positions, occupied seats,
+  two-reader availability, hold restoration/release/expiry, scanning and mobile layout.
 
 ## Verification
 
@@ -191,3 +264,10 @@ In another terminal at the repository root, run `node tests/kiosk-reading-ui.mjs
 The browser checks use installed Google Chrome in headless mode and intercept
 all calls to the fake Supabase host. Close the test server afterward; use your
 normal terminal/environment for real Supabase testing.
+
+With the admin app also running on port 3000, run `node tests/admin-checkin-ui.mjs`
+to verify the two-app check-in flow. This test uses the configured admin project
+URL only to intercept requests, and replaces all Supabase responses; it does not
+create real check-ins. It requires the admin `.env.local` URL and uses a separate,
+temporary browser session. There is no need to rerun `011` when moving the form
+from the reader app to the admin app.

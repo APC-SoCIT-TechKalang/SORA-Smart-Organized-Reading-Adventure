@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { BookOpenIcon, RadioIcon } from 'lucide-react';
 import { database, errorMessage } from './lib/supabase';
+import { requireReaderAccount } from './lib/replacement-library';
 import { startWebNfcScan, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'error';
@@ -23,6 +24,7 @@ export function KioskApp() {
       // what makes a successful card tap equivalent to normal customer login.
       const { data, error } = await database().auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
       if (error || !data.session) throw error || new Error('The card session could not be verified.');
+      await requireReaderAccount();
       window.sessionStorage.setItem(SESSION_STARTED_KEY, String(Date.now()));
       // The shared Supabase client now contains the same session used by the
       // regular BONBON UI. Do not render a second kiosk dashboard first.

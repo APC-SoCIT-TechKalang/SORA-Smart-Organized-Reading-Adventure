@@ -40,6 +40,7 @@ import { AdminBonChat } from "./AdminBonChat";
 import { CompleteAddVolume } from "./CompleteAddVolume";
 import { EditBookCover } from "./EditBookCover";
 import { CatalogueEditor } from "./CatalogueEditor";
+import { ReaderCheckIn } from "./ReaderCheckIn";
 
 type Page =
   "Overview" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
@@ -1014,6 +1015,7 @@ function Readers({
   );
   return (
     <>
+      {usesReplacementSchema && <ReaderCheckIn />}
       <div className="mb-6 flex flex-col gap-3 sm:flex-row">
         <label className="flex flex-1 items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 shadow-sm">
           <Search size={16} className="text-[#9a806b]" />
@@ -1033,7 +1035,7 @@ function Readers({
               .length,
           ],
           ["Awaiting activation", pending.length],
-          ["Checked in now", active.length],
+          ["Reading now", active.length],
           [
             "Active memberships",
             data.memberAccounts.filter((item) => item.status === "ACTIVE").length,

@@ -153,3 +153,13 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
 }
 
 export function replacementApi() { return api(); }
+
+export async function requireReaderAccount() {
+  if (!usesReplacementSchema) return;
+  const { data, error } = await api().rpc('is_librarian');
+  if (error) throw error;
+  if (data === true) {
+    await database().auth.signOut({ scope: 'local' });
+    throw new Error('Librarian accounts must sign in through the admin dashboard. Use a reader account here.');
+  }
+}

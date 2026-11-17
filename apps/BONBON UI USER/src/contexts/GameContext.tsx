@@ -4,7 +4,7 @@ import type { Commission, SectionId, Toast, Volume } from '../types/library';
 import { database, errorMessage, readRows, setupMessage, supabase } from '../lib/supabase';
 import { volumes as demoVolumes } from '../data/manga';
 import { bookToVolume, questToCommission, type BookRow, type QuestRow } from '../lib/library-mappers';
-import { loadReplacementLibrary, replacementApi, usesReplacementSchema } from '../lib/replacement-library';
+import { loadReplacementLibrary, replacementApi, requireReaderAccount, usesReplacementSchema } from '../lib/replacement-library';
 
 export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
 export interface ReadingLog { reading_log_id: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null; }
@@ -62,6 +62,11 @@ function useLibraryState() {
           await client.auth.signOut({ scope: 'local' });
           if (versionAtStart === authEventVersion.current) applySession(null);
           setLoading(false);
+          return;
+        }
+        try { await requireReaderAccount(); }
+        catch (cause) {
+          if (active) { applySession(null); setError(errorMessage(cause)); setLoading(false); }
           return;
         }
       }
@@ -151,6 +156,7 @@ function useLibraryState() {
       const { data, error } = await database().auth.signInWithPassword({ email, password });
       if (error) throw error;
       if (!data.session) throw new Error('Unable to create a login session. Please try again.');
+      await requireReaderAccount();
       // Update the shared state here as well as through onAuthStateChange. This
       // makes the UI deterministic even if the auth event is delivered later.
       applySession(data.session);
