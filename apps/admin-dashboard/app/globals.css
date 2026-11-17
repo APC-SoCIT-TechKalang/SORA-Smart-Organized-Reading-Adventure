@@ -166,3 +166,94 @@ html { scrollbar-width: none; -ms-overflow-style: none; }
 html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .admin-shell *::-webkit-scrollbar { display: none; }
 .admin-shell * { scrollbar-width: none; -ms-overflow-style: none; }
+
+/* Futuristic reading-room layer: keeps the original SORA palette, adds depth. */
+.admin-shell {
+  background-color: #f3d793;
+  background-image:
+    radial-gradient(circle at 80% 0%, rgba(249, 210, 25, .28), transparent 25rem),
+    linear-gradient(rgba(149, 52, 16, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(149, 52, 16, .045) 1px, transparent 1px),
+    linear-gradient(135deg, #fffdf9 0%, #f3d793 100%);
+  background-size: auto, 42px 42px, 42px 42px, auto;
+}
+.admin-shell::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255,255,255,.12), transparent 22%, rgba(84,56,34,.06));
+  mix-blend-mode: multiply;
+}
+.admin-drawer {
+  border-right: 1px solid rgba(196,128,12,.28);
+  background: linear-gradient(180deg, rgba(255,253,249,.94), rgba(253,243,226,.88));
+  box-shadow: 18px 0 46px rgba(84,56,34,.12), inset -1px 0 rgba(255,255,255,.55);
+  backdrop-filter: blur(22px);
+}
+.admin-drawer nav button {
+  position: relative;
+  border: 1px solid transparent;
+}
+.admin-drawer nav button.is-active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 999px;
+  background: #953410;
+  box-shadow: 0 0 14px rgba(149,52,16,.55);
+}
+.admin-workspace > header,
+.admin-topbar {
+  background: rgba(254,254,253,.72);
+  border-bottom-color: rgba(196,128,12,.3);
+  box-shadow: 0 10px 30px rgba(84,56,34,.08);
+}
+.admin-workspace section,
+.admin-shell section {
+  border-color: rgba(196,128,12,.2);
+  box-shadow: 0 12px 30px rgba(84,56,34,.07), inset 0 1px rgba(255,255,255,.68);
+  backdrop-filter: blur(12px);
+}
+.admin-shell section:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 18px 38px rgba(84,56,34,.12), 0 0 0 1px rgba(196,128,12,.12), inset 0 1px rgba(255,255,255,.8);
+}
+.admin-shell table tbody tr { transition: background .18s ease, transform .18s ease; }
+.admin-shell table tbody tr:hover { background: rgba(243,215,147,.2); }
+.admin-shell input:focus,
+.admin-shell select:focus,
+.admin-shell button:focus-visible {
+  outline: 2px solid rgba(196,128,12,.62);
+  outline-offset: 2px;
+}
+.admin-shell input,
+.admin-shell select {
+  border-color: rgba(196,128,12,.24) !important;
+  background: rgba(255,253,249,.78) !important;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.admin-shell input:focus,
+.admin-shell select:focus {
+  border-color: #c4800c !important;
+  background: #fffdf9 !important;
+  box-shadow: 0 0 0 4px rgba(249,210,25,.14), 0 8px 18px rgba(84,56,34,.08);
+}
+.admin-hero-card { box-shadow: 0 24px 60px rgba(84,56,34,.28), inset 0 1px rgba(255,255,255,.2); }
+.admin-hero-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(0deg, transparent 0 5px, rgba(255,255,255,.035) 6px 7px);
+  mix-blend-mode: screen;
+}
+.admin-cta { box-shadow: 0 12px 28px rgba(196,128,12,.28); }
+@media (prefers-reduced-motion: reduce) {
+  .admin-shell section, .admin-shell table tbody tr { transition: none; }
+  .admin-shell section:hover { transform: none; }
+}

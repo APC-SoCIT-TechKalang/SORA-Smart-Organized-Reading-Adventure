@@ -16,7 +16,7 @@ interface CatalogProps {
 
 export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   const { volumes } = useGame();
-  const genres = ['All', ...new Set(volumes.map((volume) => volume.genre))];
+  const genres = ['All', ...new Set(volumes.flatMap((volume) => splitGenres(volume.genre)))];
   const [genre, setGenre] = useState('All');
   const [layout, setLayout] = useState<'grid' | 'list'>(initialLayout);
   const [sort, setSort] = useState<SortKey>('popular');
@@ -25,13 +25,13 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   const [selected, setSelected] = useState<Volume | null>(null);
 
   useEffect(() => {
-    if (genre !== 'All' && !volumes.some((volume) => volume.genre === genre)) setGenre('All');
+    if (genre !== 'All' && !volumes.some((volume) => splitGenres(volume.genre).includes(genre))) setGenre('All');
   }, [genre, volumes]);
 
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return volumes
-      .filter((volume) => (genre === 'All' || volume.genre === genre) && (!needle || [volume.title, volume.author, volume.genre].some((value) => value.toLowerCase().includes(needle))))
+      .filter((volume) => (genre === 'All' || splitGenres(volume.genre).includes(genre)) && (!needle || [volume.title, volume.author, volume.genre].some((value) => value.toLowerCase().includes(needle))))
       .sort((a, b) => sort === 'newest' ? b.volume - a.volume : a.title.localeCompare(b.title));
   }, [genre, query, sort, volumes]);
 
@@ -79,7 +79,7 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
             {query && <button type="button" onClick={() => onQueryChange('')} className="flex h-8 w-8 items-center justify-center rounded-full text-umber/45 hover:bg-parch/35 hover:text-rust" aria-label="Clear catalog search"><XIcon aria-hidden="true" className="h-4 w-4" /></button>}
           </label>
 
-        <div className="tb-scroll -mx-4 flex gap-2 overflow-x-auto px-4 pb-2 [scrollbar-width:none] sm:mx-0 sm:px-0" aria-label="Filter by genre">
+        <div className="flex flex-wrap gap-2" aria-label="Filter by genre">
           {genres.map((item) => {
             const isActive = item === genre;
             return <button key={item} type="button" onClick={() => setGenre(item)} aria-pressed={isActive} className={`min-h-10 shrink-0 rounded-full border px-4 text-xs font-800 transition ${isActive ? 'border-umber bg-umber text-sand' : 'border-gold/35 bg-cream text-umber/65 hover:border-gold hover:bg-parch/30'}`}>{item}</button>;
@@ -91,6 +91,13 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
       <VolumeDrawer volume={selected} onClose={() => setSelected(null)} />
     </div>
   );
+}
+
+function splitGenres(value: string) {
+  return value
+    .split(/[,;\n]+/)
+    .map((genre) => genre.trim())
+    .filter(Boolean);
 }
 
 interface LayoutToggleProps {
