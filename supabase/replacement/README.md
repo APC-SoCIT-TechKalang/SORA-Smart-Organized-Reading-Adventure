@@ -42,6 +42,8 @@ database, not a second product version.
 8. `010_librarycard_is_active.sql` adds the card Boolean to an existing database
    once, marking cards with a deactivation timestamp inactive. Fresh installations
    already include the column in `001_schema.sql` and should skip `010`.
+9. `011_kiosk_reading.sql` adds the kiosk check-in, seat-selection, and barcode
+   scanning operations. Run it after `010` on an existing database.
 
 For an existing database, run `008` during maintenance, then rerun the updated
 `002`, `003`, and `004` files in that order. Take a Supabase backup first. The
