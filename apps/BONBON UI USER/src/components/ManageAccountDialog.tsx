@@ -44,7 +44,8 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
 
   async function updatePassword(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const passwordForm = event.currentTarget;
+    const form = new FormData(passwordForm);
     const nextPassword = String(form.get('newPassword'));
     const confirmPassword = String(form.get('confirmPassword'));
     setPasswordMessage('');
@@ -67,9 +68,14 @@ export function ManageAccountDialog({ open, onClose }: ManageAccountDialogProps)
       if (!email) throw new Error('Your account email is unavailable. Please sign in again.');
       const reauthenticated = await database().auth.signInWithPassword({ email, password: currentPassword });
       if (reauthenticated.error) throw reauthenticated.error;
-      const { error } = await database().auth.updateUser({ password: nextPassword });
+      // Supabase requires the current password on the update request itself,
+      // even after a successful sign-in with that password.
+      const { error } = await database().auth.updateUser({
+        password: nextPassword,
+        current_password: currentPassword,
+      });
       if (error) throw error;
-      event.currentTarget.reset();
+      passwordForm.reset();
       setCurrentPassword('');
       setPasswordMessage('Password updated successfully.');
     } catch (error) {

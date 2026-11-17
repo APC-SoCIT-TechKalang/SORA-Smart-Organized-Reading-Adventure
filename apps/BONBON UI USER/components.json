@@ -1,33 +1,33 @@
 {
-  "$schema": "https://ui.shadcn.com/schema.json",
-  "style": "default",
-  "rsc": false,
-  "tsx": true,
-  "tailwind": {
-    "config": "tailwind.config.js",
-    "css": "src/index.css",
-    "baseColor": "stone",
-    "cssVariables": false
-  },
-  "aliases": {
-    "components": "@/components",
-    "utils": "@/lib/utils",
-    "ui": "@/components/ui",
-    "lib": "@/lib",
-    "hooks": "@/hooks"
-  },
-  "registries": {
-    "@reactbits-starter": {
-      "url": "https://pro.reactbits.dev/r/{name}.json",
-      "headers": {
-        "Authorization": "Bearer ${REACTBITS_LICENSE_KEY}"
-      }
+    "$schema": "https://ui.shadcn.com/schema.json",
+    "style": "default",
+    "rsc": false,
+    "tsx": true,
+    "tailwind": {
+        "config": "tailwind.config.js",
+        "css": "src/index.css",
+        "baseColor": "stone",
+        "cssVariables": false
     },
-    "@reactbits-pro": {
-      "url": "https://pro.reactbits.dev/r/{name}.json",
-      "headers": {
-        "Authorization": "Bearer ${REACTBITS_LICENSE_KEY}"
-      }
+    "aliases": {
+        "components": "@/components",
+        "utils": "@/lib/utils",
+        "ui": "@/components/ui",
+        "lib": "@/lib",
+        "hooks": "@/hooks"
+    },
+    "registries": {
+        "@reactbits-starter": {
+            "url": "https://pro.reactbits.dev/r/{name}.json",
+            "headers": {
+                "Authorization": "Bearer ${REACTBITS_LICENSE_KEY}"
+            }
+        },
+        "@reactbits-pro": {
+            "url": "https://pro.reactbits.dev/r/{name}.json",
+            "headers": {
+                "Authorization": "Bearer ${REACTBITS_LICENSE_KEY}"
+            }
+        }
     }
-  }
 }
