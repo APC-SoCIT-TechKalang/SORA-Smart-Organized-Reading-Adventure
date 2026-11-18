@@ -113,6 +113,67 @@ async function memberDirectoryReply(caller: SupabaseClient, message: string) {
   return `${prefix}: ${names}.${remainder}`;
 }
 
+function catalogSearchTerm(message: string) {
+  const patterns = [
+    /(?:is there|do we have|have we got)\s+(?:a\s+|an\s+|any\s+)?(.+?)\s+(?:book|title)(?:\s+available)?[?!.]*$/i,
+    /(?:book|title)\s+(?:named|called|titled)\s+["']?([^"'?]+)["']?/i,
+    /(?:find|search for|look up)\s+(?:a\s+|the\s+)?(?:book|title)\s+["']?([^"'?]+)["']?/i,
+  ];
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match?.[1]) return match[1].replace(/[^a-z0-9&._' -]/gi, "").trim().slice(0, 120);
+  }
+  return "";
+}
+
+function asksForCatalogTitles(message: string) {
+  const q = message.toLowerCase().replace(/[?!.,]/g, "").trim();
+  return /(?:what|which).*(?:book )?titles|(?:what is|what are).*(?:title|name).*(?:book|catalog)|(?:list|show|name).*(?:books|titles|catalog)/.test(q);
+}
+
+type CatalogBook = {
+  title: string;
+  volume_number: number | null;
+  book_genre: string | null;
+  authors: { author_firstname: string; author_lastname: string } | null;
+  book_copies: { copy_status: string }[];
+};
+
+function describeCatalogBook(book: CatalogBook) {
+  const author = book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : "unknown author";
+  const available = (book.book_copies ?? []).filter(copy => copy.copy_status === "In-Shelf").length;
+  const copies = book.book_copies?.length ?? 0;
+  const volume = book.volume_number === null ? "" : `, volume ${book.volume_number}`;
+  return `${book.title}${volume} by ${author} (${available} of ${copies} copies available)`;
+}
+
+async function catalogReply(caller: SupabaseClient, message: string) {
+  const term = catalogSearchTerm(message);
+  const wantsTitles = asksForCatalogTitles(message);
+  if (!term && !wantsTitles) return null;
+  let query = caller.schema("sora_v2").from("books")
+    .select("title,volume_number,book_genre,authors(author_firstname,author_lastname),book_copies(copy_status)", { count: "exact" })
+    .order("title", { ascending: true })
+    .limit(10);
+  if (term) {
+    const pattern = `%${term.replace(/[%_,()]/g, "")}%`;
+    query = query.or(`title.ilike.${pattern},original_title.ilike.${pattern},romanized_title.ilike.${pattern}`);
+  }
+  const result = await query;
+  if (result.error) {
+    console.error("Admin BON catalog lookup failed", result.error.message);
+    return "I could not search the catalog right now. Please try again.";
+  }
+  const books = result.data as unknown as CatalogBook[];
+  const total = result.count ?? books.length;
+  if (!books.length) return term ? `No catalog title matching "${term}" was found.` : "There are currently no book titles in the catalog.";
+  if (term && books.length === 1) return `Yes. ${describeCatalogBook(books[0])}.`;
+  const titles = books.map(book => describeCatalogBook(book)).join("; ");
+  const heading = term ? `I found ${total.toLocaleString()} matching title${total === 1 ? "" : "s"}` : `The catalog has ${total.toLocaleString()} title${total === 1 ? "" : "s"}`;
+  const remainder = total > books.length ? ` Showing the first ${books.length.toLocaleString()} alphabetically.` : "";
+  return `${heading}: ${titles}.${remainder}`;
+}
+
 async function memberLookupReply(caller: SupabaseClient, message: string) {
   const term = memberSearchTerm(message);
   if (!term) return null;
@@ -172,6 +233,8 @@ export async function POST(request: Request) {
   if (memberReply) return NextResponse.json({ message: memberReply });
   const directoryReply = await memberDirectoryReply(caller, message);
   if (directoryReply) return NextResponse.json({ message: directoryReply });
+  const bookReply = await catalogReply(caller, message);
+  if (bookReply) return NextResponse.json({ message: bookReply });
   const direct = directReply(message, context);
   if (direct) return NextResponse.json({ message: direct });
 
