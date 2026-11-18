@@ -81,7 +81,7 @@ export function AdminBonChat({ data }: { data: ChatData }) {
   }
 
   function submit(event: FormEvent) { event.preventDefault(); if (draft.trim() && !busy) void answer(draft.trim()); }
-  const suggestions = ["Give me today's analytics summary", "How many members do we have?", "Is there a member named Jared?", "How healthy is the catalog?"];
+  const suggestions = ["Today's analytics summary", "Who are the registered members?", "Find member Jared", "How healthy is the catalog?"];
 
   useEffect(() => {
     if (!dragging || pos === null) return;

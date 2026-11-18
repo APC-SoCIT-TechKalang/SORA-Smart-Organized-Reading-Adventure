@@ -79,6 +79,40 @@ function memberSearchTerm(message: string) {
   return "";
 }
 
+function asksForMemberDirectory(message: string) {
+  const q = message.toLowerCase().replace(/[?!.,]/g, "").trim();
+  return /(?:who (?:is|are)|list|show|name|which).*(?:registered )?(?:member|reader)|(?:registered )?(?:member|reader).*(?:list|names|who)/.test(q);
+}
+
+type SafeMember = {
+  first_name: string;
+  last_name: string;
+  username: string;
+  is_active: boolean;
+  membership_status: string;
+};
+
+async function memberDirectoryReply(caller: SupabaseClient, message: string) {
+  if (!asksForMemberDirectory(message) || memberSearchTerm(message)) return null;
+  const result = await caller.schema("sora_v2").from("users")
+    .select("first_name,last_name,username,is_active,membership_status", { count: "exact" })
+    .eq("user_role", "Reader")
+    .order("first_name", { ascending: true })
+    .order("last_name", { ascending: true })
+    .limit(10);
+  if (result.error) {
+    console.error("Admin BON member directory failed", result.error.message);
+    return "I could not load the member directory right now. Please try again.";
+  }
+  const members = result.data as SafeMember[];
+  const total = result.count ?? members.length;
+  if (!total) return "There are currently no registered reader members in Tankobonbon.";
+  const names = members.map(member => `${member.first_name} ${member.last_name} (@${member.username})`).join(", ");
+  const prefix = total === 1 ? "There is 1 registered reader member" : `There are ${total.toLocaleString()} registered reader members`;
+  const remainder = total > members.length ? ` Showing the first ${members.length.toLocaleString()} alphabetically.` : "";
+  return `${prefix}: ${names}.${remainder}`;
+}
+
 async function memberLookupReply(caller: SupabaseClient, message: string) {
   const term = memberSearchTerm(message);
   if (!term) return null;
@@ -136,6 +170,8 @@ export async function POST(request: Request) {
   if (rejection) return NextResponse.json({ error: rejection }, { status: 400 });
   const memberReply = await memberLookupReply(caller, message);
   if (memberReply) return NextResponse.json({ message: memberReply });
+  const directoryReply = await memberDirectoryReply(caller, message);
+  if (directoryReply) return NextResponse.json({ message: directoryReply });
   const direct = directReply(message, context);
   if (direct) return NextResponse.json({ message: direct });
 
@@ -147,7 +183,7 @@ export async function POST(request: Request) {
     return role && content ? [{ role, content }] : [];
   }) : [];
   const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) return NextResponse.json({ error: "BON's AI service is not configured yet." }, { status: 503 });
+  if (!apiKey) return NextResponse.json({ message: "I can help with live member counts and names, catalog availability, active reading sessions, memberships, quests, and popular books. Try asking, \"Who are the registered members?\" or \"Give me today's analytics summary.\"" });
   const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
   const system = `You are BON, the librarian-facing analytics assistant for Tankobonbon, the S.O.R.A. Smart Organized Reading Adventure library system. Focus on Tankobonbon operations, analytics, catalog health, physical-copy availability, readers, memberships, reading sessions, quests, and practical library management. Treat ADMIN ANALYTICS as the only source of current numeric facts. Never invent missing metrics or claim to perform actions. Protect personal data, credentials, secrets, and individual reader details. Politely redirect unrelated questions to Tankobonbon or library operations. Answer the question first in 1 to 4 concise sentences. Never use em dash or en dash characters. Return JSON only: {"message":"..."}.`;
   try {
