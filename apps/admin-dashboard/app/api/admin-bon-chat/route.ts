@@ -12,6 +12,7 @@ type AnalyticsContext = {
 };
 
 const buckets = new Map<string, { count: number; resetAt: number }>();
+let openRouterUnavailableUntil = 0;
 const cleanText = (value: unknown, max = 800) => typeof value === "string" ? value.trim().slice(0, max) : "";
 const boundedNumber = (value: unknown, max = 1_000_000) => {
   const number = Number(value);
@@ -116,12 +117,16 @@ async function memberDirectoryReply(caller: SupabaseClient, message: string) {
 function catalogSearchTerm(message: string) {
   const patterns = [
     /(?:is there|do we have|have we got)\s+(?:a\s+|an\s+|any\s+)?(.+?)\s+(?:book|title)(?:\s+available)?[?!.]*$/i,
+    /(?:is there|do we have|have we got)\s+(?:a\s+|an\s+|any\s+)?["']?(.+?)["']?[?!.]*$/i,
     /(?:book|title)\s+(?:named|called|titled)\s+["']?([^"'?]+)["']?/i,
     /(?:find|search for|look up)\s+(?:a\s+|the\s+)?(?:book|title)\s+["']?([^"'?]+)["']?/i,
   ];
   for (const pattern of patterns) {
     const match = message.match(pattern);
-    if (match?.[1]) return match[1].replace(/[^a-z0-9&._' -]/gi, "").trim().slice(0, 120);
+    if (match?.[1]) {
+      const term = match[1].replace(/[^a-z0-9&._' -]/gi, "").replace(/\s+(book|title)$/i, "").trim().slice(0, 120);
+      if (term && !/^(members?|readers?|sessions?|memberships?|quests?|copies|available books?)$/i.test(term)) return term;
+    }
   }
   return "";
 }
@@ -247,6 +252,7 @@ export async function POST(request: Request) {
   }) : [];
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return NextResponse.json({ message: "I can help with live member counts and names, catalog availability, active reading sessions, memberships, quests, and popular books. Try asking, \"Who are the registered members?\" or \"Give me today's analytics summary.\"" });
+  if (openRouterUnavailableUntil > Date.now()) return NextResponse.json({ message: "I can answer live questions about members, book titles and availability, sessions, memberships, quests, and analytics. Try asking me for a specific member or book title." });
   const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
   const system = `You are BON, the librarian-facing analytics assistant for Tankobonbon, the S.O.R.A. Smart Organized Reading Adventure library system. Focus on Tankobonbon operations, analytics, catalog health, physical-copy availability, readers, memberships, reading sessions, quests, and practical library management. Treat ADMIN ANALYTICS as the only source of current numeric facts. Never invent missing metrics or claim to perform actions. Protect personal data, credentials, secrets, and individual reader details. Politely redirect unrelated questions to Tankobonbon or library operations. Answer the question first in 1 to 4 concise sentences. Never use em dash or en dash characters. Return JSON only: {"message":"..."}.`;
   try {
@@ -254,10 +260,11 @@ export async function POST(request: Request) {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json", "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "https://sora-admin-puce.vercel.app", "X-Title": process.env.OPENROUTER_APP_NAME || "Tankobonbon Admin BON" },
       body: JSON.stringify({ model, temperature: 0.25, max_tokens: 220, ...(model.startsWith("deepseek/") ? { reasoning: { enabled: false } } : {}), response_format: { type: "json_object" }, messages: [{ role: "system", content: system }, ...history, { role: "user", content: `ADMIN ANALYTICS: ${JSON.stringify(context)}\nQUESTION: ${message}` }] }),
-      signal: AbortSignal.timeout(12_000),
+      signal: AbortSignal.timeout(5_000),
     });
     if (!upstream.ok) {
       console.error("Admin BON OpenRouter request failed", upstream.status, (await upstream.text()).slice(0, 300));
+      if (upstream.status === 401 || upstream.status === 403 || upstream.status >= 500) openRouterUnavailableUntil = Date.now() + 10 * 60_000;
       return NextResponse.json({ message: "I can still answer live Tankobonbon questions about member counts and names, catalog availability, sessions, memberships, quests, and popular books. Advanced analysis is temporarily unavailable." });
     }
     const result = await upstream.json() as { choices?: { message?: { content?: unknown } }[] };
@@ -265,6 +272,7 @@ export async function POST(request: Request) {
     return answer ? NextResponse.json({ message: answer }) : NextResponse.json({ error: "BON could not format the analytics response. Please try again." }, { status: 502 });
   } catch (error) {
     console.error("Admin BON request failed", error instanceof Error ? error.message : "Unknown error");
-    return NextResponse.json({ error: "BON's analytics connection is taking a moment. Please try again." }, { status: 504 });
+    openRouterUnavailableUntil = Date.now() + 2 * 60_000;
+    return NextResponse.json({ message: "I can still answer live questions about members, books, availability, sessions, memberships, quests, and analytics. Please try a specific Tankobonbon question." });
   }
 }
