@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 type ChatMessage = { role: "user" | "assistant"; content: string };
@@ -52,6 +52,8 @@ function directReply(message: string, context: AnalyticsContext) {
   if (/^(hi|hello|hey|good morning|good afternoon|good evening)( bon)?$/.test(q)) return "Hello! I can help you understand Tankobonbon operations, catalog activity, readers, sessions, memberships, and quests.";
   if (/^(who are you|what are you|what can you do|help|help me)( bon)?$/.test(q)) return "I am BON, the Tankobonbon admin analytics assistant. I summarize current library operations and explain the system using the dashboard data available to this librarian session.";
   if (/what is tankobonbon|about tankobonbon|explain tankobonbon/.test(q)) return "Tankobonbon is S.O.R.A.'s library experience for managing the catalog, physical copies, readers, memberships, in-library reading sessions, seats, quests, and rewards. This admin dashboard focuses on daily operations and analytics.";
+  if (/analytics summary|today'?s analytics|operations summary|dashboard summary|how are we doing/.test(q)) return `Tankobonbon currently has ${context.totalTitles.toLocaleString()} titles, ${context.totalCopies.toLocaleString()} physical copies, ${context.availableCopies.toLocaleString()} available copies, ${context.readerProfiles.toLocaleString()} registered members, and ${context.activeSessions.toLocaleString()} active reading session${context.activeSessions === 1 ? "" : "s"}. ${context.activeMemberships.toLocaleString()} membership${context.activeMemberships === 1 ? " is" : "s are"} active.`;
+  if (/(how many|total|count).*(member|reader)|(member|reader).*(how many|total|count)/.test(q)) return `There are ${context.readerProfiles.toLocaleString()} registered reader member${context.readerProfiles === 1 ? "" : "s"} in Tankobonbon. ${context.activeReaderAccounts.toLocaleString()} account${context.activeReaderAccounts === 1 ? " is" : "s are"} active, and ${context.activeMemberships.toLocaleString()} currently have an active membership.`;
   if (/(how many|total|count).*(book|title)|(book|title).*(how many|total|count)/.test(q)) return `Tankobonbon currently has ${context.totalTitles.toLocaleString()} catalog title${context.totalTitles === 1 ? "" : "s"} and ${context.totalCopies.toLocaleString()} physical cop${context.totalCopies === 1 ? "y" : "ies"}.`;
   if (/available.*(copy|book)|(copy|book).*available|on shelf/.test(q)) return `${context.availableCopies.toLocaleString()} of ${context.totalCopies.toLocaleString()} physical copies are currently marked available on the shelf.`;
   if (/active.*(session|visit|reader)|(session|visit|reader).*active/.test(q)) return `${context.activeSessions.toLocaleString()} reading session${context.activeSessions === 1 ? " is" : "s are"} active right now. ${context.activeReaderAccounts.toLocaleString()} of ${context.readerProfiles.toLocaleString()} reader accounts are active.`;
@@ -59,7 +61,41 @@ function directReply(message: string, context: AnalyticsContext) {
     const top = context.topBooks[0];
     return top ? `${top.title} currently leads with ${top.sessions.toLocaleString()} recorded reading session${top.sessions === 1 ? "" : "s"}.` : "There are no recorded reading sessions yet, so a most-read title cannot be identified.";
   }
+  if (/catalog health|healthy.*catalog|catalog.*healthy/.test(q)) return `${context.availableCopies.toLocaleString()} of ${context.totalCopies.toLocaleString()} copies are available, ${context.copiesWithReaders.toLocaleString()} are with readers, and ${context.copiesInReturnCart.toLocaleString()} are awaiting shelving. The catalog contains ${context.totalTitles.toLocaleString()} titles.`;
+  if (/membership/.test(q)) return `${context.activeMemberships.toLocaleString()} active membership${context.activeMemberships === 1 ? " is" : "s are"} recorded across ${context.readerProfiles.toLocaleString()} registered reader members.`;
+  if (/quest/.test(q)) return `Tankobonbon has ${context.activeQuests.toLocaleString()} active quest${context.activeQuests === 1 ? "" : "s"} and ${context.questEnrollments.toLocaleString()} recorded reader enrollment${context.questEnrollments === 1 ? "" : "s"}.`;
   return null;
+}
+
+function memberSearchTerm(message: string) {
+  const patterns = [
+    /(?:member|reader)\s+named\s+["']?([^"'?]+)["']?/i,
+    /(?:do we have|is there|find|search for|look up)\s+(?:a\s+)?(?:member|reader)(?:\s+named)?\s+["']?([^"'?]+)["']?/i,
+  ];
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (match?.[1]) return match[1].replace(/[^a-z0-9@._' -]/gi, "").trim().slice(0, 80);
+  }
+  return "";
+}
+
+async function memberLookupReply(caller: SupabaseClient, message: string) {
+  const term = memberSearchTerm(message);
+  if (!term) return null;
+  const pattern = `%${term.replace(/[%_,()]/g, "")}%`;
+  const result = await caller.schema("sora_v2").from("users")
+    .select("first_name,last_name,username,is_active,membership_status")
+    .eq("user_role", "Reader")
+    .or(`first_name.ilike.${pattern},last_name.ilike.${pattern},username.ilike.${pattern}`)
+    .limit(5);
+  if (result.error) {
+    console.error("Admin BON member lookup failed", result.error.message);
+    return "I could not search the member directory right now. Please try again.";
+  }
+  const members = result.data as { first_name: string; last_name: string; username: string; is_active: boolean; membership_status: string }[];
+  if (!members.length) return `I could not find a registered reader member matching “${term}”.`;
+  const descriptions = members.map(member => `${member.first_name} ${member.last_name} (@${member.username}), account ${member.is_active ? "active" : "inactive"}, membership ${member.membership_status.toLowerCase()}`);
+  return members.length === 1 ? `Yes. ${descriptions[0]} is registered in Tankobonbon.` : `I found ${members.length} matching members: ${descriptions.join("; ")}.`;
 }
 
 function guardMessage(message: string) {
@@ -98,6 +134,8 @@ export async function POST(request: Request) {
   if (!message || !context) return NextResponse.json({ error: "Enter a question for BON." }, { status: 400 });
   const rejection = guardMessage(message);
   if (rejection) return NextResponse.json({ error: rejection }, { status: 400 });
+  const memberReply = await memberLookupReply(caller, message);
+  if (memberReply) return NextResponse.json({ message: memberReply });
   const direct = directReply(message, context);
   if (direct) return NextResponse.json({ message: direct });
 
@@ -121,7 +159,7 @@ export async function POST(request: Request) {
     });
     if (!upstream.ok) {
       console.error("Admin BON OpenRouter request failed", upstream.status, (await upstream.text()).slice(0, 300));
-      return NextResponse.json({ error: "BON's analytics connection is taking a moment. Please try again." }, { status: upstream.status === 429 ? 429 : 502 });
+      return NextResponse.json({ message: "I can still answer live Tankobonbon questions about member counts and names, catalog availability, sessions, memberships, quests, and popular books. Advanced analysis is temporarily unavailable." });
     }
     const result = await upstream.json() as { choices?: { message?: { content?: unknown } }[] };
     const answer = parseGenerated(result.choices?.[0]?.message?.content);
