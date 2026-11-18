@@ -131,6 +131,11 @@ function catalogSearchTerm(message: string) {
   return "";
 }
 
+function followUpTerm(message: string) {
+  const match = message.match(/^(?:and\s+)?(?:how|what)\s+about\s+(?:a\s+|an\s+|the\s+)?["']?(.+?)["']?[?!.]*$/i);
+  return match?.[1] ? match[1].replace(/[^a-z0-9&._' -]/gi, "").replace(/\s+(book|title|member|reader)$/i, "").trim().slice(0, 120) : "";
+}
+
 function asksForCatalogTitles(message: string) {
   const q = message.toLowerCase().replace(/[?!.,]/g, "").trim();
   return /(?:what|which).*(?:book )?titles|(?:what is|what are).*(?:title|name).*(?:book|catalog)|(?:list|show|name).*(?:books|titles|catalog)/.test(q);
@@ -152,8 +157,8 @@ function describeCatalogBook(book: CatalogBook) {
   return `${book.title}${volume} by ${author} (${available} of ${copies} copies available)`;
 }
 
-async function catalogReply(caller: SupabaseClient, message: string) {
-  const term = catalogSearchTerm(message);
+async function catalogReply(caller: SupabaseClient, message: string, termOverride = "") {
+  const term = termOverride || catalogSearchTerm(message);
   const wantsTitles = asksForCatalogTitles(message);
   if (!term && !wantsTitles) return null;
   let query = caller.schema("sora_v2").from("books")
@@ -179,8 +184,8 @@ async function catalogReply(caller: SupabaseClient, message: string) {
   return `${heading}: ${titles}.${remainder}`;
 }
 
-async function memberLookupReply(caller: SupabaseClient, message: string) {
-  const term = memberSearchTerm(message);
+async function memberLookupReply(caller: SupabaseClient, message: string, termOverride = "") {
+  const term = termOverride || memberSearchTerm(message);
   if (!term) return null;
   const pattern = `%${term.replace(/[%_,()]/g, "")}%`;
   const result = await caller.schema("sora_v2").from("users")
@@ -234,6 +239,23 @@ export async function POST(request: Request) {
   if (!message || !context) return NextResponse.json({ error: "Enter a question for BON." }, { status: 400 });
   const rejection = guardMessage(message);
   if (rejection) return NextResponse.json({ error: rejection }, { status: 400 });
+  const history = Array.isArray(input.history) ? input.history.slice(-4).flatMap((entry): ChatMessage[] => {
+    if (!entry || typeof entry !== "object") return [];
+    const item = entry as Record<string, unknown>;
+    const role = item.role === "user" ? "user" : item.role === "assistant" ? "assistant" : null;
+    const content = cleanText(item.content, 500);
+    return role && content ? [{ role, content }] : [];
+  }) : [];
+  const followUp = followUpTerm(message);
+  const previousAnswer = [...history].reverse().find(item => item.role === "assistant")?.content.toLowerCase() ?? "";
+  if (followUp && /member|reader|account|membership|registered|@/.test(previousAnswer)) {
+    const followUpMemberReply = await memberLookupReply(caller, message, followUp);
+    if (followUpMemberReply) return NextResponse.json({ message: followUpMemberReply });
+  }
+  if (followUp && /book|catalog|title|author|volume|cop(?:y|ies)/.test(previousAnswer)) {
+    const followUpBookReply = await catalogReply(caller, message, followUp);
+    if (followUpBookReply) return NextResponse.json({ message: followUpBookReply });
+  }
   const memberReply = await memberLookupReply(caller, message);
   if (memberReply) return NextResponse.json({ message: memberReply });
   const directoryReply = await memberDirectoryReply(caller, message);
@@ -243,13 +265,6 @@ export async function POST(request: Request) {
   const direct = directReply(message, context);
   if (direct) return NextResponse.json({ message: direct });
 
-  const history = Array.isArray(input.history) ? input.history.slice(-4).flatMap((entry): ChatMessage[] => {
-    if (!entry || typeof entry !== "object") return [];
-    const item = entry as Record<string, unknown>;
-    const role = item.role === "user" ? "user" : item.role === "assistant" ? "assistant" : null;
-    const content = cleanText(item.content, 500);
-    return role && content ? [{ role, content }] : [];
-  }) : [];
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return NextResponse.json({ message: "I can help with live member counts and names, catalog availability, active reading sessions, memberships, quests, and popular books. Try asking, \"Who are the registered members?\" or \"Give me today's analytics summary.\"" });
   if (openRouterUnavailableUntil > Date.now()) return NextResponse.json({ message: "I can answer live questions about members, book titles and availability, sessions, memberships, quests, and analytics. Try asking me for a specific member or book title." });
