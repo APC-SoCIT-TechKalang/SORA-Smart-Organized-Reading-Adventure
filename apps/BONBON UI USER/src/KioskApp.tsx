@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpenIcon, RadioIcon } from 'lucide-react';
 import { database, errorMessage } from './lib/supabase';
 import { requireReaderAccount } from './lib/replacement-library';
-import { startWebNfcScan, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
+import { startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'error';
 const SESSION_STARTED_KEY = 'sora.kiosk.session-started-at';
@@ -10,6 +10,7 @@ const SESSION_STARTED_KEY = 'sora.kiosk.session-started-at';
 export function KioskApp() {
   const [status, setStatus] = useState<KioskStatus>('ready');
   const [message, setMessage] = useState('');
+  const authenticating = useRef(false);
 
   const clearSession = useCallback(async () => {
     try { await database().auth.signOut({ scope: 'local' }); } catch { /* Clear local kiosk state even if network is unavailable. */ }
@@ -33,23 +34,30 @@ export function KioskApp() {
   }, [clearSession]);
 
   const authenticateUid = useCallback(async (rfidUid: string) => {
+    if (authenticating.current) return;
+    authenticating.current = true;
     setStatus('authorizing'); setMessage('');
     try {
       const response = await fetch('/api/kiosk/rfid-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rfidUid }), cache: 'no-store' });
+      if (!response.headers.get('content-type')?.includes('application/json')) {
+        throw new Error('Card detected, but the kiosk login service is unavailable. Please ask staff to start the kiosk server.');
+      }
       const payload = await response.json() as BridgeAuthentication & { error?: string };
       if (!response.ok || !payload.tokenHash) throw new Error(payload.error || 'Card not recognized or inactive.');
       await establishSession(payload);
     } catch (cause) { setMessage(errorMessage(cause)); setStatus('error'); }
+    finally { authenticating.current = false; }
   }, [establishSession]);
 
   const startScan = useCallback(async () => {
-    if (!supportsWebNfc()) { setMessage('Waiting for the connected library card reader. This browser cannot read NFC cards directly.'); setStatus('scanning'); return; }
+    if (!supportsWebNfc()) { setMessage('USB card scanning is enabled. Keep this window focused and tap your card on the reader.'); setStatus('scanning'); return; }
     setStatus('scanning'); setMessage('Hold your library card near this device.');
     try { await startWebNfcScan(uid => void authenticateUid(uid)); }
     catch (cause) { setMessage(errorMessage(cause)); setStatus('error'); }
   }, [authenticateUid]);
 
   useEffect(() => subscribeToReaderBridge(authentication => void establishSession(authentication)), [establishSession]);
+  useEffect(() => subscribeToKeyboardReader(uid => void authenticateUid(uid)), [authenticateUid]);
   useEffect(() => { void clearSession(); }, [clearSession]);
 
   return <main className="tb-field tb-world-shell min-h-screen text-umber"><KioskHeader />
