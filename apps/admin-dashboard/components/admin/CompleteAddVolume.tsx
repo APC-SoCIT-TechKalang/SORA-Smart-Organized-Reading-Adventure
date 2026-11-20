@@ -66,6 +66,7 @@ type TitleCandidate = {
 export function CompleteAddVolume({ data, close, run }: Props) {
   const [form, setForm] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState("");
   const [coverFailed, setCoverFailed] = useState(false);
   const [coverCandidates, setCoverCandidates] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
@@ -344,9 +345,31 @@ export function CompleteAddVolume({ data, close, run }: Props) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (submitting) return;
+    setSubmitError("");
     setSubmitting(true);
+    try {
     const ok = await run(
       async () => {
+        const result = await saveVolume();
+        if (result.error) {
+          const error = result.error as { message?: string };
+          setSubmitError(error.message || "Could not save this volume. Please try again.");
+        }
+        return result;
+      },
+      existingBookId
+        ? "Physical copy added to the catalogue"
+        : "Volume added to the catalogue",
+    );
+    if (ok) close();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : "Could not save this volume. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const saveVolume = async () => {
         if (!usesReplacementSchema && existingBookId && !form.barcode.trim())
           return {
             error: new Error(
@@ -466,13 +489,6 @@ export function CompleteAddVolume({ data, close, run }: Props) {
         if (uploadedPath && (result.error || !createdNew))
           await database().storage.from("book-covers").remove([uploadedPath]);
         return { error: result.error };
-      },
-      existingBookId
-        ? "Physical copy added to the catalogue"
-        : "Volume added to the catalogue",
-    );
-    setSubmitting(false);
-    if (ok) close();
   };
 
   return (
@@ -513,7 +529,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             <X size={20} />
           </button>
         </header>
-        <form onSubmit={submit} className="flex-1 overflow-y-auto">
+        <form onSubmit={submit} onInvalidCapture={(event) => {
+          const field = event.target as HTMLInputElement;
+          setSubmitError(field.validationMessage || "Please review the required fields.");
+          field.scrollIntoView({ block: "center", behavior: "smooth" });
+        }} className="min-h-0 flex-1 overflow-y-auto">
           <section className="border-b border-[#eee2d6] bg-[#fffaf1] px-7 py-5">
             <div className="flex items-start gap-3">
               <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-[#f4dfb7] text-[#a83d12]">
@@ -897,6 +917,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             </label>
           </section>
           <footer className="sticky bottom-0 flex items-center border-t border-[#e7d7c5] bg-[#fffdf9]/95 px-7 py-5 backdrop-blur">
+            {submitError && <p role="alert" className="mr-4 text-xs text-red-700">{submitError}</p>}
             <p className="hidden text-[10px] text-[#98816e] sm:block">
               * Review imported metadata before saving.
             </p>
