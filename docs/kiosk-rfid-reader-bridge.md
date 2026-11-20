@@ -32,6 +32,14 @@ forwards login to the admin API. It accepts only same-origin POSTs from loopback
 this proxy must not be exposed as a public kiosk authentication endpoint.
 Production needs the trusted native bridge described below.
 
+For the hosted reader kiosk, the same-origin serverless endpoint lives in
+`apps/BONBON UI USER/api/kiosk-rfid-login.ts`. Add `SUPABASE_SECRET_KEY` to the
+**reader site's server-side deployment environment** and redeploy. The endpoint
+checks same-origin requests, limits repeated scans, validates the card through
+the service-role-only resolver, and returns only a one-time Auth token. The
+secret is never included in the Vite bundle. Vercel resolves the API function
+before falling back to the catch-all SPA rewrite.
+
 The scanned value must exactly match `sora_v2.librarycard.librarycard_rfid`,
 including leading zeroes. The card, reader account, and membership must be active,
 and membership must be unexpired. The Supabase Auth account must have its

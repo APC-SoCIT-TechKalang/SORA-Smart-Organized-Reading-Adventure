@@ -24,7 +24,7 @@ key must never be placed in either frontend build or committed to the repository
 
 | Deployment | Required variables |
 | --- | --- |
-| Reader site | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` |
+| Reader site | `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY` (server-side RFID function only) |
 | Admin dashboard | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `NEXT_PUBLIC_SORA_SCHEMA` (defaults to `sora_v2`; set to `public` only for a legacy database) |
 | Admin dashboard, optional | `GOOGLE_BOOKS_API_KEY` |
 
