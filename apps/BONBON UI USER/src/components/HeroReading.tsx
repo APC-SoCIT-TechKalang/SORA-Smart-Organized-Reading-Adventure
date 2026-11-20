@@ -63,23 +63,6 @@ export function HeroReading() {
               <CheckCircle2Icon aria-hidden="true" className="h-4 w-4 text-gold" />Session active</span>}
           </div>
         </div>
-<<<<<<< Updated upstream
-=======
-
-        <div className="tb-hero-book mx-auto w-[170px] sm:w-[190px] md:w-full md:-translate-x-3 lg:-translate-x-6 xl:-translate-x-8">
-          <div className="relative rotate-[1.5deg] border-[3px] border-gold bg-umber p-1.5 shadow-[12px_16px_0_rgba(84,56,34,.11)] transition-transform duration-300 hover:rotate-0 hover:-translate-y-1">
-            <div aria-hidden="true" className="tb-hero-halo" />
-            <div className="relative aspect-[3/4] overflow-hidden border border-sun/60 bg-parch">
-              {book?.coverImage ? <img src={book.coverImage} alt={`${book.title} cover`} className="h-full w-full object-cover" /> : <div className="flex h-full flex-col justify-end p-5" style={{ backgroundColor: book?.plateColor ?? '#59351e', color: book?.plateInk ?? '#fff9ef' }}><span className="font-display text-2xl font-900 uppercase leading-none">{book?.plate.map((line) => <span key={line} className="block">{line}</span>) ?? 'Tankobonbon'}</span></div>}
-              <span aria-hidden="true" className="pointer-events-none absolute inset-2 border border-sun/45" />
-              <span aria-hidden="true" className="tb-hero-cover-shine" />
-            </div>
-            <span className="absolute -right-3 -top-3 flex h-10 w-10 rotate-45 items-center justify-center border border-umber bg-sun shadow-sm"><span className="-rotate-45 font-display text-xs font-900 text-umber">{book?.volume ?? 'S'}</span></span>
-            <span aria-hidden="true" className="tb-hero-book-sparkle">✦</span>
-          </div>
-          <p className="mt-4 text-center text-[9px] font-800 uppercase tracking-[0.2em] text-gold">{isReading ? 'On your shelf' : 'Library feature'}</p>
-        </div>
->>>>>>> Stashed changes
       </div>
     </section>
   );
