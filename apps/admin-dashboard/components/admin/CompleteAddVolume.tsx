@@ -424,38 +424,15 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 "Book type must be Manga, Light Novel, or Adult Manga.",
               ),
             };
-          const created = await database()
-            .schema("sora_v2")
-            .rpc("admin_create_book", {
-              p_title: form.title,
-              p_author_firstname: authorFirst,
-              p_author_lastname: authorLast,
-              p_book_type: form.book_type,
-              p_age_rating: ageRating,
-              // The exact ERD limits book_genre to varchar(100).
-              p_genre: (genres.join(", ") || "General").slice(0, 100),
-              p_isbn: clean(form.isbn),
-            });
+          const created = await database().schema("sora_v2").rpc("admin_create_located_book", {
+            p_title: form.title, p_author_firstname: authorFirst, p_author_lastname: authorLast,
+            p_book_type: form.book_type, p_age_rating: ageRating,
+            p_genre: (genres.join(", ") || "General").slice(0,100), p_isbn: clean(form.isbn),
+            p_shelf_location: form.shelf ? `Shelf A${form.shelf}` : null,
+            p_barcode: clean(form.barcode), p_condition_notes: clean(form.condition_notes),
+            p_cover_image_url: coverUrl,
+          });
           if (created.error) return { error: created.error };
-          const bookId = Number(created.data);
-          if (coverUrl) {
-            const cover = await database()
-              .schema("sora_v2")
-              .rpc("admin_update_book_cover", {
-                p_book_id: bookId,
-                p_cover_image_url: coverUrl,
-              });
-            if (cover.error) return { error: cover.error };
-          }
-          if (form.barcode.trim()) {
-            const copy = await database()
-              .schema("sora_v2")
-              .rpc("admin_add_copy", {
-                p_book_id: bookId,
-                p_barcode: form.barcode.trim(),
-              });
-            if (copy.error) return { error: copy.error };
-          }
           return { error: null };
         }
         const result = await database().rpc("admin_create_catalog_entry", {
@@ -873,7 +850,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             <h3 className="mb-4 font-serif text-lg text-[#5b3924]">
               Physical copy{" "}
               <span className="font-sans text-[10px] font-bold uppercase tracking-wider text-[#a58a74]">
-                {existingBookId ? "Required" : "Optional"}
+                Required
               </span>
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
@@ -882,7 +859,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 <input
                   value={form.barcode}
                   onChange={(event) => update("barcode", event.target.value)}
-                  placeholder="Scan or enter barcode"
+                  placeholder="Scan barcode or leave blank to generate ISBN-copy number"
                   className={input}
                 />
               </label>
@@ -891,10 +868,10 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 <select
                   value={form.shelf}
                   onChange={(event) => update("shelf", event.target.value)}
-                  disabled={!form.barcode.trim()}
+                  required={usesReplacementSchema}
                   className={input}
                 >
-                  <option value="">No shelf</option>
+                  <option value="">Select a Main Reading Hall shelf</option>
                   {data.shelves.map((item) => (
                     <option key={item.shelf_id} value={item.shelf_id}>
                       {item.name}
@@ -910,7 +887,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 onChange={(event) =>
                   update("condition_notes", event.target.value)
                 }
-                disabled={!form.barcode.trim()}
+                disabled={!usesReplacementSchema && !form.barcode.trim()}
                 placeholder="e.g. New, minor shelf wear"
                 className={input}
               />
@@ -926,7 +903,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               disabled={
                 submitting ||
                 !form.title.trim() ||
-                (Boolean(existingBookId) && !form.barcode.trim())
+                (!usesReplacementSchema && Boolean(existingBookId) && !form.barcode.trim())
               }
               className="ml-auto inline-flex min-w-44 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-5 py-3 text-xs font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#8f320d] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
             >

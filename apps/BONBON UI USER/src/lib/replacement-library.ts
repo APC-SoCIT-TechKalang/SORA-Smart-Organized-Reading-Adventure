@@ -15,7 +15,7 @@ interface ReplacementBook {
   coverimage_url: string | null;
   book_genre: string | null;
   authors: { author_firstname: string; author_lastname: string } | null;
-  book_copies?: { copy_status: string }[];
+  book_copies?: { copy_id: number; copy_status: string; shelf_location: string | null }[];
 }
 
 interface ReplacementUser {
@@ -74,6 +74,7 @@ async function readAll<T>(table: string, columns: string, order: string): Promis
 
 function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
   return {
+    physicalCopies: signedIn ? (book.book_copies ?? []).map(copy => ({ copyId: copy.copy_id, status: copy.copy_status, shelfLocation: copy.shelf_location })) : undefined,
     id: String(book.book_id),
     title: book.title,
     author: book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : 'Unknown author',
@@ -98,7 +99,7 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
   const books = await readAll<ReplacementBook>(
     'books',
     'book_id,title,original_title,isbn,volume_number,publisher,book_description,coverimage_url,book_genre,authors(author_firstname,author_lastname)'
-      + (session ? ',book_copies(copy_status)' : ''),
+      + (session ? ',book_copies(copy_id,copy_status,shelf_location)' : ''),
     'book_id',
   );
   const base: ReplacementLibraryData = {

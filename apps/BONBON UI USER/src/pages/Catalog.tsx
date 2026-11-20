@@ -88,7 +88,7 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
       </section>
 
       <CatalogGrid items={results} layout={layout} onSelect={setSelected} />
-      <VolumeDrawer volume={selected} onClose={() => setSelected(null)} />
+      <VolumeDrawer volume={selected ? volumes.find(volume => volume.id === selected.id) ?? selected : null} onClose={() => setSelected(null)} />
     </div>
   );
 }

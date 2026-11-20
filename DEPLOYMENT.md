@@ -76,3 +76,38 @@ repository does not open raw PostgreSQL connections. Monitor Supabase Auth,
 Database, Storage, and API logs, along with Next.js server logs for the admin
 route. Keep database migrations append-only and run them through a reviewed
 deployment process.
+
+## Book shelf locations (UC-08, UC-09, UC-10)
+
+For the active `sora_v2` schema, apply
+`supabase/replacement/013_book_shelf_locations.sql` after `012` and before
+deploying the updated reader and admin apps. This migration adds home shelf
+locations and condition notes to physical copies and supports On Hold and
+Damaged statuses alongside the existing kiosk statuses.
+
+The five shelf units are A1 through A5 from left to right in the Main Reading
+Hall, below Center Seating and above Reception. New copies require a shelf.
+Existing unknown locations remain null so the application does not invent a
+physical location. Staff must inspect these copies and assign their actual
+shelves using Book Management → Shelf / status; the table marks them Shelf
+missing until assigned. Titles without copies need a physical copy added.
+
+Book Details lists locations per copy, highlights only copies currently in
+shelf, and refreshes with the catalog's existing polling. Copies with readers,
+on hold, on the return cart, or damaged never highlight their home shelf.
+Shelf information follows the existing signed-in availability access policy.
+Librarians can record condition notes and damage charges against unsettled
+reader sessions; borrowing remains tied to kiosk sessions.
+
+Validation uses an isolated PostgreSQL engine and mocked browser requests:
+
+```powershell
+npm install --prefix work/shelf-validation --no-save @electric-sql/pglite playwright
+node --experimental-strip-types tests/book-shelf-location.mjs
+```
+
+For browser checks, start the reader on port 5174 with
+`VITE_SUPABASE_URL=https://demo.supabase.co`,
+`VITE_SUPABASE_PUBLISHABLE_KEY=demo-key`, and `VITE_SORA_SCHEMA=sora_v2`, then
+run `node tests/book-shelf-location-ui.mjs` (requires Chrome). All database
+responses in this browser test are mocked.

@@ -39,6 +39,7 @@ import {
 import { AdminBonChat } from "./AdminBonChat";
 import { CompleteAddVolume } from "./CompleteAddVolume";
 import { EditBookCover } from "./EditBookCover";
+import { EditCopyLocation } from "./EditCopyLocation";
 import { CatalogueEditor } from "./CatalogueEditor";
 import { ReaderCheckIn } from "./ReaderCheckIn";
 
@@ -55,6 +56,10 @@ const nav: { icon: typeof LayoutDashboard; page: Page; label: string }[] = [
 const statusTone: Record<string, string> = {
   "In Shelf": "bg-emerald-50 text-emerald-700 ring-emerald-100",
   "Being Read": "bg-amber-50 text-amber-800 ring-amber-100",
+  "With Reader": "bg-amber-50 text-amber-800 ring-amber-100",
+  "On Hold": "bg-amber-50 text-amber-800 ring-amber-100",
+  "Damaged": "bg-rose-50 text-rose-700 ring-rose-100",
+  "No copies": "bg-stone-50 text-stone-700 ring-stone-100",
   "Return Cart": "bg-rose-50 text-rose-700 ring-rose-100",
 };
 const replacementDb = () => database().schema("sora_v2");
@@ -80,6 +85,7 @@ export function AdminDashboard() {
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [editingCover, setEditingCover] = useState<Book | null>(null);
+  const [editingLocation, setEditingLocation] = useState<Book | null>(null);
   const generation = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -153,6 +159,7 @@ export function AdminDashboard() {
         setQuery={setQuery}
         setDrawer={setDrawer}
         setEditingCover={setEditingCover}
+        setEditingLocation={setEditingLocation}
       />
     ) : page === "Challenges" ? (
       <Challenges data={data} name={name} run={run} />
@@ -305,6 +312,7 @@ export function AdminDashboard() {
             run={run}
           />
         )}
+        {editingLocation && <EditCopyLocation book={editingLocation} copies={data.copies.filter(copy => copy.book_id === editingLocation.book_id)} close={() => setEditingLocation(null)} run={run} />}
         <AdminBonChat data={data} />
       </div>
     </main>
@@ -349,11 +357,12 @@ function ActionButton({
 }
 function bookStatus(book: Book) {
   const statuses = book.book_copies.map((copy) => copy.status);
-  return statuses.includes("WITH_READER")
-    ? "Being Read"
-    : statuses.includes("RETURN_CART")
-      ? "Return Cart"
-      : "In Shelf";
+  if (statuses.includes("IN_SHELF")) return "In Shelf";
+  if (statuses.includes("WITH_READER")) return "With Reader";
+  if (statuses.includes("On Hold")) return "On Hold";
+  if (statuses.includes("RETURN_CART")) return "Return Cart";
+  if (statuses.includes("Damaged")) return "Damaged";
+  return "No copies";
 }
 
 function Overview({

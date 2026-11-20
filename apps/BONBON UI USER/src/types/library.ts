@@ -3,6 +3,7 @@ export type Rarity = 3 | 4 | 5;
 export type QuestTrack = 'daily' | 'weekly' | 'seasonal';
 
 export interface Volume {
+  physicalCopies?: import('../lib/shelf-location').LocatedCopy[];
   coverImage?: string;
   isbn?: string | null;
   publisher?: string | null;

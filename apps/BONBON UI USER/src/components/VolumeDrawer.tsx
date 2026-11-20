@@ -5,6 +5,8 @@ import { BookOpenIcon, CalendarDaysIcon, Layers3Icon, StarIcon, XIcon } from 'lu
 import type { Volume } from '../types/library';
 import { useGame } from '../contexts/GameContext';
 
+import { ShelfLocation } from './ShelfLocation';
+
 const EASE = [0.23, 1, 0.32, 1] as const;
 
 interface VolumeDrawerProps {
@@ -61,7 +63,7 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
 
                 <div className="mt-5 flex flex-wrap gap-2"><Badge icon={<StarIcon aria-hidden="true" className="h-3.5 w-3.5 fill-sun text-sun" />} label={volume.rating ? `${volume.rating} reader rating` : 'Not rated'} /><Badge icon={<Layers3Icon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />} label={volume.chapters ? `${volume.chapters} chapters` : 'Chapter count pending'} /><Badge icon={<CalendarDaysIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />} label="Collection edition" /></div>
 
-                <div className="book-record mt-6 rounded-lg"><div className="book-record-heading"><span>Publication record</span><span>Archive</span></div><BookRow label="ISBN" value={volume.isbn ?? 'Not recorded'} /><BookRow label="Original title" value={volume.originalTitle ?? 'Not recorded'} /><BookRow label="Author" value={volume.author} /><BookRow label="Publisher" value={volume.publisher ?? 'Not recorded'} /><BookRow label="Genre" value={volume.genre} /><BookRow label="Volume / chapters" value={`Volume ${volume.volume} · ${volume.chapters} chapters`} /><BookRow label="Availability" value={volume.copies < 0 ? 'Sign in to check availability' : volume.copies > 0 ? `${volume.copies} copies available` : 'Availability pending, please check with staff'} /></div>
+                <div className="book-record mt-6 rounded-lg"><div className="book-record-heading"><span>Publication record</span><span>Archive</span></div><BookRow label="ISBN" value={volume.isbn ?? 'Not recorded'} /><BookRow label="Original title" value={volume.originalTitle ?? 'Not recorded'} /><BookRow label="Author" value={volume.author} /><BookRow label="Publisher" value={volume.publisher ?? 'Not recorded'} /><BookRow label="Genre" value={volume.genre} /><BookRow label="Volume / chapters" value={`Volume ${volume.volume} · ${volume.chapters} chapters`} /><BookRow label="Availability" value={volume.copies < 0 ? 'Sign in to check availability' : volume.copies > 0 ? `${volume.copies} copies available` : 'No copies currently available — Please ask staff'} /><ShelfLocation copies={volume.physicalCopies} /></div>
                 <div className="mt-5 rounded-lg border border-gold/25 bg-parch/15 p-4"><p className="tb-eyebrow">About this title</p><p className="mt-2 text-sm font-600 leading-6 text-umber/70">{volume.synopsis}</p></div>
 
                 <div className="mt-6 grid gap-2.5 border-t border-gold/25 pt-5 min-[390px]:grid-cols-2 sm:flex sm:flex-wrap sm:gap-3">
