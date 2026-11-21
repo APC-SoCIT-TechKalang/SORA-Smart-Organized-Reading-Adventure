@@ -9,7 +9,7 @@ route, `/api/catalog/lookup`, which calls public book metadata providers.
 
 | Component | Directory | Deploy type | Build command |
 | --- | --- | --- | --- |
-| Reader site | `apps/BONBON UI USER` | Static Vite site | `npm ci && npm run build` |
+| Reader site | `apps/bonbon-ui-user` | Static Vite site | `npm ci && npm run build` |
 | Staff dashboard | `apps/admin-dashboard` | Node.js Next.js service | `npm ci && npm run build`, then `npm start` |
 | Database/backend | `supabase` | Supabase project | Apply migrations in numeric order |
 

@@ -22,7 +22,7 @@ SUPABASE_SECRET_KEY=your_supabase_secret_or_service_role_key
 KIOSK_RFID_BRIDGE_KEY=your_long_random_reader_bridge_key
 ```
 
-Put the same `KIOSK_RFID_BRIDGE_KEY` in `apps/BONBON UI USER/.env.local`.
+Put the same `KIOSK_RFID_BRIDGE_KEY` in `apps/bonbon-ui-user/.env.local`.
 Neither secret may use a `VITE_` or `NEXT_PUBLIC_` prefix or be committed.
 Restart both development servers. Start admin on `127.0.0.1:3000`, reader on
 `127.0.0.1:5173`, and open `http://127.0.0.1:5173/kiosk`.
@@ -33,7 +33,7 @@ this proxy must not be exposed as a public kiosk authentication endpoint.
 Production needs the trusted native bridge described below.
 
 For the hosted reader kiosk, the same-origin serverless endpoint lives in
-`apps/BONBON UI USER/api/kiosk-rfid-login.ts`. Add `SUPABASE_SECRET_KEY` to the
+`apps/bonbon-ui-user/api/kiosk-rfid-login.ts`. Add `SUPABASE_SECRET_KEY` to the
 **reader site's server-side deployment environment** and redeploy. The endpoint
 checks same-origin requests, limits repeated scans, validates the card through
 the service-role-only resolver, and returns only a one-time Auth token. The

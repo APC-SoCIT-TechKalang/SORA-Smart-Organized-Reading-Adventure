@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { PGlite } from '../work/shelf-validation/node_modules/@electric-sql/pglite/dist/index.js';
-import { shelfMessage } from '../apps/BONBON UI USER/src/lib/shelf-location.ts';
+import { shelfMessage } from '../apps/bonbon-ui-user/src/lib/shelf-location.ts';
 
 for (const [status, location, expected] of [
   ['In-Shelf','Shelf A2','Main Reading Hall — Shelf A2'],

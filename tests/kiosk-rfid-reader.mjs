@@ -8,7 +8,7 @@ import { PGlite } from '../work/shelf-validation/node_modules/@electric-sql/pgli
 const listeners = new Map();
 let clock = 0;
 const module = { exports: {} };
-const source = ts.transpileModule(readFileSync(new URL('../apps/BONBON UI USER/src/lib/kioskRfid.ts',import.meta.url),'utf8'), {
+const source = ts.transpileModule(readFileSync(new URL('../apps/bonbon-ui-user/src/lib/kioskRfid.ts',import.meta.url),'utf8'), {
   compilerOptions: { module:ts.ModuleKind.CommonJS, target:ts.ScriptTarget.ES2022 },
 }).outputText;
 runInNewContext(source,{exports:module.exports,window:{addEventListener:(name,fn)=>listeners.set(name,fn),removeEventListener:name=>listeners.delete(name)},performance:{now:()=>clock}});

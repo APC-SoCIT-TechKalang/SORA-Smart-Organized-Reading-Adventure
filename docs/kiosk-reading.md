@@ -71,7 +71,7 @@ must switch to `kiosk_scan_book` too.
 From the repository folder (the folder containing `apps` and `supabase`):
 
 ```powershell
-cd ".\apps\BONBON UI USER"
+cd ".\apps\bonbon-ui-user"
 npm.cmd install
 ```
 
@@ -211,9 +211,9 @@ the interface groups numbered seat buttons in a grid and displays their area.
   and multi-book cleanup. No tables, columns or RLS policies are added.
 - `supabase/replacement/012_library_seat_layout.sql`: initial 20 seat records
   when empty, exclusive five-minute holds, release/expiry and scan conversion.
-- `apps/BONBON UI USER/src/components/LibrarySeatMap.tsx` and `library-seat-map.css`:
+- `apps/bonbon-ui-user/src/components/LibrarySeatMap.tsx` and `library-seat-map.css`:
   library floor plan, interactive seat icons, status legend and mobile map scrolling.
-- `apps/BONBON UI USER/src/components/KioskReading.tsx`: numbered seat map,
+- `apps/bonbon-ui-user/src/components/KioskReading.tsx`: numbered seat map,
   scanner form, session timer, books, waitlist notices and approval status.
 - `apps/admin-dashboard/components/admin/ReaderCheckIn.tsx`: card lookup,
   identity verification, check-in approval and recent inventory alerts under Readers.
@@ -253,7 +253,7 @@ To rerun UI tests, first start a separate Vite instance with **fake** test setti
 (these override `.env.local` only for that terminal process):
 
 ```powershell
-cd ".\apps\BONBON UI USER"
+cd ".\apps\bonbon-ui-user"
 $env:VITE_SUPABASE_URL='https://demo.supabase.co'
 $env:VITE_SUPABASE_PUBLISHABLE_KEY='demo-public-key'
 $env:VITE_SORA_SCHEMA='sora_v2'

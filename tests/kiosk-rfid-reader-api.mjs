@@ -5,7 +5,7 @@ import { runInNewContext } from 'node:vm';
 import ts from '../apps/admin-dashboard/node_modules/typescript/lib/typescript.js';
 
 const readerId = '00000000-0000-4000-8000-000000000001';
-const source = ts.transpileModule(readFileSync(new URL('../apps/BONBON UI USER/api/kiosk-rfid-login.ts', import.meta.url), 'utf8'), {
+const source = ts.transpileModule(readFileSync(new URL('../apps/bonbon-ui-user/api/kiosk-rfid-login.ts', import.meta.url), 'utf8'), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
 }).outputText;
 
