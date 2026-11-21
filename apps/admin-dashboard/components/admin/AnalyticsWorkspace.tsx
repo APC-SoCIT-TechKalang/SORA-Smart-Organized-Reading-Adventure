@@ -22,6 +22,19 @@ const endOfDay = (value: Date) => { const next = new Date(value); next.setHours(
 const inputDate = (value: Date) => value.toISOString().slice(0, 10);
 const within = (value: string | null, start: Date, end: Date) => { if (!value) return false; const date = new Date(value); return !Number.isNaN(date.getTime()) && date >= start && date <= end; };
 const csvCell = (value: unknown) => `"${String(value ?? "").replaceAll('"', '""')}"`;
+const genreRules: [string, RegExp][] = [
+  ["Action", /\baction\b/i], ["Adventure", /\badventure\b/i], ["Comedy", /\b(comedy|humou?r|funny)\b/i],
+  ["Drama", /\bdrama\b/i], ["Fantasy", /\bfantasy\b/i], ["Horror", /\bhorror\b/i],
+  ["Mystery", /\b(mystery|detective)\b/i], ["Romance", /\bromance\b/i],
+  ["Science Fiction", /\b(science fiction|sci[- ]?fi)\b/i], ["Slice of Life", /\bslice of life\b/i],
+  ["Sports", /\bsports?\b/i], ["Historical", /\bhistorical\b/i],
+  ["Psychological", /\bpsychological\b/i], ["Supernatural", /\bsupernatural\b/i],
+  ["Thriller", /\bthriller\b/i], ["Young Adult", /\byoung adult\b/i],
+];
+function cleanGenre(raw: string | undefined) {
+  if (!raw) return "Uncategorized";
+  return genreRules.find(([, pattern]) => pattern.test(raw))?.[0] ?? "Uncategorized";
+}
 
 export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
   const today = useMemo(() => new Date(), []);
@@ -30,6 +43,8 @@ export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
   const [from, setFrom] = useState(inputDate(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29)));
   const [to, setTo] = useState(inputDate(today));
   const [category, setCategory] = useState("Book usage");
+  const [genreFilter, setGenreFilter] = useState("All genres");
+  const genreOptions = useMemo(() => [...new Set(data.books.map(book => cleanGenre(book.book_genres[0]?.genre)))].sort(), [data.books]);
   const range = useMemo(() => {
     if (preset === "Custom") return { start: startOfDay(new Date(`${from}T00:00:00`)), end: endOfDay(new Date(`${to}T00:00:00`)) };
     const days = preset === "Today" ? 1 : preset === "7 days" ? 7 : 30;
@@ -37,16 +52,17 @@ export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
   }, [from, preset, to, today]);
 
   const analytics = useMemo<Analytics>(() => {
-    const logs = data.logs.filter(log => within(log.started_at, range.start, range.end));
+    const matchingBookIds = new Set(data.books.filter(book => genreFilter === "All genres" || cleanGenre(book.book_genres[0]?.genre) === genreFilter).map(book => book.book_id));
+    const logs = data.logs.filter(log => within(log.started_at, range.start, range.end) && matchingBookIds.has(log.book_id));
     const visits = data.visits.filter(visit => within(visit.checked_in_at, range.start, range.end));
     const counts = new Map<number, number>();
     logs.forEach(log => counts.set(log.book_id, (counts.get(log.book_id) ?? 0) + 1));
-    const books = data.books.map(book => ({ id: book.book_id, title: book.title, author: book.author ?? "Unknown author", genre: book.book_genres[0]?.genre ?? "Uncategorized", sessions: counts.get(book.book_id) ?? 0 }));
-    const mostUsed = [...books].sort((a, b) => b.sessions - a.sessions || a.title.localeCompare(b.title)).slice(0, 5);
+    const books = data.books.filter(book => matchingBookIds.has(book.book_id)).map(book => ({ id: book.book_id, title: book.title, author: book.author ?? "Unknown author", genre: cleanGenre(book.book_genres[0]?.genre), sessions: counts.get(book.book_id) ?? 0 }));
+    const mostUsed = [...books].filter(book => book.sessions > 0).sort((a, b) => b.sessions - a.sessions || a.title.localeCompare(b.title)).slice(0, 5);
     const leastUsed = [...books].sort((a, b) => a.sessions - b.sessions || a.title.localeCompare(b.title)).slice(0, 5);
     const genreCounts = new Map<string, number>();
     books.forEach(book => genreCounts.set(book.genre, (genreCounts.get(book.genre) ?? 0) + book.sessions));
-    const genres = [...genreCounts].map(([genre, sessions]) => ({ genre, sessions })).sort((a, b) => b.sessions - a.sessions).slice(0, 8);
+    const genres = [...genreCounts].map(([genre, sessions]) => ({ genre, sessions })).filter(item => item.sessions > 0).sort((a, b) => b.sessions - a.sessions).slice(0, 6);
     const days = new Map<string, { sessions: number; minutes: number }>();
     logs.forEach(log => { const key = log.started_at.slice(0, 10); const value = days.get(key) ?? { sessions: 0, minutes: 0 }; value.sessions++; value.minutes += log.total_reading_minutes ?? 0; days.set(key, value); });
     const daily = [...days].sort(([a], [b]) => a.localeCompare(b)).map(([day, value]) => ({ day: new Date(`${day}T00:00:00`).toLocaleDateString(undefined, { month: "short", day: "numeric" }), ...value }));
@@ -54,7 +70,7 @@ export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
     const minutes = completed.reduce((sum, log) => sum + (log.total_reading_minutes ?? 0), 0);
     const completedQuests = data.enrollments.filter(item => item.status === "COMPLETED").length;
     return { logs, visits, books, mostUsed, leastUsed, genres, daily, minutes, averageMinutes: completed.length ? Math.round(minutes / completed.length) : 0, questCompletionRate: data.enrollments.length ? Math.round(completedQuests / data.enrollments.length * 100) : 0 };
-  }, [data, range]);
+  }, [data, genreFilter, range]);
   const period = `${range.start.toLocaleDateString()} to ${range.end.toLocaleDateString()}`;
 
   function exportCsv() {
@@ -70,7 +86,7 @@ export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
       <div><div className="flex gap-2 overflow-x-auto">{(["Dashboard", "Usage Reports"] as Tab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold transition ${tab === item ? "bg-[#953410] text-white shadow-md" : "border border-[#eadfd3] bg-white text-[#71543d] hover:bg-[#fff5e8]"}`}>{item}</button>)}</div><p className="mt-2 text-[11px] text-[#8d735e]">Use the floating BON assistant for analytics questions.</p></div>
-      <div className="flex flex-wrap items-center gap-2"><CalendarDays size={15}/><select value={preset} onChange={event => setPreset(event.target.value as Preset)} className="rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-xs"><option>Today</option><option>7 days</option><option>30 days</option><option>Custom</option></select>{preset === "Custom" && <><input aria-label="Start date" type="date" value={from} max={to} onChange={event => setFrom(event.target.value)} className="rounded-xl border border-[#e2d5c8] px-3 py-2 text-xs"/><input aria-label="End date" type="date" value={to} min={from} onChange={event => setTo(event.target.value)} className="rounded-xl border border-[#e2d5c8] px-3 py-2 text-xs"/></>}<span className="text-[11px] text-[#8d735e]">{period}</span></div>
+      <div className="flex flex-wrap items-center gap-2"><select aria-label="Filter analytics by genre" value={genreFilter} onChange={event => setGenreFilter(event.target.value)} className="max-w-40 rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-xs"><option>All genres</option>{genreOptions.map(genre => <option key={genre}>{genre}</option>)}</select><CalendarDays size={15}/><select value={preset} onChange={event => setPreset(event.target.value as Preset)} className="rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-xs"><option>Today</option><option>7 days</option><option>30 days</option><option>Custom</option></select>{preset === "Custom" && <><input aria-label="Start date" type="date" value={from} max={to} onChange={event => setFrom(event.target.value)} className="rounded-xl border border-[#e2d5c8] px-3 py-2 text-xs"/><input aria-label="End date" type="date" value={to} min={from} onChange={event => setTo(event.target.value)} className="rounded-xl border border-[#e2d5c8] px-3 py-2 text-xs"/></>}<span className="text-[11px] text-[#8d735e]">{period}</span></div>
     </div>
     {tab === "Dashboard" && <DashboardView data={data} analytics={analytics}/>} 
     {tab === "Usage Reports" && <ReportsView data={data} analytics={analytics} period={period} category={category} setCategory={setCategory} exportCsv={exportCsv}/>} 
@@ -79,10 +95,11 @@ export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
 
 function DashboardView({ data, analytics }: { data: DashboardData; analytics: Analytics }) {
   const cards = [["Reading sessions", analytics.logs.length], ["Active readers", data.visits.filter(item => item.status === "ACTIVE").length], ["Reading minutes", analytics.minutes], ["Quest completion", `${analytics.questCompletionRate}%`]];
-  return <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label, value]) => <article key={String(label)} className="rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#a65b1e]">{label}</p><strong className="mt-3 block font-serif text-4xl text-[#543822]">{value}</strong></article>)}</div><div className="grid gap-6 xl:grid-cols-2"><ChartCard title="Reading activity" copy="Sessions recorded during the selected period."><ResponsiveContainer width="100%" height={260}><LineChart data={analytics.daily}><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis dataKey="day" tick={{fontSize:11}}/><YAxis allowDecimals={false} tick={{fontSize:11}}/><Tooltip/><Line type="monotone" dataKey="sessions" stroke="#a83d12" strokeWidth={3}/></LineChart></ResponsiveContainer></ChartCard><ChartCard title="Genre activity" copy="Reading sessions grouped by catalog genre."><ResponsiveContainer width="100%" height={260}><BarChart data={analytics.genres} layout="vertical"><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis type="number" allowDecimals={false}/><YAxis dataKey="genre" type="category" width={90} tick={{fontSize:10}}/><Tooltip/><Bar dataKey="sessions" fill="#c4800c" radius={[0,6,6,0]}/></BarChart></ResponsiveContainer></ChartCard></div><div className="grid gap-6 xl:grid-cols-2"><Ranked title="Most read books" rows={analytics.mostUsed}/><Ranked title="Least read books" rows={analytics.leastUsed}/></div></>;
+  return <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label, value]) => <article key={String(label)} className="rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#a65b1e]">{label}</p><strong className="mt-3 block font-serif text-4xl text-[#543822]">{value}</strong></article>)}</div><div className="grid gap-6 xl:grid-cols-2"><ChartCard title="Reading activity" copy="Sessions recorded during the selected period.">{analytics.daily.length ? <ResponsiveContainer width="100%" height={260}><LineChart data={analytics.daily}><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis dataKey="day" tick={{fontSize:11}}/><YAxis allowDecimals={false} tick={{fontSize:11}}/><Tooltip/><Line type="monotone" dataKey="sessions" stroke="#a83d12" strokeWidth={3}/></LineChart></ResponsiveContainer> : <EmptyChart message="No reading sessions were recorded for these filters."/>}</ChartCard><ChartCard title="Genre activity" copy="Top active genres during the selected period.">{analytics.genres.length ? <ResponsiveContainer width="100%" height={260}><BarChart data={analytics.genres} layout="vertical" margin={{left:12}}><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis type="number" allowDecimals={false}/><YAxis dataKey="genre" type="category" width={105} tick={{fontSize:11}}/><Tooltip/><Bar dataKey="sessions" fill="#c4800c" radius={[0,6,6,0]}/></BarChart></ResponsiveContainer> : <EmptyChart message="No genre activity was recorded for these filters."/>}</ChartCard></div><div className="grid gap-6 xl:grid-cols-2"><Ranked title="Most read books" rows={analytics.mostUsed}/><Ranked title="Least read books" rows={analytics.leastUsed}/></div></>;
 }
 function ChartCard({ title, copy, children }: { title: string; copy: string; children: ReactNode }) { return <section className="rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-5 shadow-sm"><h2 className="font-serif text-xl font-semibold">{title}</h2><p className="mt-1 text-xs text-[#8d735e]">{copy}</p><div className="mt-5">{children}</div></section>; }
-function Ranked({ title, rows }: { title: string; rows: BookMetric[] }) { return <section className="rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-5 shadow-sm"><h2 className="font-serif text-xl font-semibold">{title}</h2><div className="mt-4 divide-y divide-[#eee2d6]">{rows.map((row, index) => <div key={row.id} className="flex items-center gap-3 py-3 text-xs"><b className="w-5 text-[#b66a3c]">{index + 1}</b><span className="min-w-0 flex-1"><b className="block truncate">{row.title}</b><small className="text-[#9a806b]">{row.genre}</small></span><strong>{row.sessions}</strong></div>)}{!rows.length && <p className="py-8 text-center text-xs text-[#8d735e]">No catalog records are available.</p>}</div></section>; }
+function EmptyChart({ message }: { message: string }) { return <div className="grid h-[260px] place-items-center rounded-xl border border-dashed border-[#decdbd] bg-[#fffaf3] px-6 text-center text-sm text-[#8d735e]">{message}</div>; }
+function Ranked({ title, rows }: { title: string; rows: BookMetric[] }) { return <section className="rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-5 shadow-sm"><h2 className="font-serif text-xl font-semibold">{title}</h2><div className="mt-4 divide-y divide-[#eee2d6]">{rows.map((row, index) => <div key={row.id} className="flex items-center gap-3 py-3 text-xs"><b className="w-5 text-[#b66a3c]">{index + 1}</b><span className="min-w-0 flex-1"><b className="block truncate">{row.title}</b><small className="block truncate text-[#9a806b]">{row.genre}</small></span><strong>{row.sessions}</strong></div>)}{!rows.length && <p className="py-8 text-center text-xs text-[#8d735e]">No matching activity is available.</p>}</div></section>; }
 
 function ReportsView({ data, analytics, period, category, setCategory, exportCsv }: { data: DashboardData; analytics: Analytics; period: string; category: string; setCategory: (value: string) => void; exportCsv: () => void }) {
   const rows = category === "Reader activity" ? analytics.visits.map(item => ({ first: data.readers.some(reader => reader.user_id === item.user_id) ? "Registered reader" : "Walk-in visitor", second: new Date(item.checked_in_at).toLocaleString(), third: item.status })) : category === "Quest activity" ? data.quests.map(quest => ({ first: quest.name, second: quest.quest_type, third: `${data.enrollments.filter(item => item.quest_id === quest.quest_id).length} enrollments` })) : analytics.books.map(book => ({ first: book.title, second: `${book.author} · ${book.genre}`, third: `${book.sessions} sessions` }));
