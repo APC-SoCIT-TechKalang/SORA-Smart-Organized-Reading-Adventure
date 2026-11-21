@@ -6,7 +6,7 @@ import { Bot, CalendarDays, Download, FileText, LoaderCircle, Send } from "lucid
 import { database, errorMessage } from "../../lib/supabase";
 import type { DashboardData } from "./dashboard-data";
 
-type Tab = "Dashboard" | "Usage Reports" | "AI Insights";
+type Tab = "Dashboard" | "Usage Reports";
 type Preset = "Today" | "7 days" | "30 days" | "Custom";
 type BookMetric = { id: number; title: string; author: string; genre: string; sessions: number };
 type Analytics = {
@@ -69,12 +69,11 @@ export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
 
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex gap-2 overflow-x-auto">{(["Dashboard", "Usage Reports", "AI Insights"] as Tab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold transition ${tab === item ? "bg-[#953410] text-white shadow-md" : "border border-[#eadfd3] bg-white text-[#71543d] hover:bg-[#fff5e8]"}`}>{item}</button>)}</div>
+      <div><div className="flex gap-2 overflow-x-auto">{(["Dashboard", "Usage Reports"] as Tab[]).map(item => <button key={item} onClick={() => setTab(item)} className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold transition ${tab === item ? "bg-[#953410] text-white shadow-md" : "border border-[#eadfd3] bg-white text-[#71543d] hover:bg-[#fff5e8]"}`}>{item}</button>)}</div><p className="mt-2 text-[11px] text-[#8d735e]">Use the floating BON assistant for analytics questions.</p></div>
       <div className="flex flex-wrap items-center gap-2"><CalendarDays size={15}/><select value={preset} onChange={event => setPreset(event.target.value as Preset)} className="rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-xs"><option>Today</option><option>7 days</option><option>30 days</option><option>Custom</option></select>{preset === "Custom" && <><input aria-label="Start date" type="date" value={from} max={to} onChange={event => setFrom(event.target.value)} className="rounded-xl border border-[#e2d5c8] px-3 py-2 text-xs"/><input aria-label="End date" type="date" value={to} min={from} onChange={event => setTo(event.target.value)} className="rounded-xl border border-[#e2d5c8] px-3 py-2 text-xs"/></>}<span className="text-[11px] text-[#8d735e]">{period}</span></div>
     </div>
     {tab === "Dashboard" && <DashboardView data={data} analytics={analytics}/>} 
     {tab === "Usage Reports" && <ReportsView data={data} analytics={analytics} period={period} category={category} setCategory={setCategory} exportCsv={exportCsv}/>} 
-    {tab === "AI Insights" && <InsightsView data={data} analytics={analytics} period={period}/>} 
   </div>;
 }
 
