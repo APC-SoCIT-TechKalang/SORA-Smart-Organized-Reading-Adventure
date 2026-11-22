@@ -1,16 +1,24 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpenIcon, RadioIcon } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
+import { BookOpenIcon, CameraIcon, QrCodeIcon, RadioIcon, XIcon } from 'lucide-react';
 import { database, errorMessage } from './lib/supabase';
 import { requireReaderAccount } from './lib/replacement-library';
 import { startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
+import { parseKioskQrPayload } from './lib/kioskQr';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'error';
+type DetectedBarcode = { rawValue: string };
+type QrDetector = { detect: (source: HTMLVideoElement) => Promise<DetectedBarcode[]> };
+type QrDetectorConstructor = new (options: { formats: string[] }) => QrDetector;
+declare global { interface Window { BarcodeDetector?: QrDetectorConstructor; } }
+
 const SESSION_STARTED_KEY = 'sora.kiosk.session-started-at';
 
 export function KioskApp() {
   const [status, setStatus] = useState<KioskStatus>('ready');
   const [message, setMessage] = useState('');
+  const [qrScanning, setQrScanning] = useState(false);
   const authenticating = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const clearSession = useCallback(async () => {
     try { await database().auth.signOut({ scope: 'local' }); } catch { /* Clear local kiosk state even if network is unavailable. */ }
@@ -21,14 +29,10 @@ export function KioskApp() {
   const establishSession = useCallback(async ({ tokenHash }: BridgeAuthentication) => {
     setStatus('authorizing'); setMessage('');
     try {
-      // Use the same Supabase client/storage as the BONBON User UI. This is
-      // what makes a successful card tap equivalent to normal customer login.
       const { data, error } = await database().auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
       if (error || !data.session) throw error || new Error('The card session could not be verified.');
       await requireReaderAccount();
       window.sessionStorage.setItem(SESSION_STARTED_KEY, String(Date.now()));
-      // The shared Supabase client now contains the same session used by the
-      // regular BONBON UI. Do not render a second kiosk dashboard first.
       window.location.replace('/?reading=1');
     } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
@@ -49,12 +53,78 @@ export function KioskApp() {
     finally { authenticating.current = false; }
   }, [establishSession]);
 
-  const startScan = useCallback(async () => {
+  const startPhysicalScan = useCallback(async () => {
     if (!supportsWebNfc()) { setMessage('USB card scanning is enabled. Keep this window focused and tap your card on the reader.'); setStatus('scanning'); return; }
     setStatus('scanning'); setMessage('Hold your library card near this device.');
     try { await startWebNfcScan(uid => void authenticateUid(uid)); }
     catch (cause) { setMessage(errorMessage(cause)); setStatus('error'); }
   }, [authenticateUid]);
+
+  const startQrScan = useCallback(() => {
+    if (!window.BarcodeDetector || !navigator.mediaDevices?.getUserMedia) {
+      setStatus('error');
+      setMessage('QR camera scanning is not supported in this browser. Use the latest Chrome or the physical card reader.');
+      return;
+    }
+    setMessage('');
+    setStatus('scanning');
+    setQrScanning(true);
+  }, []);
+
+  useEffect(() => {
+    if (!qrScanning) return;
+    let disposed = false;
+    let stream: MediaStream | null = null;
+    let frame = 0;
+    let lastDetection = 0;
+
+    const stop = () => {
+      disposed = true;
+      window.cancelAnimationFrame(frame);
+      stream?.getTracks().forEach(track => track.stop());
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+    const scan = async (time: number, detector: QrDetector) => {
+      if (disposed) return;
+      if (time - lastDetection > 250 && videoRef.current?.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
+        lastDetection = time;
+        try {
+          const codes = await detector.detect(videoRef.current);
+          const cardId = codes.map(code => parseKioskQrPayload(code.rawValue)).find((value): value is string => Boolean(value));
+          if (cardId) {
+            setQrScanning(false);
+            void authenticateUid(cardId);
+            return;
+          }
+          if (codes.length) setMessage('That QR code is not a Tankobonbon digital card.');
+        } catch { /* A partially visible QR is expected while the camera moves. */ }
+      }
+      frame = window.requestAnimationFrame(next => void scan(next, detector));
+    };
+    const openCamera = async () => {
+      try {
+        const Detector = window.BarcodeDetector;
+        if (!Detector) throw new Error('QR scanning is not supported in this browser.');
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
+        if (disposed) { stream.getTracks().forEach(track => track.stop()); return; }
+        const video = videoRef.current;
+        if (!video) throw new Error('The QR camera could not be opened.');
+        video.srcObject = stream;
+        await video.play();
+        const detector = new Detector({ formats: ['qr_code'] });
+        frame = window.requestAnimationFrame(time => void scan(time, detector));
+      } catch (cause) {
+        stop();
+        setQrScanning(false);
+        setStatus('error');
+        setMessage(cause instanceof DOMException && cause.name === 'NotAllowedError'
+          ? 'Camera access was denied. Allow camera access and try again.'
+          : errorMessage(cause));
+      }
+    };
+    void openCamera();
+    return stop;
+  }, [authenticateUid, qrScanning]);
 
   useEffect(() => subscribeToReaderBridge(authentication => void establishSession(authentication)), [establishSession]);
   useEffect(() => subscribeToKeyboardReader(uid => void authenticateUid(uid)), [authenticateUid]);
@@ -62,11 +132,44 @@ export function KioskApp() {
 
   return <main className="tb-field tb-world-shell min-h-screen text-umber"><KioskHeader />
     <div className="mx-auto grid min-h-[calc(100vh-76px)] max-w-[1480px] place-items-center px-4 py-8 sm:px-6 sm:py-12">
-      <WelcomeView status={status} message={message} startScan={startScan} />
+      <WelcomeView status={status} message={message} startPhysicalScan={startPhysicalScan} startQrScan={startQrScan} qrScanning={qrScanning} stopQrScan={() => { setQrScanning(false); setStatus('ready'); setMessage(''); }} videoRef={videoRef} />
     </div>
   </main>;
 }
 
 function KioskHeader() { return <header className="tb-hud sticky top-0 z-40 border-b border-gold/35 bg-cream/90 shadow-[0_8px_30px_rgba(84,56,34,.07)] backdrop-blur-xl"><div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-3 py-2.5 min-[390px]:px-4 sm:px-6 sm:py-3"><div className="flex min-w-0 items-center gap-2 text-umber sm:gap-3"><span className="tb-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-parch/25 sm:h-11 sm:w-11"><BookOpenIcon className="h-5 w-5 text-rust" /></span><span className="min-w-0 font-display font-900 uppercase leading-none tracking-[.04em] sm:tracking-[.07em]"><span className="block truncate text-[15px] min-[390px]:text-lg sm:text-2xl">Tankobonbon</span><small className="mt-1 block truncate font-body text-[7px] font-800 leading-tight tracking-[.11em] text-gold min-[390px]:text-[8px] sm:text-[10px]">S.O.R.A. Reading Adventure</small></span></div><span className="tb-eyebrow hidden sm:block">Store kiosk</span></div></header>; }
 
-function WelcomeView({ status, message, startScan }: { status: KioskStatus; message: string; startScan: () => Promise<void> }) { return <section className="tb-surface tb-cut-lg w-full max-w-xl border border-gold/35 p-7 text-center shadow-[0_24px_70px_rgba(84,56,34,.18)] sm:p-12"><span className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-parch/50 text-rust sm:h-28 sm:w-28"><RadioIcon className="h-11 w-11 sm:h-12 sm:w-12" /></span><h1 className="mt-7 font-display text-3xl font-900 uppercase tracking-[.04em] sm:text-4xl">Tap to log in</h1><p aria-live="polite" className="mx-auto mt-3 max-w-md text-sm leading-6 text-umber/65">{status === 'scanning' ? 'Reader ready. Hold your library card near the reader.' : 'Use your library card on the kiosk reader to open your account.'}</p>{message && <p role={status === 'error' ? 'alert' : 'status'} className={`mt-5 rounded-lg border p-3 text-sm ${status === 'error' ? 'border-rust/30 bg-rust/10 text-rust' : 'border-gold/30 bg-parch/30 text-umber/70'}`}>{message}</p>}<button type="button" onClick={() => void startScan()} disabled={status === 'authorizing'} className="tb-button-primary tb-cut-sm mt-8 min-h-14 w-full px-6 text-base uppercase tracking-[.1em] disabled:opacity-60">{status === 'authorizing' ? 'Verifying card…' : status === 'scanning' ? 'Reader is waiting' : 'Start card reader'}</button><p className="mt-4 text-xs leading-5 text-umber/50">No email, password, or manual card number is required.</p></section>; }
+interface WelcomeViewProps {
+  status: KioskStatus;
+  message: string;
+  startPhysicalScan: () => Promise<void>;
+  startQrScan: () => void;
+  qrScanning: boolean;
+  stopQrScan: () => void;
+  videoRef: RefObject<HTMLVideoElement>;
+}
+
+function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanning, stopQrScan, videoRef }: WelcomeViewProps) {
+  return <section className="tb-surface tb-cut-lg w-full max-w-xl border border-gold/35 p-7 text-center shadow-[0_24px_70px_rgba(84,56,34,.18)] sm:p-12">
+    {qrScanning ? <div>
+      <div className="relative mx-auto aspect-square w-full max-w-sm overflow-hidden rounded-2xl border-2 border-sun bg-umber shadow-inner">
+        <video ref={videoRef} muted playsInline aria-label="QR code camera preview" className="h-full w-full object-cover" />
+        <div aria-hidden="true" className="pointer-events-none absolute inset-[13%] rounded-2xl border-2 border-white/90 shadow-[0_0_0_999px_rgba(30,17,8,.4)]" />
+        <div aria-hidden="true" className="absolute left-[16%] right-[16%] top-1/2 h-0.5 bg-sun shadow-[0_0_12px_#f9d219]" />
+        <span className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-umber/80 px-3 py-1.5 text-[10px] font-800 uppercase tracking-wider text-cream"><CameraIcon className="h-3.5 w-3.5" /> Camera active</span>
+      </div>
+      <h1 className="mt-6 font-display text-2xl font-900 uppercase tracking-[.04em] sm:text-3xl">Scan digital card</h1>
+      <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-umber/65">Show the QR code on the back of your Tankobonbon digital reader card.</p>
+      {message && <p role="status" className="mt-4 rounded-lg border border-gold/30 bg-parch/30 p-3 text-sm text-umber/70">{message}</p>}
+      <button type="button" onClick={stopQrScan} className="tb-button-secondary tb-cut-sm mt-5 min-h-12 w-full justify-center px-5"><XIcon className="h-4 w-4" /> Cancel scan</button>
+    </div> : <>
+      <span className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-parch/50 text-rust sm:h-28 sm:w-28"><QrCodeIcon className="h-11 w-11 sm:h-12 sm:w-12" /></span>
+      <h1 className="mt-7 font-display text-3xl font-900 uppercase tracking-[.04em] sm:text-4xl">Scan to log in</h1>
+      <p aria-live="polite" className="mx-auto mt-3 max-w-md text-sm leading-6 text-umber/65">Use your digital reader card QR code or your physical library card.</p>
+      {message && <p role={status === 'error' ? 'alert' : 'status'} className={`mt-5 rounded-lg border p-3 text-sm ${status === 'error' ? 'border-rust/30 bg-rust/10 text-rust' : 'border-gold/30 bg-parch/30 text-umber/70'}`}>{message}</p>}
+      <button type="button" onClick={startQrScan} disabled={status === 'authorizing'} className="tb-button-primary tb-cut-sm mt-8 min-h-14 w-full px-6 text-base uppercase tracking-[.1em] disabled:opacity-60"><QrCodeIcon className="h-5 w-5" />{status === 'authorizing' ? 'Verifying card…' : 'Scan digital card'}</button>
+      <button type="button" onClick={() => void startPhysicalScan()} disabled={status === 'authorizing'} className="tb-button-secondary tb-cut-sm mt-3 min-h-12 w-full justify-center px-5 text-sm disabled:opacity-60"><RadioIcon className="h-4 w-4" /> Use physical card reader</button>
+      <p className="mt-4 text-xs leading-5 text-umber/50">No email, password, or manual card number is required.</p>
+    </>}
+  </section>;
+}
