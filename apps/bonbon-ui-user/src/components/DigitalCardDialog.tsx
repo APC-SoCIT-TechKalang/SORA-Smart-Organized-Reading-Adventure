@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpenIcon, QrCodeIcon, RotateCcwIcon, ShieldCheckIcon, SparklesIcon, XIcon } from 'lucide-react';
+import { BookOpenIcon, QrCodeIcon, RotateCcwIcon, ShieldCheckIcon, XIcon } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGame } from '../contexts/GameContext';
 import { database } from '../lib/supabase';
@@ -122,42 +122,41 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
             }}
           >
             <article className="digital-card-face digital-card-front" aria-hidden={flipped}>
-              <CardDecor />
-              <div className="relative z-10 flex h-full flex-col p-5 sm:p-7">
+              <img src="/digital-card-front-art-v1.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
+              <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(43,25,12,.58)_0%,rgba(43,25,12,.06)_39%,rgba(43,25,12,.12)_57%,rgba(43,25,12,.82)_100%)]" />
+              <div className="relative z-10 flex h-full flex-col p-4 sm:p-6">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#f9d219]/35 bg-[#f9d219]/10 text-[#f9d219]">
+                  <div className="flex items-center gap-2.5 rounded-xl border border-white/20 bg-[#402615]/75 px-3 py-2 shadow-lg backdrop-blur-md">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-[#f9d219]/40 bg-[#f9d219]/10 text-[#f9d219] sm:h-9 sm:w-9">
                       <BookOpenIcon aria-hidden="true" className="h-5 w-5" />
                     </span>
                     <div>
-                      <p className="font-display text-sm font-900 uppercase tracking-[.08em] text-[#fff9eb] sm:text-base">Tankobonbon</p>
-                      <p className="mt-1 text-[8px] font-800 uppercase tracking-[.2em] text-[#f9d219] sm:text-[10px]">Digital reader card</p>
+                      <p className="font-display text-xs font-900 uppercase tracking-[.08em] text-[#fff9eb] sm:text-sm">Tankobonbon</p>
+                      <p className="mt-0.5 text-[7px] font-800 uppercase tracking-[.18em] text-[#f9d219] sm:text-[9px]">Digital reader card</p>
                     </div>
                   </div>
-                  <span className={`rounded-full border px-2.5 py-1 text-[9px] font-900 uppercase tracking-[.14em] ${active ? 'border-emerald-300/45 bg-emerald-300/10 text-emerald-200' : 'border-[#f9d219]/35 text-[#f9d219]'}`}>
+                  <span className={`rounded-full border bg-[#402615]/75 px-2.5 py-1 text-[8px] font-900 uppercase tracking-[.14em] shadow-lg backdrop-blur-md sm:text-[9px] ${active ? 'border-emerald-300/55 text-emerald-200' : 'border-[#f9d219]/45 text-[#f9d219]'}`}>
                     {loadingCard ? 'Linking' : active ? 'Active' : 'Unavailable'}
                   </span>
                 </div>
 
-                <div className="mt-5 flex items-center justify-between sm:mt-7">
+                <div className="mt-3 sm:mt-4">
                   <EmvChip />
-                  <div className="flex items-center gap-2 text-[#f3d793]/75">
-                    <QrCodeIcon aria-hidden="true" className="h-6 w-6" strokeWidth={1.6} />
-                    <span className="hidden text-[9px] font-800 uppercase tracking-[.18em] sm:inline">Scan to login</span>
-                  </div>
                 </div>
 
-                <div className="mt-auto pt-5">
-                  <p className="text-[9px] font-800 uppercase tracking-[.22em] text-[#f9d219]">Reader</p>
-                  <p className="mt-1 break-words font-display text-xl font-900 uppercase tracking-[.02em] text-white sm:text-2xl">{fullName}</p>
-                  <div className="mt-4 flex items-end justify-between gap-4 border-t border-[#f3d793]/25 pt-3 text-xs">
+                <div className="mt-auto rounded-xl border border-white/20 bg-[#402615]/80 p-3 shadow-xl backdrop-blur-md sm:p-4">
+                  <div className="flex items-end justify-between gap-3">
                     <div>
-                      <span className="block text-[8px] font-700 uppercase tracking-[.18em] text-[#f3d793]/60">Reader rank</span>
-                      <strong className="mt-0.5 block font-display text-base text-[#fff9eb]">{rank}</strong>
+                      <p className="text-[7px] font-800 uppercase tracking-[.2em] text-[#f9d219] sm:text-[8px]">Reader</p>
+                      <p className="mt-0.5 break-words font-display text-base font-900 uppercase tracking-[.02em] text-white sm:text-xl">{fullName}</p>
                     </div>
-                    <span className="flex items-center gap-1.5 text-[9px] font-800 uppercase tracking-[.12em] text-[#f9d219] sm:text-[10px]">
+                    <span className="flex shrink-0 items-center gap-1 text-[7px] font-800 uppercase tracking-[.1em] text-[#f9d219] sm:text-[9px]">
                       <ShieldCheckIcon aria-hidden="true" className="h-4 w-4" /> Verified member
                     </span>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between border-t border-[#f3d793]/25 pt-2">
+                    <span className="text-[7px] font-700 uppercase tracking-[.16em] text-[#f3d793]/70 sm:text-[8px]">Reader rank</span>
+                    <strong className="font-display text-sm text-[#fff9eb] sm:text-base">{rank}</strong>
                   </div>
                 </div>
               </div>
@@ -165,11 +164,11 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
 
             <article className="digital-card-face digital-card-back" aria-hidden={!flipped}>
               <div aria-hidden="true" className="digital-card-back-pattern" />
-              <div className="relative z-10 grid h-full grid-cols-[minmax(118px,.8fr)_1.2fr] gap-3 p-4 sm:grid-cols-[minmax(160px,.8fr)_1.2fr] sm:gap-5 sm:p-6">
-                <div className="flex min-w-0 flex-col rounded-xl border border-[#c4800c]/30 bg-white/85 p-3 shadow-inner">
-                  <div className="grid flex-1 place-items-center rounded-lg bg-white p-2">
+              <div className="relative z-10 grid h-full grid-cols-[minmax(120px,.72fr)_1.28fr] gap-2.5 p-3 sm:grid-cols-[minmax(170px,.76fr)_1.24fr] sm:gap-4 sm:p-5">
+                <div className="flex min-w-0 flex-col rounded-xl border border-[#c4800c]/25 bg-white/90 p-2 shadow-inner sm:p-3">
+                  <div className="grid min-h-0 flex-1 place-items-center rounded-lg bg-white p-1.5 sm:p-2">
                     {credential.qrPayload ? (
-                      <QRCodeSVG value={credential.qrPayload} level="H" marginSize={0} bgColor="#ffffff" fgColor="#543822" className="h-auto w-full max-w-[180px]" title="Tankobonbon kiosk login QR code" />
+                      <QRCodeSVG value={credential.qrPayload} level="H" marginSize={0} bgColor="#ffffff" fgColor="#543822" className="h-auto w-full max-w-[155px]" title="Tankobonbon kiosk login QR code" />
                     ) : (
                       <div className="text-center text-[#543822]/55">
                         <QrCodeIcon aria-hidden="true" className="mx-auto h-12 w-12" />
@@ -177,24 +176,31 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
                       </div>
                     )}
                   </div>
-                  <p className="mt-2 text-center font-display text-[10px] font-900 uppercase tracking-[.14em] text-[#543822]">Tankobonbon</p>
+                  <div className="mt-1.5 border-t border-[#c4800c]/20 pt-1.5 text-center">
+                    <p className="font-display text-[8px] font-900 uppercase tracking-[.12em] text-[#543822] sm:text-[9px]">Tankobonbon</p>
+                    <p className="mt-0.5 text-[6px] font-800 uppercase tracking-[.12em] text-[#a33c12] sm:text-[7px]">Scan to log in</p>
+                    <p className="mt-1 text-[6px] leading-2.5 text-[#543822]/65 sm:text-[7px] sm:leading-3">Open the kiosk, choose <strong>Scan digital card</strong>, then hold this QR code inside the frame.</p>
+                  </div>
                 </div>
-                <div className="flex min-w-0 flex-col rounded-xl border border-white/70 bg-[#fffdf8]/90 p-3 text-[#543822] shadow-sm sm:p-4">
+                <div className="flex min-w-0 flex-col rounded-xl border border-white/70 bg-[#fffdf8]/95 p-2.5 text-[#543822] shadow-sm sm:p-3.5">
                   <div className="flex items-center gap-2 border-b border-[#c4800c]/25 pb-2">
                     <ShieldCheckIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#a33c12]" />
-                    <p className="text-[9px] font-900 uppercase tracking-[.14em]">Scan-to-login card</p>
+                    <p className="text-[7px] font-900 uppercase tracking-[.13em] sm:text-[9px]">Digital library card</p>
                   </div>
                   {credential.error ? (
                     <p role="alert" className="mt-3 text-[10px] leading-4 text-[#a33c12] sm:text-xs">{credential.error}</p>
                   ) : (
-                    <ul className="mt-3 space-y-1.5 text-[9px] leading-3.5 text-[#543822]/80 sm:text-[11px] sm:leading-4">
-                      <li>Open the Tankobonbon kiosk.</li>
-                      <li>Choose <strong>Scan digital card</strong>.</li>
-                      <li>Hold this QR code inside the camera frame.</li>
+                    <ul className="mt-2 list-disc space-y-0.5 pl-3 text-[6px] leading-2.5 text-[#543822]/85 sm:mt-2.5 sm:space-y-1 sm:pl-4 sm:text-[8px] sm:leading-3">
+                      <li>This card is for the registered member only and is non-transferable.</li>
+                      <li>The library card itself does not expire. Topped-up credits are non-refundable and expire according to current library rules. A fee may be charged for a replacement or reprint.</li>
+                      <li>Present this card when using the library.</li>
+                      <li>Visit the library to return or report this card if lost.</li>
+                      <li>For more information about the library card, see the Guidebook on our website.</li>
                     </ul>
                   )}
-                  <div className="mt-auto border-t border-[#c4800c]/20 pt-2">
-                    <p className="text-[8px] leading-3 text-[#543822]/55 sm:text-[9px]">For the registered member only. Do not share screenshots of this code.</p>
+                  <div className="mt-auto border-t border-[#c4800c]/25 pt-1.5 text-[6px] leading-2.5 text-[#543822]/75 sm:pt-2 sm:text-[7px] sm:leading-3">
+                    <p className="font-800">tankobonbon.com · library@tankobonbon.com</p>
+                    <p>2F, Leftmost Unit, Infront of Salawag Brgy. Hall,<br />Molino-Paliparan Rd., Brgy. Salawag,<br />Dasmariñas City, Cavite, Philippines</p>
                   </div>
                 </div>
               </div>
@@ -219,16 +225,6 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
     </dialog>,
     document.body,
   );
-}
-
-function CardDecor() {
-  return <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
-    <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full border border-[#f9d219]/20" />
-    <div className="absolute -bottom-32 right-5 h-80 w-80 rounded-full border border-[#f3d793]/15" />
-    <div className="absolute left-[34%] top-[-70%] h-[190%] w-px rotate-[32deg] bg-gradient-to-b from-transparent via-[#f9d219]/25 to-transparent" />
-    <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white/10 to-transparent" />
-    <SparklesIcon className="absolute bottom-5 right-5 h-16 w-16 text-[#f9d219]/[.035]" />
-  </div>;
 }
 
 function EmvChip() {
