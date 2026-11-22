@@ -5,6 +5,7 @@ import { database, errorMessage, readRows, setupMessage, supabase } from '../lib
 import { volumes as demoVolumes } from '../data/manga';
 import { bookToVolume, questToCommission, type BookRow, type QuestRow } from '../lib/library-mappers';
 import { loadReplacementLibrary, replacementApi, requireReaderAccount, usesReplacementSchema } from '../lib/replacement-library';
+import { useReaderAccess } from '../lib/use-reader-access';
 
 export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
 export interface ReadingLog { reading_log_id: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null; }
@@ -19,6 +20,7 @@ const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs:
 function useLibraryState() {
   const [state, setState] = useState<LibraryState>(empty);
   const [session, setSession] = useState<Session | null>(null);
+  const readerAccess = useReaderAccess(session);
   const [section, setSection] = useState<SectionId>(new URLSearchParams(window.location.search).has('reading') ? 'shelf' : 'archive');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -210,7 +212,7 @@ function useLibraryState() {
   }, []);
   const borrowed = state.logs.filter(log => !log.returned_at).map(log => ({ volumeId: String(log.book_id), dueInDays: 0, progress: 0 }));
   return {
-    ...state, session, section, setSection, loading, error, busy, refresh, borrowed, toasts,
+    ...state, session, readerAccess, section, setSection, loading, error, busy, refresh, borrowed, toasts,
     xp: 0, xpPercent: 0, lanterns: Math.max(0, (usesReplacementSchema ? 1 : 3) - borrowed.length), maxLanterns: usesReplacementSchema ? 1 : 3,
     joinedEvents: [] as string[], joinedClubs: [] as string[],
     volumeById: (id: string) => state.volumes.find(v => v.id === id),

@@ -1,6 +1,9 @@
 # Digital reader card draft
 
-Open **Account menu → My digital card** while signed in to the reader app.
+Open **Account menu → My digital card** while signed in with an activated
+reader account and an active, unexpired membership. This item is hidden for
+readers awaiting activation, expired or suspended members, and while access
+cannot be verified. The dialog independently checks the same access state.
 The dialog shows the current reader's profile name and rank when available,
 falling back to their account email while the profile is unavailable.
 It is available in development and production builds.

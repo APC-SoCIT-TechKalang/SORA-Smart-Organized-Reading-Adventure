@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ArrowLeftIcon, BookOpenIcon, CalendarDaysIcon, Clock3Icon, FlaskConicalIcon, HistoryIcon, SparklesIcon } from 'lucide-react';
 import { OrnatePanel } from '../components/OrnatePanel';
+import { useGame } from '../contexts/GameContext';
 import { readingDay, statsTimeZone, summarizeReading, type StatsBook, type StatsPeriod, type StatsSession } from '../lib/reading-stats';
 
 // Keep draft metrics at zero until verified reader history is connected.
@@ -12,6 +13,19 @@ function duration(minutes: number) {
 }
 
 export default function ReadingStatsDraft() {
+  const { readerAccess } = useGame();
+  if (readerAccess !== 'active') {
+    const checking = readerAccess === 'checking';
+    return <main className="tb-field min-h-screen px-4 py-12 text-umber"><div className="tb-surface mx-auto max-w-lg rounded-xl border border-gold/30 p-6 text-center">
+      <h1 className="font-display text-2xl font-800">Reading stats</h1>
+      <p role="status" className="mt-4 text-sm leading-6">{checking ? 'Checking your reader activation…' : readerAccess === 'signed-out' ? 'Sign in with an activated reader account to view reading stats.' : readerAccess === 'error' ? 'We couldn’t verify your activation. Please try again shortly.' : 'Please ask library staff to activate or renew your membership before viewing reading stats.'}</p>
+      <a href="/" className="tb-button-secondary tb-cut-sm mt-6 inline-flex min-h-11 items-center px-4 py-2">Back to library</a>
+    </div></main>;
+  }
+  return <ActivatedReadingStatsDraft />;
+}
+
+function ActivatedReadingStatsDraft() {
   const [period, setPeriod] = useState<StatsPeriod>('30');
   const [now] = useState(() => new Date());
   const stats = summarizeReading(sessions, books, period, now);

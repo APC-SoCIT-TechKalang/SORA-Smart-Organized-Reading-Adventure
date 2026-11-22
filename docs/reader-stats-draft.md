@@ -3,13 +3,20 @@
 Run `npm ci` then `npm run dev` from `apps/bonbon-ui-user` and open
 `http://localhost:5173/draft/reading-stats` (use the port Vite prints).
 This draft route is reachable in development and production through
-**Account menu → View reading stats**. It does not mount the reader data
-provider. All metrics remain zero until verified reader history is connected.
+**Account menu → View reading stats** for activated readers. The route mounts
+the reader provider to verify access, including when opened directly by URL.
+All metrics remain zero until verified reader history is connected.
 The page explains that these zeros are draft placeholders, rather than a
 statement about the reader's actual history.
 
 The 30-day, 90-day, and all-time filters all show zero in the draft. Fictional
 sessions, books, and preview controls have been removed.
+
+Access requires an active reader account and an active, unexpired membership.
+While activation is unknown or cannot be verified, neither the stats nor the
+digital card is shown. Membership is checked on entry, every 30 seconds while
+visible, and when returning to the tab. Expiry also revokes access locally.
+The archive's reading stats strip uses the same access check.
 
 Metrics include completed sessions, recorded minutes, distinct titles,
 active reading days, average session duration, genre mix, recent sessions,

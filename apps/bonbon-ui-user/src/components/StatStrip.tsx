@@ -2,7 +2,8 @@ import { AwardIcon, BookCheckIcon, Clock3Icon, SparklesIcon } from 'lucide-react
 import { useGame } from '../contexts/GameContext';
 
 export function StatStrip() {
-  const { logs, coins, rank } = useGame();
+  const { logs, coins, rank, readerAccess } = useGame();
+  if (readerAccess !== 'active') return null;
   const completed = logs.filter((log) => log.returned_at);
   const stats = [
     { label: 'Sessions', value: completed.length, icon: BookCheckIcon, emblem: false },

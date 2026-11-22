@@ -9,12 +9,12 @@ interface DigitalCardDialogProps {
 }
 
 export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
-  const { session, profile, rank } = useGame();
+  const { session, profile, rank, readerAccess } = useGame();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const userId = session?.user.id;
 
   useEffect(() => {
-    if (!open || !userId || !dialogRef.current) return;
+    if (!open || !userId || readerAccess !== 'active' || !dialogRef.current) return;
     const dialog = dialogRef.current;
     const previousOverflow = document.body.style.overflow;
     dialog.showModal();
@@ -23,9 +23,9 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
       dialog.close();
       document.body.style.overflow = previousOverflow;
     };
-  }, [open, userId]);
+  }, [open, userId, readerAccess]);
 
-  if (!open || !session) return null;
+  if (!open || !session || readerAccess !== 'active') return null;
 
   const fullName = profile
     ? `${profile.first_name} ${profile.last_name}`.trim()
