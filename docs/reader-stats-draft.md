@@ -4,12 +4,12 @@ Run `npm ci` then `npm run dev` from `apps/bonbon-ui-user` and open
 `http://localhost:5173/draft/reading-stats` (use the port Vite prints).
 This draft route is reachable in development and production through
 **Account menu → View reading stats**. It does not mount the reader data
-provider and uses fictional sample sessions only. The page labels the sample
-data as fictional.
+provider. All metrics remain zero until verified reader history is connected.
+The page explains that these zeros are draft placeholders, rather than a
+statement about the reader's actual history.
 
-Use the preview selector to inspect sample, empty, loading, and error states.
-The retry button returns to the sample view. Compare the 30-day, 90-day, and
-all-time filters at mobile and desktop sizes.
+The 30-day, 90-day, and all-time filters all show zero in the draft. Fictional
+sessions, books, and preview controls have been removed.
 
 Metrics include completed sessions, recorded minutes, distinct titles,
 active reading days, average session duration, genre mix, recent sessions,

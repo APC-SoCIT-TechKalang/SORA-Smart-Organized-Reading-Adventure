@@ -3,33 +3,18 @@ import { ArrowLeftIcon, BookOpenIcon, CalendarDaysIcon, Clock3Icon, FlaskConical
 import { OrnatePanel } from '../components/OrnatePanel';
 import { readingDay, statsTimeZone, summarizeReading, type StatsBook, type StatsPeriod, type StatsSession } from '../lib/reading-stats';
 
-type PreviewState = 'sample' | 'empty' | 'loading' | 'error';
-const books: StatsBook[] = [
-  { id: 1, title: 'The Lantern Keeper', genre: 'Fantasy' },
-  { id: 2, title: 'A Map of Small Wonders', genre: 'Adventure' },
-  { id: 3, title: 'Letters from the Moon', genre: 'Science fiction' },
-  { id: 4, title: 'The Garden Between Chapters', genre: 'Slice of life' },
-  { id: 5, title: 'Beyond the Amber Gate', genre: 'Fantasy' },
-];
-
-function sampleSessions(now: Date): StatsSession[] {
-  const completed = [0, 1, 2, 4, 6, 8, 11, 14, 18, 25, 38, 65, 110].map((days, index) => {
-    const end = new Date(now.getTime() - days * 86_400_000 - 3_600_000);
-    const minutes = [45, 60, 35, 90, 50][index % 5];
-    return { id: index + 1, bookId: index % books.length + 1, startedAt: new Date(end.getTime() - minutes * 60_000).toISOString(), endedAt: end.toISOString(), minutes };
-  });
-  return [...completed, { id: 99, bookId: 2, startedAt: new Date(now.getTime() - 20 * 60_000).toISOString(), endedAt: null, minutes: null }];
-}
+// Keep draft metrics at zero until verified reader history is connected.
+const books: StatsBook[] = [];
+const sessions: StatsSession[] = [];
 
 function duration(minutes: number) {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 }
 
 export default function ReadingStatsDraft() {
-  const [state, setState] = useState<PreviewState>('sample');
   const [period, setPeriod] = useState<StatsPeriod>('30');
   const [now] = useState(() => new Date());
-  const stats = summarizeReading(state === 'sample' ? sampleSessions(now) : [], books, period, now);
+  const stats = summarizeReading(sessions, books, period, now);
   const dateLabel = (value: string) => new Date(value).toLocaleDateString('en-PH', { timeZone: statsTimeZone, month: 'short', day: 'numeric' });
   const cards = [
     { label: 'Reading time', value: duration(stats.totalMinutes), icon: Clock3Icon, detail: 'From completed sessions' },
@@ -42,14 +27,9 @@ export default function ReadingStatsDraft() {
     <div className="tb-field min-h-screen px-4 py-6 text-umber sm:px-8 sm:py-10">
       <main className="mx-auto max-w-6xl space-y-6">
         <a className="inline-flex min-h-11 items-center gap-2 text-sm font-700 underline underline-offset-4" href="/"><ArrowLeftIcon aria-hidden="true" className="h-4 w-4" />Back to library</a>
-        <aside aria-label="Draft preview controls" className="rounded-xl border border-gold/40 bg-cream p-4 sm:p-5">
-          <div className="flex items-center gap-2 font-800"><FlaskConicalIcon aria-hidden="true" className="h-5 w-5 text-rust" />Draft preview · Sample data</div>
-          <p className="mt-2 text-sm leading-6 text-umber/70">This reading journal is a design preview. The activity below is fictional and does not come from your account.</p>
-          <label className="mt-3 flex flex-wrap items-center gap-3 text-sm font-700">Preview state
-            <select className="tb-input min-h-11 rounded-lg px-3 py-2" value={state} onChange={event => setState(event.target.value as PreviewState)}>
-              <option value="sample">Sample reader</option><option value="empty">No reading history</option><option value="loading">Loading</option><option value="error">Unable to load</option>
-            </select>
-          </label>
+        <aside aria-label="Reading stats" className="rounded-xl border border-gold/40 bg-cream p-4 sm:p-5">
+          <div className="flex items-center gap-2 font-800"><FlaskConicalIcon aria-hidden="true" className="h-5 w-5 text-rust" />Draft · Reading stats</div>
+          <p className="mt-2 text-sm leading-6 text-umber/70">dipa tapos kase dko pa maconnect sa kung ano man na pagkukuhaan mga guys.</p>
         </aside>
 
         <header className="flex flex-wrap items-end justify-between gap-5 py-3">
@@ -61,14 +41,12 @@ export default function ReadingStatsDraft() {
           </label>
         </header>
 
-        {state === 'loading' ? <div role="status" className="tb-state tb-cut-sm"><Clock3Icon aria-hidden="true" className="mx-auto mb-3 h-7 w-7 text-gold" />Gathering your reading moments…</div> : state === 'error' ? (
-          <div role="alert" className="tb-state tb-cut-sm"><h2 className="font-display text-xl font-800">Your journal couldn’t load</h2><p className="mt-2 text-sm text-umber/70">Try again to see your reading activity.</p><button type="button" className="tb-button-primary tb-cut-sm mt-5 min-h-11 px-5 py-2" onClick={() => setState('sample')}>Try again</button></div>
-        ) : <>
+        <>
           <section aria-label="Personal reading statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {cards.map(({ label, value, icon: Icon, detail }) => <OrnatePanel key={label} className="tb-cut-sm"><div className="p-4 sm:p-5"><Icon aria-hidden="true" className="mb-4 h-5 w-5 text-rust" /><p className="text-xs font-800 text-umber/65">{label}</p><p className="mt-2 break-words font-display text-2xl font-900 sm:text-3xl">{value}</p><p className="mt-2 text-xs leading-5 text-umber/60">{detail}</p></div></OrnatePanel>)}
           </section>
 
-          {stats.completed === 0 ? <section className="tb-state tb-cut-sm"><BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" /><h2 className="mt-3 font-display text-xl font-800">Your story is just beginning</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Completed library sessions will bring this journal to life. There is no reading history in this time period yet.</p><a href="/" className="tb-button-primary tb-cut-sm mt-5 inline-flex min-h-11 items-center px-5 py-2">Explore the library</a></section> : <>
+          {stats.completed === 0 ? <section className="tb-state tb-cut-sm"><BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" /><h2 className="mt-3 font-display text-xl font-800">Reading stats are being prepared</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Your reading activity will appear here once your history is connected. These zeros are draft placeholders.</p><a href="/" className="tb-button-primary tb-cut-sm mt-5 inline-flex min-h-11 items-center px-5 py-2">Explore the library</a></section> : <>
             <div className="grid gap-6 lg:grid-cols-3">
               <OrnatePanel as="section" className="tb-cut-sm lg:col-span-2"><div className="p-5 sm:p-6"><p className="tb-eyebrow">Make room for a good book</p><h2 className="mt-2 font-display text-xl font-800">Your reading rhythm</h2><p className="mt-2 text-xs leading-5 text-umber/65">Minutes from completed sessions over the last 14 days. Dates use Philippine time.</p>
                 <div className="mt-6 flex h-44 items-end gap-1.5 border-b border-gold/30 pb-2 sm:gap-3" aria-hidden="true">{stats.activity.map(day => <div key={day.day} className="flex h-full min-w-0 flex-1 items-end" title={`${day.day}: ${day.minutes} minutes`}><div className={`w-full rounded-t-sm ${day.minutes ? 'bg-rust/80' : 'bg-gold/20'}`} style={{ height: `${Math.max(3, day.minutes / Math.max(1, ...stats.activity.map(item => item.minutes)) * 100)}%` }} /></div>)}</div>
@@ -99,8 +77,8 @@ export default function ReadingStatsDraft() {
             </OrnatePanel>
           </>}
           {stats.active > 0 && <p className="flex items-start gap-2 rounded-xl border border-gold/30 bg-cream p-4 text-sm leading-6"><SparklesIcon aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-rust" />A reading session is in progress. Its time will appear here after the session ends.</p>}
-          <p className="pb-6 text-xs leading-6 text-umber/60">Sample journal as of {readingDay(now)}. A completed session means a library session ended; it does not mean a book was finished. Page progress and reading streaks are not yet available.</p>
-        </>}
+          <p className="pb-6 text-xs leading-6 text-umber/60">Draft journal as of {readingDay(now)}. A completed session means a library session ended; it does not mean a book was finished. Page progress and reading streaks are not yet available.</p>
+        </>
       </main>
     </div>
   );
