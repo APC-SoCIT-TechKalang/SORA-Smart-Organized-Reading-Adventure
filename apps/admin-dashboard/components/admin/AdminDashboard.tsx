@@ -238,17 +238,6 @@ export function AdminDashboard() {
                 <Logo />
               </>
             )}
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={() =>
-                  void run(() => database().auth.signOut(), "Signed out")
-                }
-                className="inline-flex items-center gap-2 rounded-xl bg-[#953410] px-3.5 py-2 text-xs font-bold text-[#fefefd] shadow-[0_4px_14px_rgba(149,52,16,.3)] transition hover:bg-[#7c2b0c] active:scale-95"
-              >
-                <LogOut size={14} />
-                Sign out
-              </button>
-            </div>
           </header>
           <div className="mx-auto max-w-[1440px] p-5 sm:p-8 lg:p-10">
             <div className="mb-8 flex flex-col gap-4 border-b border-[#c4800c]/25 pb-6 sm:flex-row sm:items-end sm:justify-between">
