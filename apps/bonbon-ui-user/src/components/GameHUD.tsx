@@ -1,17 +1,20 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BarChart3Icon, BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
+import { BarChart3Icon, BookOpenIcon, ChevronDownIcon, CreditCardIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
+import { DigitalCardDialog } from './DigitalCardDialog';
 
 export function GameHUD() {
   const [mode, setMode] = useState<'login' | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageAccountOpen, setManageAccountOpen] = useState(false);
+  const [digitalCardOpen, setDigitalCardOpen] = useState(false);
   const { session, profile, coins, rank, setSection, signOut, busy } = useGame();
   const displayName = profile?.first_name || session?.user.user_metadata?.first_name || 'Reader';
   const initial = displayName.slice(0, 1).toUpperCase();
   const closeAuth = useCallback(() => setMode(null), []);
+  const closeDigitalCard = useCallback(() => setDigitalCardOpen(false), []);
 
   useEffect(() => {
     const openAuth = () => setMode('login');
@@ -61,6 +64,7 @@ export function GameHUD() {
                       <p className="mt-2 text-[11px] font-800 text-rust">Rank {rank} · {coins} library points</p>
                     </div>
                     <AccountMenuItem icon={BarChart3Icon} label="View reading stats" onClick={goToReadingStats} />
+                    <AccountMenuItem icon={CreditCardIcon} label="My digital card" onClick={() => { setAccountOpen(false); setDigitalCardOpen(true); }} />
                     <AccountMenuItem icon={Settings2Icon} label="Manage account" onClick={openManageAccount} />
                     <button role="menuitem" type="button" disabled={busy} onClick={() => { setAccountOpen(false); void signOut(); }} className="flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-800 text-rust transition hover:bg-parch/35 disabled:opacity-50">
                       <LogOutIcon aria-hidden="true" className="h-4 w-4" />Sign out
@@ -76,6 +80,7 @@ export function GameHUD() {
       </header>
       <AccountDialog mode={mode} onClose={closeAuth} />
       <ManageAccountDialog open={manageAccountOpen} onClose={() => setManageAccountOpen(false)} />
+      <DigitalCardDialog open={digitalCardOpen} onClose={closeDigitalCard} />
     </>
   );
 }
