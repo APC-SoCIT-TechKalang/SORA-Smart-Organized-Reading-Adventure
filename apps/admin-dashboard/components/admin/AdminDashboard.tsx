@@ -10,7 +10,6 @@ import {
 import {
   BookOpen,
   ChartNoAxesCombined,
-  ChevronDown,
   Clock3,
   Edit3,
   LayoutDashboard,
@@ -18,7 +17,6 @@ import {
   Menu,
   Plus,
   Radio,
-  RefreshCw,
   Search,
   Sparkles,
   Trophy,
@@ -242,14 +240,6 @@ export function AdminDashboard() {
             )}
             <div className="ml-auto flex items-center gap-2">
               <button
-                onClick={() => void refresh()}
-                disabled={loading}
-                className="inline-flex items-center gap-2 rounded-xl border border-[#eadfd3] bg-white/70 px-3.5 py-2 text-xs font-semibold text-[#543822] transition hover:border-[#c4800c]/40 hover:bg-[#f3d793]/40 disabled:opacity-50"
-              >
-                <RefreshCw size={14} />
-                Refresh
-              </button>
-              <button
                 onClick={() =>
                   void run(() => database().auth.signOut(), "Signed out")
                 }
@@ -271,13 +261,6 @@ export function AdminDashboard() {
                   {page === "Overview" ? "Reading Room Today" : page}
                 </h1>
               </div>
-              <button className="inline-flex w-fit items-center gap-2 rounded-full border border-[#c4800c]/30 bg-[#fefefd] px-4 py-2 text-xs font-semibold text-[#543822] shadow-sm">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-                </span>
-                Station online <ChevronDown size={14} />
-              </button>
             </div>
             {error && (
               <div
