@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
+import { ArrowLeftIcon, ArrowRightIcon, BookOpenIcon, SparklesIcon, StarIcon } from 'lucide-react';
 import type { Volume } from '../types/library';
 
 export interface ParallaxCarouselItem {
@@ -82,35 +83,60 @@ export function ParallaxCarousel({ items, activeIndex, onActiveChange, onOpen }:
       <div aria-hidden="true" className="parallax-gradient parallax-gradient-one" />
       <div aria-hidden="true" className="parallax-gradient parallax-gradient-two" />
       <div aria-hidden="true" className="parallax-aura" />
-      <div className="parallax-track">
-        {items.map((item, index) => {
-          const distance = index - activeIndex;
-          const visible = Math.abs(distance) <= 2;
-          return <button
-            key={item.id}
-            type="button"
-            className={`parallax-card ${distance === 0 ? 'is-active' : ''} ${visible ? 'is-visible' : 'is-hidden'} ${hovered === index ? 'is-hovered' : ''}`}
-            style={{ '--offset': distance, '--abs-offset': Math.abs(distance), '--pointer': pointer, '--cover': item.color } as React.CSSProperties}
-            onPointerEnter={() => setHovered(index)}
-            onPointerLeave={() => setHovered(null)}
-            onFocus={() => setHovered(index)}
-            onBlur={() => setHovered(null)}
-            onClick={() => handleCardClick(item, index)}
-            aria-current={distance === 0 ? 'true' : undefined}
-            aria-label={distance === 0 ? `Open details for ${item.title}` : `Select ${item.title}`}>
-            <span className="parallax-image">
-              <motion.img layoutId={`volume-cover-${item.id}`} src={item.image} alt={`${item.title} book cover`} transition={{ type: 'spring', stiffness: 330, damping: 30 }} onError={(event) => { event.currentTarget.src = '/book-placeholder.svg'; }} />
-              <span className="parallax-frame" />
-              <span className="parallax-volume-badge">{item.volume.volume}</span>
-            </span>
-          </button>;
-        })}
+      <div className="arrival-spotlight-layout">
+        <div className="arrival-spotlight-copy" aria-live="polite">
+          <span className="arrival-spotlight-kicker"><SparklesIcon aria-hidden="true" /> New arrival spotlight</span>
+          <p className="arrival-spotlight-overline">Freshly added to the collection</p>
+          <h3>{current.title}</h3>
+          <p className="arrival-spotlight-author">{current.author ?? 'Tankobonbon collection'}</p>
+          <p className="arrival-spotlight-genre">{current.genre ?? 'Manga and graphic novels'}</p>
+          <div className="arrival-spotlight-badges">
+            {current.rating ? <span><StarIcon aria-hidden="true" /> {current.rating} reader rating</span> : <span><StarIcon aria-hidden="true" /> New collection pick</span>}
+            <span className={current.volume.copies > 0 ? 'is-available' : ''}>{current.volume.copies > 0 ? `${current.volume.copies} ${current.volume.copies === 1 ? 'copy' : 'copies'} available` : 'Ask staff for availability'}</span>
+          </div>
+          <button type="button" className="arrival-spotlight-action" onClick={() => onOpen(current)}><BookOpenIcon aria-hidden="true" /> View book details <ArrowRightIcon aria-hidden="true" /></button>
+          <div className="arrival-spotlight-navigation">
+            <span className="parallax-caption-number">{String(activeIndex + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}</span>
+            <div className="arrival-spotlight-arrows">
+              <button type="button" onClick={() => move(-1)} disabled={activeIndex === 0} aria-label="Previous new arrival"><ArrowLeftIcon /></button>
+              <button type="button" onClick={() => move(1)} disabled={activeIndex === items.length - 1} aria-label="Next new arrival"><ArrowRightIcon /></button>
+            </div>
+          </div>
+          <div className="arrival-spotlight-progress" aria-hidden="true">{items.map((item, index) => <span key={item.id} className={index === activeIndex ? 'is-active' : ''} />)}</div>
+        </div>
+
+        <div className="arrival-spotlight-gallery">
+          <div aria-hidden="true" className="arrival-spotlight-ring" />
+          <div className="parallax-track">
+            {items.map((item, index) => {
+              const rawDistance = index - activeIndex;
+              const distance = rawDistance > items.length / 2
+                ? rawDistance - items.length
+                : rawDistance < -(items.length / 2) ? rawDistance + items.length : rawDistance;
+              const visible = Math.abs(distance) <= 2;
+              return <button
+                key={item.id}
+                type="button"
+                className={`parallax-card ${distance === 0 ? 'is-active' : ''} ${visible ? 'is-visible' : 'is-hidden'} ${hovered === index ? 'is-hovered' : ''}`}
+                style={{ '--offset': distance, '--abs-offset': Math.abs(distance), '--pointer': pointer, '--cover': item.color } as React.CSSProperties}
+                onPointerEnter={() => setHovered(index)}
+                onPointerLeave={() => setHovered(null)}
+                onFocus={() => setHovered(index)}
+                onBlur={() => setHovered(null)}
+                onClick={() => handleCardClick(item, index)}
+                aria-current={distance === 0 ? 'true' : undefined}
+                aria-label={distance === 0 ? `Open details for ${item.title}` : `Select ${item.title}`}>
+                <span className="parallax-image">
+                  <motion.img layoutId={`volume-cover-${item.id}`} src={item.image} alt={`${item.title} book cover`} transition={{ type: 'spring', stiffness: 330, damping: 30 }} onError={(event) => { event.currentTarget.src = '/book-placeholder.svg'; }} />
+                  <span className="parallax-frame" />
+                  <span className="parallax-volume-badge">{item.volume.volume}</span>
+                </span>
+              </button>;
+            })}
+          </div>
+          <p className="parallax-instruction">Select a side book to bring it into the spotlight. Open the centered cover for details.</p>
+        </div>
       </div>
-      <div className="parallax-caption">
-        <span className="parallax-caption-number">{String(activeIndex + 1).padStart(2, '0')} / {String(items.length).padStart(2, '0')}</span>
-        <span className="min-w-0"><strong>{current.title}</strong><small>{current.author ?? 'New volume'} · {current.genre ?? 'Manga'}{current.rating ? ` · ★ ${current.rating}` : ''}</small></span>
-      </div>
-      <p className="parallax-instruction">Click a side book to focus it. Click the centered book to view its details.</p>
     </div>
   </div>;
 }

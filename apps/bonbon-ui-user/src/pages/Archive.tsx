@@ -42,7 +42,7 @@ export function Archive() {
       <StatStrip />
       <section className="min-w-0 pt-20 sm:pt-24 lg:pt-0">
         <SectionHeading title="New arrivals" meta="Fresh in the stacks" />
-        <div className="mt-5 overflow-hidden border-y border-gold/30 bg-cream/40 px-2 py-4 sm:px-4">
+        <div className="arrival-spotlight-shell mt-5">
           {arrivalItems.length ? (
             <LayoutGroup>
               <ParallaxCarousel items={arrivalItems} activeIndex={activeArrivalIndex} onActiveChange={setActiveArrivalIndex} onOpen={(item) => setOpenedBook({ volume: item.volume, image: item.image })} />
