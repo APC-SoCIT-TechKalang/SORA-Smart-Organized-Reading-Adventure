@@ -185,12 +185,12 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
                 <div className="flex min-w-0 flex-col rounded-xl border border-white/70 bg-[#fffdf8]/95 p-2.5 text-[#543822] shadow-sm sm:p-3.5">
                   <div className="flex items-center gap-2 border-b border-[#c4800c]/25 pb-2">
                     <ShieldCheckIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#a33c12]" />
-                    <p className="text-[7px] font-900 uppercase tracking-[.13em] sm:text-[9px]">Digital library card</p>
+                    <p className="text-[9px] font-900 uppercase tracking-[.13em] sm:text-[11px]">Digital library card</p>
                   </div>
                   {credential.error ? (
                     <p role="alert" className="mt-3 text-[10px] leading-4 text-[#a33c12] sm:text-xs">{credential.error}</p>
                   ) : (
-                    <ul className="mt-2 list-disc space-y-0.5 pl-3 text-[6px] leading-2.5 text-[#543822]/85 sm:mt-2.5 sm:space-y-1 sm:pl-4 sm:text-[8px] sm:leading-3">
+                    <ul className="mt-2.5 list-disc space-y-1 pl-4 text-[8px] leading-3.5 text-[#543822]/85 sm:mt-3 sm:space-y-1.5 sm:pl-5 sm:text-[10px] sm:leading-4">
                       <li>This card is for the registered member only and is non-transferable.</li>
                       <li>The library card itself does not expire. Topped-up credits are non-refundable and expire according to current library rules. A fee may be charged for a replacement or reprint.</li>
                       <li>Present this card when using the library.</li>
@@ -198,7 +198,7 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
                       <li>For more information about the library card, see the Guidebook on our website.</li>
                     </ul>
                   )}
-                  <div className="mt-auto border-t border-[#c4800c]/25 pt-1.5 text-[6px] leading-2.5 text-[#543822]/75 sm:pt-2 sm:text-[7px] sm:leading-3">
+                  <div className="mt-auto border-t border-[#c4800c]/25 pt-2 text-[8px] leading-3.5 text-[#543822]/75 sm:pt-2.5 sm:text-[9px] sm:leading-4">
                     <p className="font-800">tankobonbon.com · library@tankobonbon.com</p>
                     <p>2F, Leftmost Unit, Infront of Salawag Brgy. Hall,<br />Molino-Paliparan Rd., Brgy. Salawag,<br />Dasmariñas City, Cavite, Philippines</p>
                   </div>

@@ -4,12 +4,14 @@ import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
 import { DigitalCardDialog } from './DigitalCardDialog';
+import { ReadingStatsDialog } from './ReadingStatsDialog';
 
 export function GameHUD() {
   const [mode, setMode] = useState<'login' | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageAccountOpen, setManageAccountOpen] = useState(false);
   const [digitalCardOpen, setDigitalCardOpen] = useState(false);
+  const [readingStatsOpen, setReadingStatsOpen] = useState(false);
   const { session, profile, coins, rank, setSection, signOut, busy, readerAccess } = useGame();
   const displayName = profile?.first_name || session?.user.user_metadata?.first_name || 'Reader';
   const initial = displayName.slice(0, 1).toUpperCase();
@@ -24,7 +26,7 @@ export function GameHUD() {
 
   const goToReadingStats = () => {
     setAccountOpen(false);
-    window.location.assign('/draft/reading-stats');
+    setReadingStatsOpen(true);
   };
   const openManageAccount = () => {
     setAccountOpen(false);
@@ -83,6 +85,7 @@ export function GameHUD() {
       <AccountDialog mode={mode} onClose={closeAuth} />
       <ManageAccountDialog open={manageAccountOpen} onClose={() => setManageAccountOpen(false)} />
       <DigitalCardDialog open={digitalCardOpen} onClose={closeDigitalCard} />
+      <ReadingStatsDialog open={readingStatsOpen} onClose={() => setReadingStatsOpen(false)} />
     </>
   );
 }

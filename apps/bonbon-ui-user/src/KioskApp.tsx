@@ -1,16 +1,12 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { BookOpenIcon, CameraIcon, QrCodeIcon, RadioIcon, XIcon } from 'lucide-react';
+import type { IScannerControls } from '@zxing/browser';
 import { database, errorMessage } from './lib/supabase';
 import { requireReaderAccount } from './lib/replacement-library';
 import { startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
 import { parseKioskQrPayload } from './lib/kioskQr';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'error';
-type DetectedBarcode = { rawValue: string };
-type QrDetector = { detect: (source: HTMLVideoElement) => Promise<DetectedBarcode[]> };
-type QrDetectorConstructor = new (options: { formats: string[] }) => QrDetector;
-declare global { interface Window { BarcodeDetector?: QrDetectorConstructor; } }
-
 const SESSION_STARTED_KEY = 'sora.kiosk.session-started-at';
 
 export function KioskApp() {
@@ -61,9 +57,9 @@ export function KioskApp() {
   }, [authenticateUid]);
 
   const startQrScan = useCallback(() => {
-    if (!window.BarcodeDetector || !navigator.mediaDevices?.getUserMedia) {
+    if (!navigator.mediaDevices?.getUserMedia) {
       setStatus('error');
-      setMessage('QR camera scanning is not supported in this browser. Use the latest Chrome or the physical card reader.');
+      setMessage('Camera scanning is unavailable. Open this secure kiosk page in Safari or Chrome and allow camera access.');
       return;
     }
     setMessage('');
@@ -74,45 +70,35 @@ export function KioskApp() {
   useEffect(() => {
     if (!qrScanning) return;
     let disposed = false;
-    let stream: MediaStream | null = null;
-    let frame = 0;
-    let lastDetection = 0;
+    let controls: IScannerControls | null = null;
 
     const stop = () => {
       disposed = true;
-      window.cancelAnimationFrame(frame);
-      stream?.getTracks().forEach(track => track.stop());
+      controls?.stop();
       if (videoRef.current) videoRef.current.srcObject = null;
-    };
-    const scan = async (time: number, detector: QrDetector) => {
-      if (disposed) return;
-      if (time - lastDetection > 250 && videoRef.current?.readyState === HTMLMediaElement.HAVE_ENOUGH_DATA) {
-        lastDetection = time;
-        try {
-          const codes = await detector.detect(videoRef.current);
-          const cardId = codes.map(code => parseKioskQrPayload(code.rawValue)).find((value): value is string => Boolean(value));
-          if (cardId) {
-            setQrScanning(false);
-            void authenticateUid(cardId);
-            return;
-          }
-          if (codes.length) setMessage('That QR code is not a Tankobonbon digital card.');
-        } catch { /* A partially visible QR is expected while the camera moves. */ }
-      }
-      frame = window.requestAnimationFrame(next => void scan(next, detector));
     };
     const openCamera = async () => {
       try {
-        const Detector = window.BarcodeDetector;
-        if (!Detector) throw new Error('QR scanning is not supported in this browser.');
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
-        if (disposed) { stream.getTracks().forEach(track => track.stop()); return; }
+        const { BrowserQRCodeReader } = await import('@zxing/browser');
+        const reader = new BrowserQRCodeReader(undefined, { delayBetweenScanAttempts: 200, delayBetweenScanSuccess: 750 });
         const video = videoRef.current;
         if (!video) throw new Error('The QR camera could not be opened.');
-        video.srcObject = stream;
-        await video.play();
-        const detector = new Detector({ formats: ['qr_code'] });
-        frame = window.requestAnimationFrame(time => void scan(time, detector));
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: 'environment' } }, audio: false },
+          video,
+          result => {
+            if (disposed || !result) return;
+            const cardId = parseKioskQrPayload(result.getText());
+            if (!cardId) {
+              setMessage('That QR code is not a Tankobonbon digital card.');
+              return;
+            }
+            controls?.stop();
+            setQrScanning(false);
+            void authenticateUid(cardId);
+          },
+        );
+        if (disposed) controls.stop();
       } catch (cause) {
         stop();
         setQrScanning(false);
