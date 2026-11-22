@@ -13,13 +13,15 @@ export function StatStrip() {
   ];
 
   return (
-    <section aria-label="Your reading stats" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-      {stats.map(({ label, value, icon: Icon, emblem }) => (
-        <div key={label} className={`tb-stat-card tb-surface tb-cut-sm flex min-w-0 items-center gap-2.5 p-3 min-[390px]:p-4 ${emblem ? 'is-emblem' : ''}`}>
-          <span className={`tb-stat-icon flex h-10 w-10 shrink-0 items-center justify-center bg-parch/35 text-rust ${emblem ? 'tb-crest-icon' : 'rounded-full'}`}><Icon aria-hidden="true" className="h-4 w-4" /></span>
-          <span className="min-w-0"><strong className="block truncate font-display text-xl font-900 text-umber">{value}</strong><span className="block text-[10px] font-800 uppercase leading-tight tracking-[0.08em] text-umber/50 [overflow-wrap:anywhere] min-[390px]:tracking-[0.12em]">{label}</span></span>
-        </div>
-      ))}
+    <section aria-label="Your reading stats" className="overflow-hidden rounded-2xl border border-gold/30 bg-cream/90 p-2 shadow-[0_12px_34px_rgba(84,56,34,.08)]">
+      <div className="grid grid-cols-2 lg:grid-cols-4">
+        {stats.map(({ label, value, icon: Icon, emblem }, index) => (
+          <div key={label} className={`group flex min-w-0 items-center gap-3 rounded-xl p-3 transition hover:bg-parch/20 sm:p-4 ${index % 2 ? 'border-l border-gold/20' : ''} ${index >= 2 ? 'border-t border-gold/20 lg:border-t-0 lg:border-l' : ''}`}>
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center border transition group-hover:-translate-y-0.5 ${emblem ? 'rounded-xl border-gold/35 bg-[linear-gradient(135deg,#f9d219,#c4800c)] text-umber shadow-sm' : 'rounded-full border-gold/25 bg-parch/25 text-rust'}`}><Icon aria-hidden="true" className="h-4 w-4" /></span>
+            <span className="min-w-0"><strong className="block truncate font-display text-xl font-900 text-umber sm:text-2xl">{value}</strong><span className="block text-[9px] font-800 uppercase leading-tight tracking-[.12em] text-umber/45 [overflow-wrap:anywhere] sm:text-[10px]">{label}</span></span>
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
