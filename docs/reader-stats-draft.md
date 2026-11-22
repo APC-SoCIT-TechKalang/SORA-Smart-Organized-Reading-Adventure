@@ -2,9 +2,10 @@
 
 Run `npm ci` then `npm run dev` from `apps/bonbon-ui-user` and open
 `http://localhost:5173/draft/reading-stats` (use the port Vite prints).
-This draft route is reachable in development and production. It has no
-navigation entry, does not mount the reader data provider, and uses fictional
-sample sessions only. The page labels the sample data as fictional.
+This draft route is reachable in development and production through
+**Account menu → View reading stats**. It does not mount the reader data
+provider and uses fictional sample sessions only. The page labels the sample
+data as fictional.
 
 Use the preview selector to inspect sample, empty, loading, and error states.
 The retry button returns to the sample view. Compare the 30-day, 90-day, and
