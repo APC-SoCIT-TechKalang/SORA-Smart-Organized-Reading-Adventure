@@ -8,7 +8,7 @@ import { loadReplacementLibrary, replacementApi, requireReaderAccount, usesRepla
 import { useReaderAccess } from '../lib/use-reader-access';
 
 export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
-export interface ReadingLog { reading_log_id: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null; }
+export interface ReadingLog { reading_log_id: number; session_id?: number; copy_id?: number; book_id: number; started_at: string; returned_at: string | null; total_reading_minutes: number | null; }
 interface QuestProgress { quest_id: number; status: string; }
 interface Progress { total_points: number; current_streak_days: number; membership_ranks: { name: string } | null; }
 interface LibraryState {
@@ -213,14 +213,18 @@ function useLibraryState() {
   const borrowed = state.logs.filter(log => !log.returned_at).map(log => ({ volumeId: String(log.book_id), dueInDays: 0, progress: 0 }));
   return {
     ...state, session, readerAccess, section, setSection, loading, error, busy, refresh, borrowed, toasts,
-    xp: 0, xpPercent: 0, lanterns: Math.max(0, (usesReplacementSchema ? 1 : 3) - borrowed.length), maxLanterns: usesReplacementSchema ? 1 : 3,
+    xp: 0, xpPercent: 0, lanterns: Math.max(0, 3 - borrowed.length), maxLanterns: 3,
     joinedEvents: [] as string[], joinedClubs: [] as string[],
     volumeById: (id: string) => state.volumes.find(v => v.id === id),
     isBorrowed: (id: string) => borrowed.some(v => v.volumeId === id),
     borrow: (id: string) => {
+      if (borrowed.length >= 3) {
+        message('Three-book limit reached', 'Finish or return a book before starting another one.');
+        return Promise.resolve(false);
+      }
       if (usesReplacementSchema) {
-        setSection('shelf');
-        message('Choose a seat and scan your book', 'Use the kiosk reading panel in My shelf to start your session.');
+        setSection('guide');
+        message('Choose a seat and scan your book', 'Use View Seats to start a session or add up to three books.');
         return Promise.resolve(false);
       }
       return run(() => database().rpc('start_reading', { p_book_id: Number(id) }), 'Reading started');
@@ -228,7 +232,7 @@ function useLibraryState() {
     giveBack: (id: string) => {
       const log = state.logs.find(l => String(l.book_id) === id && !l.returned_at);
       return log ? run(() => usesReplacementSchema
-        ? replacementApi().rpc('finish_reading', { p_session_id: log.reading_log_id })
+        ? replacementApi().rpc('finish_reading', { p_session_id: log.session_id ?? log.reading_log_id })
         : database().rpc('finish_reading', { p_log_id: log.reading_log_id }), 'Reading finished — place the book on the return cart') : Promise.resolve(false);
     },
     logSession: (_id: string) => { message('Reading time is recorded automatically', 'Finish reading and return the book to complete your session.'); },

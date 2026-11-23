@@ -8,12 +8,13 @@ type Seat = { seat_id: number; seat_number: number; seat_area: string; seat_stat
 type Active = { session_id: number; seat_id: number; borrow_date: string; session_status: string };
 type Reservation = { seat_id: number; expires_at: string };
 type ReadingAccount = { membership_type: string | null; membership_status: string; membership_expires_at: string | null; remaining_minutes: number };
-type ReadingState = { seats: Seat[]; active: Active | null; checked_in: boolean; waiting: boolean; staff: boolean; reservation: Reservation | null };
+type ReadingState = { seats: Seat[]; active: Active | null; books?: { copy_id: number }[]; checked_in: boolean; waiting: boolean; staff: boolean; reservation: Reservation | null };
 
 export function KioskReading() {
   const { profile, refresh } = useGame();
   const [seats, setSeats] = useState<Seat[]>([]);
   const [active, setActive] = useState<Active | null>(null);
+  const [activeBookCount, setActiveBookCount] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [account, setAccount] = useState<ReadingAccount | null>(null);
@@ -39,7 +40,7 @@ export function KioskReading() {
     if (result.error) throw result.error;
     if (user.error) throw user.error;
     const state = result.data as ReadingState;
-    setSeats(state.seats); setActive(state.active);
+    setSeats(state.seats); setActive(state.active); setActiveBookCount(state.books?.length ?? 0);
     setCheckedIn(state.checked_in); setWaiting(state.waiting);
     setStaff(state.staff); setLoaded(true);
     setReservation(state.reservation ?? null);
@@ -84,6 +85,7 @@ export function KioskReading() {
   const membershipActive = account?.membership_status === 'ACTIVE' && !!account.membership_expires_at && new Date(account.membership_expires_at).getTime() > now;
   const unlimited = account?.membership_type === 'Guild Adventurer';
   const hasTime = unlimited || (account?.remaining_minutes ?? 0) > 0;
+  const atBookLimit = activeBookCount >= 3;
   const readingIssue = !membershipActive ? 'An active, unexpired membership is required. Ask library staff to activate your membership.'
     : !hasTime ? 'You have 0 reading minutes. Ask the librarian to add reading time in the admin Top-up terminal, then scan your book again.' : '';
   const input = 'tb-input mt-2 w-full rounded-lg px-3 py-3';
@@ -126,13 +128,15 @@ export function KioskReading() {
       </div>
       <form onSubmit={event => { event.preventDefault(); void run(async () => {
         if (readingIssue) throw new Error(readingIssue);
+        if (active && atBookLimit) throw new Error('You can read a maximum of three books in one session. Finish this session before adding another book.');
         const result = await call('kiosk_scan_book', { p_barcode: barcode.trim(), p_seat_id: active ? null : reservation?.seat_id }) as { error?: string; title: string };
         if (result.error) throw new Error(result.error);
         setBarcode(''); setSelected(null); setMessage(`${result.title} ${active ? 'added to your session' : 'scanned. Your reading session has started'}.`);
       }); }}>
-        <label className="block font-700">Book ISBN or copy barcode<input ref={scanner} className={input} value={barcode} onChange={event => setBarcode(event.target.value)} autoComplete="off" required maxLength={100} placeholder="Scan here, then press Enter" disabled={busy || !loaded || !checkedIn} /></label>
+        {active && <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-gold/25 bg-parch/25 px-3 py-2.5 text-sm"><span className="font-700">Books in this session</span><strong className={atBookLimit ? 'text-rust' : 'text-umber'}>{activeBookCount} / 3</strong></div>}
+        <label className="block font-700">Book ISBN or copy barcode<input ref={scanner} className={input} value={barcode} onChange={event => setBarcode(event.target.value)} autoComplete="off" required maxLength={100} placeholder={atBookLimit ? 'Three-book limit reached' : 'Scan here, then press Enter'} disabled={busy || !loaded || !checkedIn || atBookLimit} /></label>
         <p className="mt-2 text-xs text-umber/65">USB barcode scanners can type into this field and submit with Enter. You can also enter a barcode manually for testing.</p>
-        <button className={`${button} mt-4`} disabled={busy || !loaded || !checkedIn || !!readingIssue || !barcode.trim() || (!active && !hasHold) || active?.session_status === 'CHECKOUT PENDING'}>{busy ? 'Saving...' : active ? 'Scan & add book' : 'Scan & start session'}</button>
+        <button className={`${button} mt-4`} disabled={busy || !loaded || !checkedIn || !!readingIssue || !barcode.trim() || (!active && !hasHold) || active?.session_status === 'CHECKOUT PENDING' || atBookLimit}>{busy ? 'Saving...' : atBookLimit ? 'Three-book limit reached' : active ? 'Scan & add book' : 'Scan & start session'}</button>
       </form>
     </>}
   </section>;

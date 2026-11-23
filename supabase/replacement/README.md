@@ -3,8 +3,10 @@
 For the reference-based 20-seat lounge map, apply `012_library_seat_layout.sql`
 **after** `011`. It seeds the existing empty seats table and installs exclusive
 five-minute seat holds without adding tables or columns. Existing seat records
-and occupancy are preserved. Keep `012` last when installing/upgrading the kiosk
-routines, since it replaces the older scan/state definitions in `011`.
+and occupancy are preserved. Apply `015_reader_three_book_sessions.sql` after
+`012` (and after `014` when RFID login is installed). It preserves one seat/timer
+session, enforces the three-book maximum in the database, and keeps extra scanned
+copies attached to that session.
 
 For the UC-03/UC-04 kiosk update, apply the revised `011_kiosk_reading.sql` to the
 existing database after the library card Boolean change. It uses the existing

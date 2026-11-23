@@ -38,8 +38,8 @@ export function Shelf() {
         <div className="space-y-6">
           <section aria-labelledby="active-reading-title">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-              <div><p className="tb-eyebrow">Current reading</p><h2 id="active-reading-title" className="mt-1 font-display text-2xl font-900 text-umber">Active sessions</h2></div>
-              <span className="rounded-full border border-gold/25 bg-cream/70 px-3 py-1.5 text-[10px] font-900 uppercase tracking-[.12em] text-gold">{active.length} in progress</span>
+              <div><p className="tb-eyebrow">Current reading</p><h2 id="active-reading-title" className="mt-1 font-display text-2xl font-900 text-umber">{usesReplacementSchema ? 'Books in this session' : 'Active sessions'}</h2></div>
+              <span className="rounded-full border border-gold/25 bg-cream/70 px-3 py-1.5 text-[10px] font-900 uppercase tracking-[.12em] text-gold">{usesReplacementSchema ? `${active.length} of 3 books` : `${active.length} in progress`}</span>
             </div>
             {active.length === 0 ? (
               <div className="rounded-2xl border border-dashed border-gold/35 bg-cream/65 px-6 py-12 text-center shadow-[0_12px_32px_rgba(84,56,34,.06)]">
@@ -49,8 +49,9 @@ export function Shelf() {
                 <button type="button" onClick={() => setSection('catalog')} className="tb-button-primary tb-cut-sm mt-5 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Browse books <ArrowRightIcon className="h-4 w-4" /></button>
               </div>
             ) : (
-              <div className="grid gap-4">{active.map((log) => {
+              <div className="grid gap-4">{active.map((log, index) => {
                 const volume = volumeById(String(log.book_id));
+                const showFinishButton = !usesReplacementSchema || index === 0;
                 return <article key={log.reading_log_id} className="group relative overflow-hidden rounded-2xl border border-gold/30 bg-cream/90 shadow-[0_16px_38px_rgba(84,56,34,.1)]">
                   <div className="grid gap-5 p-5 sm:grid-cols-[110px_minmax(0,1fr)] sm:p-6">
                     <div className="mx-auto w-[110px] sm:mx-0">
@@ -64,8 +65,8 @@ export function Shelf() {
                       {volume?.author && <p className="mt-1 text-xs font-700 text-umber/55">{volume.author}</p>}
                       <p className="mt-4 flex items-center gap-2 text-xs font-700 text-umber/55"><Clock3Icon className="h-4 w-4 text-gold" /> Started {formatDate(log.started_at)}</p>
                       <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-gold/20 pt-4">
-                        <p className="max-w-md text-xs leading-5 text-umber/60">When you are done, return the physical copy to the return cart and close this session.</p>
-                        <button type="button" disabled={busy} onClick={() => void giveBack(String(log.book_id))} className="tb-button-primary tb-cut-sm shrink-0 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">{busy ? 'Finishing…' : 'Finish reading'}</button>
+                        <p className="max-w-md text-xs leading-5 text-umber/60">{usesReplacementSchema ? 'All books share this seat and timer. Finishing closes the session and sends every active copy to the return cart.' : 'When you are done, return the physical copy to the return cart and close this session.'}</p>
+                        {showFinishButton && <button type="button" disabled={busy} onClick={() => void giveBack(String(log.book_id))} className="tb-button-primary tb-cut-sm shrink-0 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">{busy ? 'Finishing…' : usesReplacementSchema ? 'Finish session' : 'Finish reading'}</button>}
                       </div>
                     </div>
                   </div>
