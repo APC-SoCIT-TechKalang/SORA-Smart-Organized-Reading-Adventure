@@ -4,31 +4,10 @@ import type { IScannerControls } from '@zxing/browser';
 import { database, errorMessage } from './lib/supabase';
 import { requireReaderAccount } from './lib/replacement-library';
 import { startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
-import { parseKioskNfcPayload, parseKioskQrPayload } from './lib/kioskQr';
+import { parseKioskQrPayload } from './lib/kioskQr';
 
-type KioskStatus = 'ready' | 'scanning' | 'detected' | 'authorizing' | 'success' | 'error';
+type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'error';
 const SESSION_STARTED_KEY = 'sora.kiosk.session-started-at';
-const KIOSK_ACCOUNT_KEY = 'sora.kiosk.account';
-
-function playTone(kind: 'detected' | 'success' | 'error') {
-  try {
-    const context = new AudioContext();
-    const frequencies = kind === 'success' ? [660, 880] : kind === 'error' ? [220, 165] : [520];
-    frequencies.forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      const start = context.currentTime + index * 0.11;
-      oscillator.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, start);
-      gain.gain.exponentialRampToValueAtTime(0.12, start + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.1);
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start(start);
-      oscillator.stop(start + 0.11);
-    });
-    window.setTimeout(() => void context.close(), 450);
-  } catch { /* Visual status remains available when audio is blocked. */ }
-}
 
 export function KioskApp() {
   const [status, setStatus] = useState<KioskStatus>('ready');
@@ -40,41 +19,33 @@ export function KioskApp() {
   const clearSession = useCallback(async () => {
     try { await database().auth.signOut({ scope: 'local' }); } catch { /* Clear local kiosk state even if network is unavailable. */ }
     window.sessionStorage.removeItem(SESSION_STARTED_KEY);
-    window.sessionStorage.removeItem(KIOSK_ACCOUNT_KEY);
     setStatus('ready'); setMessage('');
   }, []);
 
-  const establishSession = useCallback(async ({ tokenHash, account }: BridgeAuthentication) => {
-    setStatus('authorizing'); setMessage('Card verified. Starting your secure session…');
+  const establishSession = useCallback(async ({ tokenHash }: BridgeAuthentication) => {
+    setStatus('authorizing'); setMessage('');
     try {
       const { data, error } = await database().auth.verifyOtp({ token_hash: tokenHash, type: 'email' });
       if (error || !data.session) throw error || new Error('The card session could not be verified.');
       await requireReaderAccount();
       window.sessionStorage.setItem(SESSION_STARTED_KEY, String(Date.now()));
-      window.sessionStorage.setItem(KIOSK_ACCOUNT_KEY, JSON.stringify(account));
-      setStatus('success');
-      setMessage('Login successful. Opening your dashboard…');
-      playTone('success');
-      window.setTimeout(() => window.location.replace('/'), 450);
-    } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); playTone('error'); }
+      window.location.replace('/?reading=1');
+    } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
 
   const authenticateUid = useCallback(async (rfidUid: string) => {
     if (authenticating.current) return;
     authenticating.current = true;
-    setStatus('detected'); setMessage('Library card detected. Verifying your account…'); playTone('detected');
+    setStatus('authorizing'); setMessage('');
     try {
-      const cardId = parseKioskNfcPayload(rfidUid);
-      if (!cardId) throw new Error('This card does not contain a valid Tankobonbon Library ID.');
-      setStatus('authorizing');
-      const response = await fetch('/api/kiosk/rfid-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rfidUid: cardId }), cache: 'no-store' });
+      const response = await fetch('/api/kiosk/rfid-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rfidUid }), cache: 'no-store' });
       if (!response.headers.get('content-type')?.includes('application/json')) {
         throw new Error('Card detected, but the kiosk login service is unavailable. Please ask staff to start the kiosk server.');
       }
       const payload = await response.json() as BridgeAuthentication & { error?: string };
       if (!response.ok || !payload.tokenHash) throw new Error(payload.error || 'Card not recognized or inactive.');
       await establishSession(payload);
-    } catch (cause) { setMessage(errorMessage(cause)); setStatus('error'); playTone('error'); }
+    } catch (cause) { setMessage(errorMessage(cause)); setStatus('error'); }
     finally { authenticating.current = false; }
   }, [establishSession]);
 
@@ -120,7 +91,6 @@ export function KioskApp() {
             const cardId = parseKioskQrPayload(result.getText());
             if (!cardId) {
               setMessage('That QR code is not a Tankobonbon digital card.');
-              playTone('error');
               return;
             }
             controls?.stop();
@@ -136,7 +106,6 @@ export function KioskApp() {
         setMessage(cause instanceof DOMException && cause.name === 'NotAllowedError'
           ? 'Camera access was denied. Allow camera access and try again.'
           : errorMessage(cause));
-        playTone('error');
       }
     };
     void openCamera();
@@ -183,9 +152,9 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
       <span className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-parch/50 text-rust sm:h-28 sm:w-28"><QrCodeIcon className="h-11 w-11 sm:h-12 sm:w-12" /></span>
       <h1 className="mt-7 font-display text-3xl font-900 uppercase tracking-[.04em] sm:text-4xl">Scan to log in</h1>
       <p aria-live="polite" className="mx-auto mt-3 max-w-md text-sm leading-6 text-umber/65">Use your digital reader card QR code or your physical library card.</p>
-      {message && <p role={status === 'error' ? 'alert' : 'status'} className={`mt-5 rounded-lg border p-3 text-sm ${status === 'error' ? 'border-rust/30 bg-rust/10 text-rust' : status === 'success' ? 'border-emerald-600/30 bg-emerald-50 text-emerald-800' : 'border-gold/30 bg-parch/30 text-umber/70'}`}>{message}</p>}
-      <button type="button" onClick={startQrScan} disabled={status === 'detected' || status === 'authorizing' || status === 'success'} className="tb-button-primary tb-cut-sm mt-8 min-h-14 w-full px-6 text-base uppercase tracking-[.1em] disabled:opacity-60"><QrCodeIcon className="h-5 w-5" />{status === 'detected' || status === 'authorizing' ? 'Verifying card…' : status === 'success' ? 'Opening dashboard…' : 'Scan digital card'}</button>
-      <button type="button" onClick={() => void startPhysicalScan()} disabled={status === 'detected' || status === 'authorizing' || status === 'success'} className="tb-button-secondary tb-cut-sm mt-3 min-h-12 w-full justify-center px-5 text-sm disabled:opacity-60"><RadioIcon className="h-4 w-4" /> Use physical card reader</button>
+      {message && <p role={status === 'error' ? 'alert' : 'status'} className={`mt-5 rounded-lg border p-3 text-sm ${status === 'error' ? 'border-rust/30 bg-rust/10 text-rust' : 'border-gold/30 bg-parch/30 text-umber/70'}`}>{message}</p>}
+      <button type="button" onClick={startQrScan} disabled={status === 'authorizing'} className="tb-button-primary tb-cut-sm mt-8 min-h-14 w-full px-6 text-base uppercase tracking-[.1em] disabled:opacity-60"><QrCodeIcon className="h-5 w-5" />{status === 'authorizing' ? 'Verifying card…' : 'Scan digital card'}</button>
+      <button type="button" onClick={() => void startPhysicalScan()} disabled={status === 'authorizing'} className="tb-button-secondary tb-cut-sm mt-3 min-h-12 w-full justify-center px-5 text-sm disabled:opacity-60"><RadioIcon className="h-4 w-4" /> Use physical card reader</button>
       <p className="mt-4 text-xs leading-5 text-umber/50">No email, password, or manual card number is required.</p>
     </>}
   </section>;
