@@ -4,7 +4,6 @@ import { useGame } from '../contexts/GameContext';
 import { GuestPrompt } from '../components/GuestPrompt';
 import { OrnatePanel, SectionHeading } from '../components/OrnatePanel';
 import { usesReplacementSchema } from '../lib/replacement-library';
-import { KioskReading } from '../components/KioskReading';
 
 export function Shelf() {
   const { session, profile, logs, volumeById, giveBack, busy, saveProfile } = useGame();
@@ -17,7 +16,6 @@ export function Shelf() {
   return (
     <div className="space-y-8">
       <SectionHeading title="My shelf" meta="In-library reading" />
-      {usesReplacementSchema && profile && <KioskReading />}
       <section>
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3"><div><p className="tb-eyebrow">Current reading</p><h2 className="mt-1 font-display text-xl font-900 text-umber sm:text-2xl">Active sessions</h2></div><p className="text-xs font-700 text-umber/55">{active.length} in progress</p></div>
         {active.length === 0 ? (

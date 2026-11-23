@@ -6,16 +6,14 @@ import { LibrarySeatMap } from './LibrarySeatMap';
 
 type Seat = { seat_id: number; seat_number: number; seat_area: string; seat_status: string };
 type Active = { session_id: number; seat_id: number; borrow_date: string; session_status: string };
-type Book = { copy_id: number; book_copies: { barcode: string; books: { title: string } } };
 type Reservation = { seat_id: number; expires_at: string };
 type ReadingAccount = { membership_type: string | null; membership_status: string; membership_expires_at: string | null; remaining_minutes: number };
-type ReadingState = { seats: Seat[]; active: Active | null; books: Book[]; checked_in: boolean; waiting: boolean; staff: boolean; reservation: Reservation | null };
+type ReadingState = { seats: Seat[]; active: Active | null; checked_in: boolean; waiting: boolean; staff: boolean; reservation: Reservation | null };
 
 export function KioskReading() {
   const { profile, refresh } = useGame();
   const [seats, setSeats] = useState<Seat[]>([]);
   const [active, setActive] = useState<Active | null>(null);
-  const [books, setBooks] = useState<Book[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
   const [reservation, setReservation] = useState<Reservation | null>(null);
   const [account, setAccount] = useState<ReadingAccount | null>(null);
@@ -41,7 +39,7 @@ export function KioskReading() {
     if (result.error) throw result.error;
     if (user.error) throw user.error;
     const state = result.data as ReadingState;
-    setSeats(state.seats); setActive(state.active); setBooks(state.books);
+    setSeats(state.seats); setActive(state.active);
     setCheckedIn(state.checked_in); setWaiting(state.waiting);
     setStaff(state.staff); setLoaded(true);
     setReservation(state.reservation ?? null);
@@ -81,7 +79,6 @@ export function KioskReading() {
   };
   const available = seats.filter(seat => seat.seat_status === 'AVAILABLE');
   const chosen = seats.find(seat => seat.seat_id === selected);
-  const elapsed = active ? Math.max(0, Math.floor((now - new Date(active.borrow_date).getTime()) / 1000)) : 0;
   const holdSeconds = reservation ? Math.max(0, Math.ceil((new Date(reservation.expires_at).getTime() - now) / 1000)) : 0;
   const hasHold = !!reservation && holdSeconds > 0;
   const membershipActive = account?.membership_status === 'ACTIVE' && !!account.membership_expires_at && new Date(account.membership_expires_at).getTime() > now;
@@ -100,10 +97,6 @@ export function KioskReading() {
       <p role="status">Librarian accounts use the admin dashboard. Sign out here and use a reader account for the kiosk.</p>
     </> : <>
       {!checkedIn && loaded && <p className="rounded bg-parch/40 p-3">Please have a librarian approve your check-in before scanning a book.</p>}
-      {active && <div className="rounded border border-gold/40 p-4"><p className="font-800">Session #{active.session_id} · Seat {seats.find(seat => seat.seat_id === active.seat_id)?.seat_number}</p>
-        <p className="mt-2 font-mono text-2xl" aria-label="Elapsed reading time">{Math.floor(elapsed / 3600)}:{String(Math.floor(elapsed / 60) % 60).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}</p>
-        <ul className="mt-3 list-disc pl-5">{books.map(book => <li key={book.copy_id}>{book.book_copies.books.title} · {book.book_copies.barcode}</li>)}</ul>
-        <p className="mt-2 text-sm">Scan another book to add it without restarting your timer.</p></div>}
       <LibrarySeatMap seats={seats} selectedId={selected} ownSeatId={active?.seat_id} heldSeatId={hasHold ? reservation?.seat_id : undefined} disabled={busy || !loaded} onSelect={setSelected} />
       {loaded && seats.length === 0 && <p role="status" className="rounded bg-parch/40 p-3 text-sm">The layout is ready. Library staff need to load the 20 seat records before booking opens.</p>}
       {loaded && !active && !hasHold && seats.length > 0 && available.length === 0 && <div className="space-y-3"><p>All seats are currently occupied.</p><button className={button} disabled={busy || waiting} onClick={() => void run(async () => {
