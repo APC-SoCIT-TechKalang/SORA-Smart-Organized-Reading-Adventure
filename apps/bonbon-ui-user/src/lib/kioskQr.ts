@@ -14,3 +14,12 @@ export function parseKioskQrPayload(payload: string) {
   const cardId = normalized.slice(KIOSK_QR_PREFIX.length);
   return CARD_ID_PATTERN.test(cardId) ? cardId : null;
 }
+
+/** NFC tags may contain either the same payload as the digital-card QR or the
+ * raw card identifier. QR scans remain prefix-only so arbitrary QR codes can
+ * never be mistaken for library cards. */
+export function parseKioskNfcPayload(payload: string) {
+  const normalized = payload.trim();
+  return parseKioskQrPayload(normalized)
+    ?? (CARD_ID_PATTERN.test(normalized) ? normalized : null);
+}
