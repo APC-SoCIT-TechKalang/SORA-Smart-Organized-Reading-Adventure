@@ -9,6 +9,7 @@ export type BookMetadata = {
   collectedVolumeRange: string;
   authors: string[];
   publisher: string;
+  publicationDate: string;
   imprint: string;
   contributors: string[];
   genres: string[];
@@ -31,6 +32,7 @@ export type FormMetadata = {
   volume_number: string;
   isbn: string;
   publisher: string;
+  publication_date: string;
   imprint: string;
   format: string;
   book_type: string;
@@ -69,6 +71,16 @@ export function validIsbn(value: string) {
   return false;
 }
 
+export function catalogFailure(
+  attempts: Array<{ status: number; failed: boolean }>,
+  foundCount: number,
+) {
+  if (foundCount) return null;
+  if (attempts.some((attempt) => attempt.status === 429)) return { status: 429, error: "A catalog provider is rate-limiting requests. Wait briefly, then retry the ISBN lookup." };
+  if (attempts.length > 0 && attempts.every((attempt) => attempt.failed)) return { status: 503, error: "Catalog services are temporarily unavailable. Retry the lookup in a moment." };
+  return { status: 404, error: "No catalog metadata was found for this ISBN. You may search by title explicitly or enter the volume manually." };
+}
+
 export function isbn13(value: string) {
   const normalized = normalizeIsbn(value);
   if (normalized.length === 13) return normalized;
@@ -92,7 +104,7 @@ export function emptyBookMetadata(isbn: string): BookMetadata {
     isbn13: normalized.length === 13 ? normalized : isbn13(normalized),
     title: "", originalTitle: "", romanizedTitle: "", series: "", volume: "",
     collectedVolumeRange: "", authors: [], publisher: "", imprint: "", contributors: [],
-    genres: [], themes: [], demographic: "", ageRating: "", bookType: "", format: "Physical",
+    genres: [], themes: [], demographic: "", ageRating: "", bookType: "", format: "Physical", publicationDate: "",
     description: "", coverUrls: [],
   };
 }
@@ -130,6 +142,23 @@ function cleanUrls(values: string[]) {
   return [...new Set(values.map(value => value.replace(/^http:/, "https:")).filter(value => /^https:\/\//i.test(value)))];
 }
 
+export async function validateCoverUrl(
+  url: string,
+  request: typeof fetch = fetch,
+) {
+  if (!/^https:\/\//i.test(url)) return "";
+  try {
+    const response = await request(url, {
+      method: "GET", headers: { Range: "bytes=0-1024" }, redirect: "follow",
+      signal: AbortSignal.timeout(5000), cache: "no-store",
+    });
+    const type = response.headers.get("content-type") || "";
+    const valid = response.ok && type.toLowerCase().startsWith("image/");
+    await response.body?.cancel();
+    return valid ? response.url || url : "";
+  } catch { return ""; }
+}
+
 export function googleAdapter(info: RecordValue, requestedIsbn: string): BookMetadata {
   const result = emptyBookMetadata(requestedIsbn);
   const title = String(info.title ?? "");
@@ -145,6 +174,7 @@ export function googleAdapter(info: RecordValue, requestedIsbn: string): BookMet
   result.collectedVolumeRange = parts.collectedVolumeRange;
   result.authors = strings(info.authors);
   result.publisher = String(info.publisher ?? "");
+  result.publicationDate = String(info.publishedDate ?? "");
   result.genres = cleanLabels(strings(info.categories));
   result.description = cleanHtml(info.description);
   result.coverUrls = cleanUrls([images.extraLarge, images.large, images.medium, images.thumbnail, images.smallThumbnail].filter(Boolean));
@@ -167,6 +197,7 @@ export function openLibraryAdapter(info: RecordValue, requestedIsbn: string, des
   result.collectedVolumeRange = parts.collectedVolumeRange;
   result.authors = strings(info.author_name);
   result.publisher = strings(info.publisher)[0] ?? "";
+  result.publicationDate = strings(info.publish_date)[0] ?? String(info.first_publish_year ?? "");
   result.genres = cleanLabels(strings(info.subject));
   result.description = cleanHtml(description);
   result.coverUrls = cleanUrls([
@@ -239,7 +270,7 @@ function normalizeDemographic(value: string) {
 
 export function mergeMetadata(primary: BookMetadata, ...fallbacks: BookMetadata[]) {
   const result: BookMetadata = { ...primary, authors: [...primary.authors], contributors: [...primary.contributors], genres: [...primary.genres], themes: [...primary.themes], coverUrls: [...primary.coverUrls] };
-  const scalarKeys: Array<keyof BookMetadata> = ["isbn10", "isbn13", "title", "originalTitle", "romanizedTitle", "series", "volume", "collectedVolumeRange", "publisher", "imprint", "demographic", "ageRating", "bookType", "format", "description"];
+  const scalarKeys: Array<keyof BookMetadata> = ["isbn10", "isbn13", "title", "originalTitle", "romanizedTitle", "series", "volume", "collectedVolumeRange", "publisher", "publicationDate", "imprint", "demographic", "ageRating", "bookType", "format", "description"];
   for (const fallback of fallbacks) {
     for (const key of scalarKeys) if (!result[key] && fallback[key]) (result[key] as string) = fallback[key] as string;
     result.authors = cleanLabels([...result.authors, ...fallback.authors]);
@@ -249,6 +280,29 @@ export function mergeMetadata(primary: BookMetadata, ...fallbacks: BookMetadata[
     result.coverUrls = cleanUrls([...result.coverUrls, ...fallback.coverUrls]);
   }
   result.bookType ||= inferBookType(result) || "Other";
+  return result;
+}
+
+// Manga services do not identify a physical ISBN edition. Only copy
+// classification fields after an exact normalized-title match; bibliographic
+// facts and covers remain owned by Google Books/Open Library.
+export function mergeMangaEnrichment(primary: BookMetadata, ...matches: BookMetadata[]) {
+  const result: BookMetadata = {
+    ...primary,
+    authors: [...primary.authors], contributors: [...primary.contributors],
+    genres: [...primary.genres], themes: [...primary.themes], coverUrls: [...primary.coverUrls],
+  };
+  for (const match of matches) {
+    result.originalTitle ||= match.originalTitle;
+    result.romanizedTitle ||= match.romanizedTitle;
+    result.series ||= match.series;
+    result.volume ||= match.volume;
+    result.demographic ||= match.demographic;
+    result.bookType ||= match.bookType;
+    result.genres = cleanLabels([...result.genres, ...match.genres]);
+    result.themes = cleanLabels([...result.themes, ...match.themes]);
+    result.contributors = cleanLabels([...result.contributors, ...match.contributors]);
+  }
   return result;
 }
 
@@ -292,6 +346,7 @@ export function toFormMetadata(metadata: BookMetadata): FormMetadata {
     volume_number: metadata.volume,
     isbn: metadata.isbn13,
     publisher: metadata.publisher,
+    publication_date: metadata.publicationDate,
     imprint: metadata.imprint,
     format: metadata.format || "Physical",
     book_type: metadata.bookType || "Other",

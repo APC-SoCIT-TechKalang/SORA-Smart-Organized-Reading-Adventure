@@ -4,6 +4,7 @@ import {
   type BookMetadata,
   type FormMetadata,
   aniListAdapter,
+  catalogFailure,
   cleanLabels,
   emptyBookMetadata,
   googleAdapter,
@@ -11,6 +12,7 @@ import {
   jikanAdapter,
   likelyManga,
   mangaSearchTitle,
+  mergeMangaEnrichment,
   mergeMetadata,
   normalizeIsbn,
   openLibraryAdapter,
@@ -18,11 +20,12 @@ import {
   titleMatches,
   toFormMetadata,
   validIsbn,
+  validateCoverUrl,
 } from "./metadata";
 
 export const runtime = "nodejs";
 
-type SourceResult = { metadata: BookMetadata | null; source: string };
+type SourceResult = { metadata: BookMetadata | null; source: string; status: number; rejectedReason?: string };
 type TitleCandidate = {
   id: string;
   source: string;
@@ -33,23 +36,42 @@ type TitleCandidate = {
   coverCandidates: string[];
 };
 type GeminiEnrichment = {
-  title: string;
-  original_title: string;
-  romanized_title: string;
-  author: string;
-  contributors: string;
-  series_name: string;
-  volume_number: string;
-  publisher: string;
-  imprint: string;
   age_rating: string;
-  book_type: string;
   demographic: string;
   themes: string;
   genres: string;
   description: string;
   confidence: "low" | "medium" | "high";
 };
+
+const formFieldNames: Record<string, string> = {
+  title: "title", author: "author", publisher: "publisher", imprint: "imprint",
+  series_name: "series", volume_number: "volume", age_rating: "age rating",
+  genres: "genres", themes: "themes", demographic: "demographic",
+  description: "synopsis", cover_image_url: "cover",
+};
+
+async function validatedCoverUrls(urls: string[]) {
+  const valid: string[] = [];
+  for (const url of [...new Set(urls)].slice(0, 8)) {
+    const checked = await validateCoverUrl(url);
+    if (checked) valid.push(checked);
+    else console.info("Catalog cover rejected", { url, reason: "unavailable or not an image" });
+  }
+  return valid;
+}
+
+function sourceFields(primary: BookMetadata, secondary: BookMetadata | undefined, primaryName: string, secondaryName: string) {
+  const has = (metadata: BookMetadata | undefined, key: keyof BookMetadata) => Boolean(metadata?.[key] && (Array.isArray(metadata[key]) ? (metadata[key] as string[]).length : String(metadata[key]).trim()));
+  const fieldMap: Partial<Record<keyof FormMetadata, string>> = {};
+  const mappings: Array<[keyof FormMetadata, keyof BookMetadata]> = [
+    ["title", "title"], ["author", "authors"], ["publisher", "publisher"], ["publication_date", "publicationDate"], ["imprint", "imprint"],
+    ["series_name", "series"], ["volume_number", "volume"], ["description", "description"],
+    ["cover_image_url", "coverUrls"], ["genres", "genres"],
+  ];
+  for (const [formKey, bookKey] of mappings) fieldMap[formKey] = has(primary, bookKey) ? primaryName : has(secondary, bookKey) ? secondaryName : "";
+  return fieldMap;
+}
 
 const openLibraryHeaders = {
   "User-Agent":
@@ -66,7 +88,7 @@ async function googleBooks(isbn: string): Promise<SourceResult> {
     signal: AbortSignal.timeout(8000),
     next: { revalidate: 86400 },
   });
-  if (!response.ok) return { metadata: null, source: "Google Books" };
+  if (!response.ok) return { metadata: null, source: "Google Books", status: response.status, rejectedReason: `HTTP ${response.status}` };
   const result = (await response.json()) as {
     items?: Array<{ volumeInfo?: Record<string, unknown> }>;
   };
@@ -82,7 +104,8 @@ async function googleBooks(isbn: string): Promise<SourceResult> {
     });
   return {
     metadata: info ? googleAdapter(info, isbn) : null,
-    source: "Google Books",
+    source: "Google Books", status: response.status,
+    rejectedReason: info ? undefined : "No exact ISBN match",
   };
 }
 
@@ -91,7 +114,7 @@ async function openLibrary(isbn: string): Promise<SourceResult> {
   url.searchParams.set("isbn", isbn);
   url.searchParams.set(
     "fields",
-    "key,title,subtitle,author_name,publisher,subject,cover_i,isbn",
+    "key,title,subtitle,author_name,publisher,publish_date,first_publish_year,subject,cover_i,isbn",
   );
   url.searchParams.set("limit", "5");
   const response = await fetch(url, {
@@ -99,7 +122,7 @@ async function openLibrary(isbn: string): Promise<SourceResult> {
     signal: AbortSignal.timeout(8000),
     next: { revalidate: 86400 },
   });
-  if (!response.ok) return { metadata: null, source: "Open Library" };
+  if (!response.ok) return { metadata: null, source: "Open Library", status: response.status, rejectedReason: `HTTP ${response.status}` };
   const result = (await response.json()) as {
     docs?: Array<Record<string, unknown>>;
   };
@@ -109,7 +132,7 @@ async function openLibrary(isbn: string): Promise<SourceResult> {
       : [];
     return identifiers.some((identifier) => sameIsbn(identifier, isbn));
   });
-  if (!info) return { metadata: null, source: "Open Library" };
+  if (!info) return { metadata: null, source: "Open Library", status: response.status, rejectedReason: "No exact ISBN match" };
   let description = "";
   if (typeof info.key === "string" && info.key.startsWith("/works/")) {
     try {
@@ -136,7 +159,7 @@ async function openLibrary(isbn: string): Promise<SourceResult> {
   }
   return {
     metadata: openLibraryAdapter(info, isbn, description),
-    source: "Open Library",
+    source: "Open Library", status: response.status,
   };
 }
 
@@ -166,7 +189,7 @@ async function aniList(
     body: JSON.stringify({ query, variables: { search } }),
     signal: AbortSignal.timeout(8000),
   });
-  if (!response.ok) return { metadata: null, source: "AniList" };
+  if (!response.ok) return { metadata: null, source: "AniList", status: response.status, rejectedReason: `HTTP ${response.status}` };
   const result = (await response.json()) as {
     data?: { Page?: { media?: Array<Record<string, unknown>> } };
   };
@@ -185,7 +208,8 @@ async function aniList(
   });
   return {
     metadata: media ? aniListAdapter(media, base) : null,
-    source: "AniList",
+    source: "AniList", status: response.status,
+    rejectedReason: media ? undefined : "Normalized title did not match",
   };
 }
 
@@ -201,7 +225,7 @@ async function jikan(
     signal: AbortSignal.timeout(8000),
     next: { revalidate: 604800 },
   });
-  if (!response.ok) return { metadata: null, source: "Jikan" };
+  if (!response.ok) return { metadata: null, source: "Jikan", status: response.status, rejectedReason: `HTTP ${response.status}` };
   const result = (await response.json()) as {
     data?: Array<Record<string, unknown>>;
   };
@@ -219,7 +243,8 @@ async function jikan(
   });
   return {
     metadata: manga ? jikanAdapter(manga, base) : null,
-    source: "Jikan",
+    source: "Jikan", status: response.status,
+    rejectedReason: manga ? undefined : "Normalized title did not match",
   };
 }
 
@@ -319,17 +344,7 @@ function parseEnrichment(value: unknown): GeminiEnrichment | null {
   const confidence = String(item.confidence ?? "low");
   return ["low", "medium", "high"].includes(confidence)
     ? {
-        title: stringValue("title"),
-        original_title: stringValue("original_title"),
-        romanized_title: stringValue("romanized_title"),
-        author: stringValue("author"),
-        contributors: stringValue("contributors"),
-        series_name: stringValue("series_name"),
-        volume_number: stringValue("volume_number"),
-        publisher: stringValue("publisher"),
-        imprint: stringValue("imprint"),
         age_rating: stringValue("age_rating"),
-        book_type: stringValue("book_type"),
         demographic: stringValue("demographic"),
         themes: stringValue("themes"),
         genres: stringValue("genres"),
@@ -362,7 +377,7 @@ async function gemini(
     age_rating: metadata.age_rating,
     themes: metadata.themes,
   };
-  const prompt = `Normalize this ISBN-sourced library record. Return every requested field in English or an official Latin-script form, except original_title which must preserve the authoritative native title. Translate a source description faithfully into concise English; do not invent plot details. Preserve proper names and use official English publisher/imprint names when supported. Only fill missing or non-English values when the evidence or a strong, recognizable catalog match supports them; otherwise return an empty string. Genres and themes must be short English labels and exclude awards, identifiers, formats, demographics, dates, and marketing phrases. Return JSON only. book_type: Manga, Light Novel, Novel, Comic, or Other. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty.\n${JSON.stringify(evidence)}`;
+  const prompt = `Suggest only missing library classification fields from this trusted ISBN evidence. Never create or change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. The synopsis must be concise, formal, factual, and contain no slang or unsupported plot claims. Leave unsupported fields empty. Return JSON only. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty.\n${JSON.stringify(evidence)}`;
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -380,17 +395,7 @@ async function gemini(
           responseSchema: {
             type: "OBJECT",
             properties: {
-              title: { type: "STRING" },
-              original_title: { type: "STRING" },
-              romanized_title: { type: "STRING" },
-              author: { type: "STRING" },
-              contributors: { type: "STRING" },
-              series_name: { type: "STRING" },
-              volume_number: { type: "STRING" },
-              publisher: { type: "STRING" },
-              imprint: { type: "STRING" },
               age_rating: { type: "STRING" },
-              book_type: { type: "STRING" },
               demographic: { type: "STRING" },
               themes: { type: "STRING" },
               genres: { type: "STRING" },
@@ -398,17 +403,7 @@ async function gemini(
               confidence: { type: "STRING", enum: ["low", "medium", "high"] },
             },
             required: [
-              "title",
-              "original_title",
-              "romanized_title",
-              "author",
-              "contributors",
-              "series_name",
-              "volume_number",
-              "publisher",
-              "imprint",
               "age_rating",
-              "book_type",
               "demographic",
               "themes",
               "genres",
@@ -462,7 +457,7 @@ async function openRouter(
     age_rating: metadata.age_rating,
     themes: metadata.themes,
   };
-  const prompt = `Normalize this ISBN-sourced library record. Return every requested field in English or an official Latin-script form, except original_title which preserves the authoritative native title. Translate the supplied description faithfully into concise English without inventing details. Preserve proper names and use official English publisher/imprint names when supported. Use learned catalog knowledge only for strong, recognizable matches. Leave unsupported fields empty rather than guessing. Genres and themes must be short English labels and exclude identifiers, awards, formats, demographics, dates, and marketing text. Return JSON only with exactly the schema fields. book_type: Manga, Light Novel, Novel, Comic, or Other. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Evidence:\n${JSON.stringify(evidence)}`;
+  const prompt = `Suggest only missing library classification fields from this trusted ISBN evidence. Never create or change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. The synopsis must be concise, formal, factual, and contain no slang or unsupported plot claims. Leave unsupported fields empty. Genres and themes must be short labels. Return JSON only with exactly the schema fields. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Evidence:\n${JSON.stringify(evidence)}`;
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
@@ -471,17 +466,7 @@ async function openRouter(
     "X-Title": "SORA Admin catalog matcher",
   };
   const metadataProperties = {
-    title: { type: "string" },
-    original_title: { type: "string" },
-    romanized_title: { type: "string" },
-    author: { type: "string" },
-    contributors: { type: "string" },
-    series_name: { type: "string" },
-    volume_number: { type: "string" },
-    publisher: { type: "string" },
-    imprint: { type: "string" },
     age_rating: { type: "string" },
-    book_type: { type: "string" },
     demographic: { type: "string" },
     themes: { type: "string" },
     genres: { type: "string" },
@@ -579,31 +564,16 @@ async function openRouter(
   }
 }
 
-function containsNonLatinScript(value: string) {
-  return /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\u0400-\u04ff]/u.test(value);
-}
-
-function applyGemini(metadata: FormMetadata, enrichment: GeminiEnrichment) {
-  if (!metadata.title || containsNonLatinScript(metadata.title)) metadata.title = enrichment.title.trim() || metadata.title;
-  metadata.original_title ||= enrichment.original_title.trim();
-  if (!metadata.romanized_title || containsNonLatinScript(metadata.romanized_title)) metadata.romanized_title = enrichment.romanized_title.trim() || metadata.romanized_title;
-  if (!metadata.author || containsNonLatinScript(metadata.author)) metadata.author = enrichment.author.trim() || metadata.author;
-  if (!metadata.contributors || containsNonLatinScript(metadata.contributors)) metadata.contributors = enrichment.contributors.trim() || metadata.contributors;
-  if (!metadata.series_name || containsNonLatinScript(metadata.series_name)) metadata.series_name = enrichment.series_name.trim() || metadata.series_name;
-  metadata.volume_number ||= enrichment.volume_number.trim();
-  if (!metadata.publisher || containsNonLatinScript(metadata.publisher)) metadata.publisher = enrichment.publisher.trim() || metadata.publisher;
-  if (!metadata.imprint || containsNonLatinScript(metadata.imprint)) metadata.imprint = enrichment.imprint.trim() || metadata.imprint;
-  metadata.age_rating ||= enrichment.age_rating.trim();
-  metadata.book_type =
-    metadata.book_type === "Other"
-      ? enrichment.book_type.trim() || metadata.book_type
-      : metadata.book_type;
-  metadata.demographic ||= enrichment.demographic.trim();
+function applyAiSuggestions(metadata: FormMetadata, enrichment: GeminiEnrichment) {
+  const applied: Array<keyof FormMetadata> = [];
+  if (!metadata.age_rating && enrichment.age_rating.trim()) { metadata.age_rating = enrichment.age_rating.trim(); applied.push("age_rating"); }
+  if (!metadata.demographic && enrichment.demographic.trim()) { metadata.demographic = enrichment.demographic.trim(); applied.push("demographic"); }
   const englishThemes = cleanLabels(enrichment.themes.split(",")).join(", ");
   const englishGenres = cleanLabels(enrichment.genres.split(",")).join(", ");
-  if (englishThemes) metadata.themes = englishThemes;
-  if (englishGenres) metadata.genres = englishGenres;
-  if (!metadata.description || containsNonLatinScript(metadata.description)) metadata.description = enrichment.description.trim() || metadata.description;
+  if (!metadata.themes && englishThemes) { metadata.themes = englishThemes; applied.push("themes"); }
+  if (!metadata.genres && englishGenres) { metadata.genres = englishGenres; applied.push("genres"); }
+  if (!metadata.description && enrichment.description.trim()) { metadata.description = enrichment.description.trim(); applied.push("description"); }
+  return applied;
 }
 
 export async function POST(request: NextRequest) {
@@ -641,6 +611,7 @@ export async function POST(request: NextRequest) {
       isbn?: string;
       action?: string;
       query?: string;
+      useAi?: boolean;
     };
     const enteredIsbn = normalizeIsbn(body.isbn ?? "");
     if (!validIsbn(enteredIsbn))
@@ -680,34 +651,15 @@ export async function POST(request: NextRequest) {
       let candidates = results.flatMap((result) =>
         result.status === "fulfilled" ? result.value : [],
       );
-      let normalizedQuery = query;
-      if (!candidates.length && process.env.OPENROUTER_API_KEY) {
-        const hint = emptyBookMetadata(canonicalIsbn);
-        hint.title = query;
-        const normalized = await openRouter(toFormMetadata(hint));
-        if (
-          normalized?.series_name &&
-          normalized.series_name.toLowerCase() !== query.toLowerCase()
-        ) {
-          normalizedQuery = normalized.series_name;
-          results = await Promise.allSettled([
-            aniListCandidates(normalizedQuery, canonicalIsbn),
-            jikanCandidates(normalizedQuery, canonicalIsbn),
-          ]);
-          candidates = results.flatMap((result) =>
-            result.status === "fulfilled" ? result.value : [],
-          );
-        }
-      }
       return NextResponse.json({
         candidates,
-        normalizedQuery:
-          normalizedQuery !== query ? normalizedQuery : undefined,
       });
     }
 
-    const { data: existing, error: existingError } = replacementSchema
-      ? { data: null, error: null }
+    const existingQuery = replacementSchema
+      ? await replacementClient.from("books")
+          .select("book_id,title,original_title,romanized_title,isbn,publisher,publication_date,imprint,book_type,age_rating,book_description,coverimage_url,book_genre,authors(author_firstname,author_lastname)")
+          .eq("isbn", canonicalIsbn).maybeSingle()
       : await client
           .from("books")
           .select(
@@ -715,12 +667,22 @@ export async function POST(request: NextRequest) {
           )
           .eq("isbn", canonicalIsbn)
           .maybeSingle();
+    const { data: rawExisting, error: existingError } = existingQuery;
+    const existing = rawExisting as Record<string, any> | null;
     if (existingError) throw existingError;
     if (existing) {
       const genres = Array.isArray(existing.book_genres)
-        ? existing.book_genres.map((item) => item.genre).join(", ")
-        : "";
-      const metadata = { ...existing, genres, book_genres: undefined };
+        ? existing.book_genres.map((item: { genre: string }) => item.genre).join(", ")
+        : String((existing as { book_genre?: string }).book_genre ?? "");
+      const authorRelation = existing.authors as { author_firstname?: string; author_lastname?: string } | Array<{ author_firstname?: string; author_lastname?: string }> | null;
+      const replacementAuthor = Array.isArray(authorRelation) ? authorRelation[0] : authorRelation;
+      const metadata = replacementSchema ? {
+        ...toFormMetadata(emptyBookMetadata(canonicalIsbn)), ...existing,
+        author: replacementAuthor ? `${replacementAuthor.author_firstname ?? ""} ${replacementAuthor.author_lastname ?? ""}`.trim() : "",
+        description: (existing as { book_description?: string }).book_description ?? "",
+        cover_image_url: (existing as { coverimage_url?: string }).coverimage_url ?? "",
+        genres,
+      } : { ...existing, genres, book_genres: undefined };
       return NextResponse.json({
         source: "catalog",
         existingBookId: existing.book_id,
@@ -728,8 +690,9 @@ export async function POST(request: NextRequest) {
           "This ISBN already exists. Saving will add a physical copy to the existing title.",
         ],
         metadata,
-        coverCandidates: existing.cover_image_url
-          ? [existing.cover_image_url]
+        sources: ["Library catalog"], fieldSources: {}, aiFields: [], reviewFields: [], usable: true,
+        coverCandidates: (existing.cover_image_url || existing.coverimage_url)
+          ? [existing.cover_image_url || existing.coverimage_url]
           : [],
       });
     }
@@ -746,30 +709,28 @@ export async function POST(request: NextRequest) {
         );
     }
 
-    const bibliographicResults = await Promise.allSettled([
-      googleBooks(canonicalIsbn),
-      openLibrary(canonicalIsbn),
-    ]);
-    const found = bibliographicResults.flatMap((result) =>
-      result.status === "fulfilled" && result.value.metadata
-        ? [result.value]
-        : [],
-    );
-    if (!found.length)
-      return NextResponse.json({
-        source: "isbn",
-        existingBookId: null,
-        warnings: [
-          "No edition metadata was found for this ISBN. Search by title below or enter the volume manually.",
-        ],
-        metadata: toFormMetadata(emptyBookMetadata(canonicalIsbn)),
-        coverCandidates: [],
-      });
+    // Google Books is authoritative first; Open Library fills only blanks.
+    const found: SourceResult[] = [];
+    const attempts: Array<{ source: string; status: number; failed: boolean }> = [];
+    for (const lookup of [googleBooks, openLibrary]) {
+      try {
+        const result = await lookup(canonicalIsbn);
+        attempts.push({ source: result.source, status: result.status, failed: result.status >= 400 });
+        console.info("Catalog source result", { isbn: canonicalIsbn, source: result.source, status: result.status, accepted: Boolean(result.metadata), reason: result.rejectedReason });
+        if (result.metadata) found.push(result);
+      } catch (error) {
+        attempts.push({ source: lookup.name, status: 0, failed: true });
+        console.error("Catalog source failure", { isbn: canonicalIsbn, source: lookup.name, reason: error instanceof Error ? error.message : "request failed" });
+      }
+    }
+    const failure = catalogFailure(attempts, found.length);
+    if (failure) return NextResponse.json({ error: failure.error }, { status: failure.status });
     const base = mergeMetadata(
       found[0].metadata!,
       ...found.slice(1).map((result) => result.metadata!),
     );
     const sources = found.map((result) => result.source);
+    const fieldSources = sourceFields(found[0].metadata!, found[1]?.metadata ?? undefined, found[0].source, found[1]?.source ?? "");
 
     let normalized = base;
     if (likelyManga(base)) {
@@ -783,11 +744,16 @@ export async function POST(request: NextRequest) {
           ? [result.value]
           : [],
       );
-      normalized = mergeMetadata(
+      normalized = mergeMangaEnrichment(
         base,
         ...enrichments.map((result) => result.metadata!),
       );
       sources.push(...enrichments.map((result) => result.source));
+      for (const enrichment of enrichments) {
+        for (const key of ["original_title", "romanized_title", "series_name", "volume_number", "demographic", "themes", "genres", "contributors"] as Array<keyof FormMetadata>) {
+          if (!fieldSources[key]) fieldSources[key] = enrichment.source;
+        }
+      }
     }
 
     const metadata = toFormMetadata(normalized);
@@ -838,27 +804,15 @@ export async function POST(request: NextRequest) {
     }
 
     let aiConfidence = "";
-    const needsAiCleanup =
-      !metadata.title ||
-      !metadata.author ||
-      !metadata.contributors ||
-      !metadata.series_name ||
-      !metadata.volume_number ||
-      !metadata.publisher ||
-      !metadata.imprint ||
-      !metadata.genres ||
-      !metadata.themes ||
-      !metadata.demographic ||
-      !metadata.age_rating ||
-      !metadata.description ||
-      containsNonLatinScript(`${metadata.title} ${metadata.romanized_title} ${metadata.author} ${metadata.contributors} ${metadata.series_name} ${metadata.publisher} ${metadata.imprint} ${metadata.genres} ${metadata.themes} ${metadata.description}`) ||
-      metadata.book_type === "Other";
-    if (needsAiCleanup) {
+    let aiFields: Array<keyof FormMetadata> = [];
+    const needsAiCleanup = !metadata.genres || !metadata.themes || !metadata.demographic || !metadata.age_rating || !metadata.description;
+    if (needsAiCleanup && body.useAi === true) {
       try {
         const enrichment =
           (await openRouter(metadata)) ?? (await gemini(metadata));
         if (enrichment) {
-          applyGemini(metadata, enrichment);
+          aiFields = applyAiSuggestions(metadata, enrichment);
+          for (const key of aiFields) fieldSources[key] = "AI suggestion — review required";
           aiConfidence = enrichment.confidence;
         }
       } catch {
@@ -903,12 +857,19 @@ export async function POST(request: NextRequest) {
       warnings.push(
         `Still unavailable from reliable sources: ${missing.join(", ")}.`,
       );
+    const coverCandidates = await validatedCoverUrls(normalized.coverUrls);
+    metadata.cover_image_url = coverCandidates[0] ?? "";
+    fieldSources.cover_image_url = coverCandidates.length ? (fieldSources.cover_image_url || sources[0]) : "";
+    if (!metadata.title || !metadata.author)
+      return NextResponse.json({ error: "The sources returned incomplete metadata without a reliable title and author. Search by title explicitly or enter the record manually." }, { status: 422 });
     return NextResponse.json({
       source: "isbn",
       existingBookId: null,
       warnings,
       metadata,
-      coverCandidates: normalized.coverUrls,
+      sources: [...new Set(sources)], fieldSources, aiFields,
+      reviewFields: missing, usable: Boolean(metadata.title && metadata.author),
+      coverCandidates,
     });
   } catch (error) {
     // Keep database/provider details in server logs. They can expose implementation

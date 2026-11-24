@@ -8,6 +8,9 @@ import {
   Plus,
   ScanLine,
   Search,
+  RefreshCw,
+  RotateCcw,
+  Sparkles,
   X,
 } from "lucide-react";
 import { database, usesReplacementSchema } from "../../lib/supabase";
@@ -31,6 +34,7 @@ const initial = {
   volume_number: "",
   isbn: "",
   publisher: "",
+  publication_date: "",
   imprint: "",
   format: "Physical",
   book_type: "Manga",
@@ -43,6 +47,7 @@ const initial = {
   barcode: "",
   shelf: "",
   condition_notes: "",
+  acquisition_date: new Date().toISOString().slice(0, 10),
 };
 type FormKey = keyof typeof initial;
 type LookupResponse = {
@@ -51,6 +56,11 @@ type LookupResponse = {
   warnings: string[];
   metadata: Partial<typeof initial>;
   coverCandidates?: string[];
+  sources?: string[];
+  fieldSources?: Partial<Record<FormKey, string>>;
+  aiFields?: FormKey[];
+  reviewFields?: string[];
+  usable?: boolean;
   error?: string;
 };
 type TitleCandidate = {
@@ -76,6 +86,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
   const [lookingUp, setLookingUp] = useState(false);
   const [lookupMessage, setLookupMessage] = useState("");
   const [lookupWarnings, setLookupWarnings] = useState<string[]>([]);
+  const [lookupSources, setLookupSources] = useState<string[]>([]);
+  const [fieldSources, setFieldSources] = useState<Partial<Record<FormKey, string>>>({});
+  const [aiFields, setAiFields] = useState<FormKey[]>([]);
+  const [reviewFields, setReviewFields] = useState<string[]>([]);
+  const [titleSearchAvailable, setTitleSearchAvailable] = useState(false);
   const [lookupSource, setLookupSource] = useState<"catalog" | "isbn" | null>(
     null,
   );
@@ -104,9 +119,22 @@ export function CompleteAddVolume({ data, close, run }: Props) {
   const update = (key: FormKey, value: string) => {
     manuallyEdited.current.add(key);
     autoFilled.current.delete(key);
+    setAiFields((current) => current.filter((item) => item !== key));
+    setFieldSources((current) => ({ ...current, [key]: "Manual edit" }));
     setForm((current) => ({ ...current, [key]: value }));
   };
+  const normalizeIsbn = (value: string) => value.toUpperCase().replace(/[^0-9X]/g, "");
+  const validIsbn = (value: string) => {
+    const normalized = normalizeIsbn(value);
+    if (/^97[89]\d{10}$/.test(normalized)) {
+      const sum = normalized.slice(0, 12).split("").reduce((total, digit, index) => total + Number(digit) * (index % 2 ? 3 : 1), 0);
+      return (10 - (sum % 10)) % 10 === Number(normalized[12]);
+    }
+    if (/^\d{9}[\dX]$/.test(normalized)) return normalized.split("").reduce((total, digit, index) => total + (digit === "X" ? 10 : Number(digit)) * (10 - index), 0) % 11 === 0;
+    return false;
+  };
   const updateIsbn = (value: string) => {
+    value = normalizeIsbn(value);
     lookupVersion.current++;
     lookupAbort.current?.abort();
     setLookingUp(false);
@@ -126,6 +154,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     setLookupSource(null);
     setLookupMessage("");
     setLookupWarnings([]);
+    setLookupSources([]); setFieldSources({}); setAiFields([]); setReviewFields([]); setTitleSearchAvailable(false);
   };
   const clean = (value: string) => value.trim() || null;
   const input =
@@ -144,6 +173,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       placeholder: "Romanized title",
     },
     { key: "publisher", label: "Publisher", placeholder: "Publisher" },
+    { key: "publication_date", label: "Publication date", placeholder: "YYYY-MM-DD or year" },
     { key: "imprint", label: "Imprint", placeholder: "Imprint" },
     {
       key: "contributors",
@@ -160,8 +190,13 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     { key: "age_rating", label: "Age rating", placeholder: "e.g. Teen / 13+" },
   ];
 
-  const lookupIsbn = async () => {
+  const lookupIsbn = async (useAi = false) => {
     if (lookingUp) return;
+    if (!validIsbn(form.isbn)) {
+      setLookupMessage("Enter a valid ISBN-10 or ISBN-13. Check the digits and checksum.");
+      setLookupSource(null);
+      return;
+    }
     const version = ++lookupVersion.current;
     lookupAbort.current?.abort();
     const controller = new AbortController();
@@ -182,7 +217,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ isbn: form.isbn }),
+        body: JSON.stringify({ isbn: form.isbn, useAi }),
         signal: controller.signal,
       });
       const result = (await response.json()) as LookupResponse;
@@ -215,22 +250,28 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       setExistingBookId(result.existingBookId);
       setLookupSource(result.source);
       setLookupWarnings(result.warnings || []);
+      setLookupSources(result.sources || []);
+      setFieldSources(result.fieldSources || {});
+      setAiFields(result.aiFields || []);
+      setReviewFields(result.reviewFields || []);
+      setTitleSearchAvailable(false);
       setTitleQuery(
         String(result.metadata.series_name || result.metadata.title || ""),
       );
       setLookupMessage(
         result.source === "catalog"
           ? "Existing title found. Add the barcode for this new physical copy."
-          : "Metadata loaded. Review all suggested fields before saving.",
+          : `Found metadata from ${(result.sources || []).join(" and ") || "trusted catalog sources"}.`,
       );
     } catch (error) {
       if (
         version === lookupVersion.current &&
         !(error instanceof DOMException && error.name === "AbortError")
-      )
-        setLookupMessage(
-          error instanceof Error ? error.message : "The ISBN lookup failed.",
-        );
+      ) {
+        const message = error instanceof Error ? error.message : "The ISBN lookup failed.";
+        setLookupMessage(message);
+        setTitleSearchAvailable(/No catalog metadata|incomplete metadata/i.test(message));
+      }
     } finally {
       if (version === lookupVersion.current) {
         setLookingUp(false);
@@ -238,6 +279,38 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       }
     }
   };
+
+  const resetLookup = () => {
+    updateIsbn("");
+    manuallyEdited.current.clear();
+    setForm(initial);
+    setCoverFile(null);
+  };
+
+  const clearAiSuggestions = () => {
+    setForm((current) => {
+      const next = { ...current };
+      for (const key of aiFields) if (!manuallyEdited.current.has(key)) next[key] = initial[key];
+      return next;
+    });
+    setFieldSources((current) => {
+      const next = { ...current };
+      for (const key of aiFields) delete next[key];
+      return next;
+    });
+    setAiFields([]);
+  };
+
+  const sourceBadge = (key: FormKey) => fieldSources[key] ? (
+    <span className={`ml-2 inline-block rounded-full px-2 py-0.5 text-[8px] normal-case tracking-normal ${aiFields.includes(key) ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>{fieldSources[key]}</span>
+  ) : null;
+  const authorHasFirstAndLast = form.author.trim().split(/\s+/).length >= 2;
+  const numericAge = Number.parseInt(form.age_rating, 10);
+  const formValid = Boolean(
+    form.title.trim() && authorHasFirstAndLast && validIsbn(form.isbn) &&
+    form.barcode.trim() && form.shelf && Number.isInteger(numericAge) && numericAge >= 0 &&
+    (!form.cover_image_url || !coverFailed || Boolean(coverFile)),
+  );
 
   const searchTitles = async () => {
     if (searchingTitles || titleQuery.trim().length < 2) return;
@@ -380,7 +453,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             ),
           };
         let uploadedPath = "";
-        let coverUrl = clean(form.cover_image_url);
+        let coverUrl = coverFailed && !coverFile ? null : clean(form.cover_image_url);
         if (coverFile && (!existingBookId || usesReplacementSchema)) {
           const extension = (coverFile.name.split(".").pop() || "jpg")
             .toLowerCase()
@@ -407,9 +480,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
           ),
         ];
         if (usesReplacementSchema) {
-          const authorParts = form.author.trim().split(/\s+/).filter(Boolean);
+          const creatorNames = form.author.split(",").map((name) => name.trim()).filter(Boolean);
+          const authorParts = (creatorNames[0] ?? "").split(/\s+/).filter(Boolean);
           const authorFirst = authorParts.shift() ?? "";
           const authorLast = authorParts.join(" ");
+          const contributorNames = [form.contributors.trim(), ...creatorNames.slice(1)].filter(Boolean).join(", ");
           const ageRating = Number.parseInt(form.age_rating, 10);
           if (!authorFirst || !authorLast)
             return {
@@ -434,6 +509,15 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             p_shelf_location: form.shelf ? `Shelf A${form.shelf}` : null,
             p_barcode: clean(form.barcode), p_condition_notes: clean(form.condition_notes),
             p_cover_image_url: coverUrl,
+            p_metadata: {
+              original_title: clean(form.original_title), romanized_title: clean(form.romanized_title),
+              contributors: clean(contributorNames), series_name: clean(form.series_name), volume_number: clean(form.volume_number),
+              publisher: clean(form.publisher), publication_date: clean(form.publication_date), imprint: clean(form.imprint), format: form.format,
+              demographic: clean(form.demographic), themes: clean(form.themes), description: clean(form.description),
+              genres, metadata_sources: lookupSources, field_sources: fieldSources,
+            },
+            p_needs_review: reviewFields.length > 0 || aiFields.length > 0,
+            p_acquisition_date: form.acquisition_date,
           });
           if (created.error) return { error: created.error };
           return { error: null };
@@ -552,7 +636,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </label>
               <button
                 type="button"
-                disabled={lookingUp || !form.isbn.trim()}
+                disabled={lookingUp || !validIsbn(form.isbn)}
                 onClick={() => void lookupIsbn()}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#5b3924] px-5 text-xs font-bold text-white transition hover:bg-[#432617] disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -564,6 +648,13 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 {lookingUp ? "Looking up…" : "Find book"}
               </button>
             </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button type="button" disabled={lookingUp || !validIsbn(form.isbn)} onClick={() => void lookupIsbn(false)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c98a45] px-3 py-2 text-[10px] font-bold text-[#8a481d] disabled:opacity-40"><RefreshCw size={13}/>Retry lookup</button>
+              <button type="button" disabled={lookingUp} onClick={resetLookup} className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfcfbe] px-3 py-2 text-[10px] font-bold text-[#795a42]"><RotateCcw size={13}/>Reset lookup</button>
+              {lookupSource === "isbn" && <button type="button" disabled={lookingUp} onClick={() => void lookupIsbn(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800"><Sparkles size={13}/>Suggest missing fields with AI</button>}
+              {aiFields.length > 0 && <button type="button" onClick={clearAiSuggestions} className="rounded-lg border border-amber-300 px-3 py-2 text-[10px] font-bold text-amber-800">Clear AI suggestions</button>}
+            </div>
+            {form.isbn && !validIsbn(form.isbn) && <p className="mt-2 text-[10px] font-semibold text-red-700">Invalid ISBN checksum.</p>}
             {lookupMessage && !lookupSource && (
               <p
                 role="alert"
@@ -576,10 +667,12 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               <div className="mt-3 rounded-xl border border-[#dfcfbe] bg-[#fffaf1] px-3.5 py-3 text-[10px] leading-4 text-[#795a42]">
                 <p className="font-bold uppercase tracking-[.12em] text-[#8a481d]">Lookup completed · English metadata</p>
                 <p className="mt-1">{lookupMessage}</p>
+                <p className="mt-1 font-semibold">{lookupSource === "catalog" ? "Existing catalog edition found." : `Found metadata from ${lookupSources.join(" and ")}.`}</p>
+                {reviewFields.length > 0 && <p className="mt-1 font-semibold">{reviewFields.length} field{reviewFields.length === 1 ? "" : "s"} need review: {reviewFields.join(", ")}.</p>}
                 {lookupWarnings.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4">{lookupWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </div>
             )}
-            {lookupSource === "isbn" && (
+            {titleSearchAvailable && (
               <div className="mt-4 rounded-xl border border-[#e3d1bc] bg-white p-3.5">
                 <p className="text-[10px] font-bold uppercase tracking-[.13em] text-[#795a42]">
                   Missing manga or light novel details?
@@ -656,6 +749,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             )}
           </section>
           <section className="grid gap-7 p-7 sm:grid-cols-[150px_1fr]">
+            <h3 className="col-span-full font-serif text-lg text-[#5b3924]">Catalog Details</h3>
             <div>
               <p className={`${label} mb-2`}>Cover art</p>
               <div
@@ -679,7 +773,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                   <div className="text-center text-[#a17954]">
                     <ImagePlus className="mx-auto mb-2" size={30} />
                     <span className="text-[10px] font-bold uppercase tracking-wider">
-                      {coverFailed ? "Image could not load" : "Cover preview"}
+                      No cover available
                     </span>
                   </div>
                 )}
@@ -690,7 +784,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             </div>
             <div className="space-y-4">
               <label className={label}>
-                Title *
+                Title * {sourceBadge("title")}
                 <input
                   required
                   value={form.title}
@@ -701,7 +795,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className={label}>
-                  Series
+                  Series {sourceBadge("series_name")}
                   <input
                     value={form.series_name}
                     onChange={(event) =>
@@ -712,7 +806,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                   />
                 </label>
                 <label className={label}>
-                  Volume
+                  Volume {sourceBadge("volume_number")}
                   <input
                     value={form.volume_number}
                     onChange={(event) =>
@@ -724,7 +818,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 </label>
               </div>
               <label className={label}>
-                Author
+                Author * {sourceBadge("author")}
                 <input
                   value={form.author}
                   onChange={(event) => update("author", event.target.value)}
@@ -733,7 +827,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 />
               </label>
               <label className={label}>
-                Cover image URL
+                Cover image URL {sourceBadge("cover_image_url")}
                 <input
                   type="url"
                   value={form.cover_image_url}
@@ -795,12 +889,12 @@ export function CompleteAddVolume({ data, close, run }: Props) {
           </section>
           <section className="border-y border-[#eee2d6] bg-[#fcf7ef] px-7 py-6">
             <h3 className="mb-4 font-serif text-lg text-[#5b3924]">
-              Reader details
+              Manga / Reader Details
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               {fields.map((item) => (
                 <label key={item.key} className={label}>
-                  {item.label}
+                  {item.label} {sourceBadge(item.key)}
                   <input
                     value={form[item.key]}
                     onChange={(event) => update(item.key, event.target.value)}
@@ -846,7 +940,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </label>
             </div>
             <label className={`${label} mt-4`}>
-              Synopsis
+              Synopsis {sourceBadge("description")}
               <textarea
                 rows={4}
                 value={form.description}
@@ -865,13 +959,18 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className={label}>
-                Barcode
+                Barcode *
                 <input
+                  required
                   value={form.barcode}
                   onChange={(event) => update("barcode", event.target.value)}
-                  placeholder="Scan barcode or leave blank to generate ISBN-copy number"
+                  placeholder="Scan the unique physical-copy barcode"
                   className={input}
                 />
+              </label>
+              <label className={label}>
+                Acquisition date *
+                <input required type="date" value={form.acquisition_date} onChange={(event) => update("acquisition_date", event.target.value)} className={input}/>
               </label>
               <label className={label}>
                 Shelf
@@ -906,14 +1005,13 @@ export function CompleteAddVolume({ data, close, run }: Props) {
           <footer className="sticky bottom-0 flex items-center border-t border-[#e7d7c5] bg-[#fffdf9]/95 px-7 py-5 backdrop-blur">
             {submitError && <p role="alert" className="mr-4 text-xs text-red-700">{submitError}</p>}
             <p className="hidden text-[10px] text-[#98816e] sm:block">
-              * Review imported metadata before saving.
+              Review and Save · Verify imported and AI-suggested fields before creating the copy.
             </p>
             <button
               type="submit"
               disabled={
                 submitting ||
-                !form.title.trim() ||
-                (!usesReplacementSchema && Boolean(existingBookId) && !form.barcode.trim())
+                !formValid
               }
               className="ml-auto inline-flex min-w-44 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-5 py-3 text-xs font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#8f320d] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
             >

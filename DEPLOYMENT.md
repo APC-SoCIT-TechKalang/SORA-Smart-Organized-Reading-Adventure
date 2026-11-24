@@ -99,6 +99,11 @@ Shelf information follows the existing signed-in availability access policy.
 Librarians can record condition notes and damage charges against unsettled
 reader sessions; borrowing remains tied to kiosk sessions.
 
+Apply `supabase/replacement/014_catalog_edition_metadata.sql` after `013`
+before deploying the improved Add Volume workflow. It adds reviewed metadata
+provenance, acquisition dates, checksum validation, duplicate-ISBN reuse, and
+atomic creation of a catalog edition plus its uniquely barcoded physical copy.
+
 Validation uses an isolated PostgreSQL engine and mocked browser requests:
 
 ```powershell
