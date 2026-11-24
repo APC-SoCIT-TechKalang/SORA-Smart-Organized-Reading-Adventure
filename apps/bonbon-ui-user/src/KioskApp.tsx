@@ -29,7 +29,7 @@ export function KioskApp() {
       if (error || !data.session) throw error || new Error('The card session could not be verified.');
       await requireReaderAccount();
       window.sessionStorage.setItem(SESSION_STARTED_KEY, String(Date.now()));
-      window.location.replace('/?reading=1');
+      window.location.replace('/');
     } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
 
