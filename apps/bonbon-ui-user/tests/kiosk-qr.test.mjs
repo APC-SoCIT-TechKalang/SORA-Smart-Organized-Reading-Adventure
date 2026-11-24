@@ -3,13 +3,14 @@ import test from 'node:test';
 import { createKioskQrPayload, parseKioskQrPayload } from '../src/lib/kioskQr.ts';
 
 test('creates and parses a Tankobonbon kiosk QR payload', () => {
-  const payload = createKioskQrPayload('0001234567');
-  assert.equal(payload, 'tankobonbon:kiosk-login:0001234567');
-  assert.equal(parseKioskQrPayload(payload), '0001234567');
+  const userId = '123e4567-e89b-42d3-a456-426614174000';
+  const payload = createKioskQrPayload(userId);
+  assert.equal(payload, `tankobonbon:kiosk-user:${userId}`);
+  assert.equal(parseKioskQrPayload(payload), userId);
 });
 
 test('rejects unrelated and malformed QR payloads', () => {
   assert.equal(parseKioskQrPayload('https://example.com'), null);
-  assert.equal(parseKioskQrPayload('tankobonbon:kiosk-login:!'), null);
+  assert.equal(parseKioskQrPayload('tankobonbon:kiosk-user:!'), null);
   assert.throws(() => createKioskQrPayload('bad value'));
 });

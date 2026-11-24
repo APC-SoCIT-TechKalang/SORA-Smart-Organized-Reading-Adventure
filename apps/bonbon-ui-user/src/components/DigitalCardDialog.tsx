@@ -3,9 +3,7 @@ import { createPortal } from 'react-dom';
 import { BookOpenIcon, QrCodeIcon, RotateCcwIcon, ShieldCheckIcon, XIcon } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGame } from '../contexts/GameContext';
-import { database } from '../lib/supabase';
 import { createKioskQrPayload } from '../lib/kioskQr';
-import { usesReplacementSchema } from '../lib/replacement-library';
 
 interface DigitalCardDialogProps {
   open: boolean;
@@ -42,32 +40,9 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
     setCredential(emptyCredential);
     setLoadingCard(true);
 
-    const loadCard = async () => {
+    const loadCard = () => {
       try {
-        const result = usesReplacementSchema
-          ? await database().schema('sora_v2').from('librarycard')
-              .select('librarycard_rfid')
-              .eq('user_id', profile.user_id)
-              .eq('is_active', true)
-              .is('deactivated_at', null)
-              .not('librarycard_rfid', 'is', null)
-              .order('created_at', { ascending: false })
-              .limit(1)
-              .maybeSingle()
-          : await database().from('library_cards')
-              .select('rfid_uid')
-              .eq('user_id', session.user.id)
-              .eq('status', 'ACTIVE')
-              .is('deactivated_at', null)
-              .not('rfid_uid', 'is', null)
-              .order('issued_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-        if (result.error) throw result.error;
-        const row = result.data as { librarycard_rfid?: string | null; rfid_uid?: string | null } | null;
-        const cardId = row?.librarycard_rfid ?? row?.rfid_uid;
-        if (!cardId) throw new Error('No active library card is linked to this account. Ask library staff to issue one.');
-        if (current) setCredential({ qrPayload: createKioskQrPayload(cardId), error: '' });
+        if (current) setCredential({ qrPayload: createKioskQrPayload(session.user.id), error: '' });
       } catch (cause) {
         if (current) setCredential({ qrPayload: '', error: cause instanceof Error ? cause.message : 'Your QR login card could not be loaded.' });
       } finally {
@@ -75,7 +50,7 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
       }
     };
 
-    void loadCard();
+    loadCard();
     return () => { current = false; };
   }, [open, profile, readerAccess, session]);
 
