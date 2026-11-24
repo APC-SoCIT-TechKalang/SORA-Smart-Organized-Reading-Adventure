@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogFailure, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, openLibraryAdapter, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
+import { catalogFailure, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, openLibraryAdapter, professionalSynopsis, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
 
 test('validates ISBN-13, ISBN-10, checksum failures, and scanner formatting', () => {
   assert.equal(normalizeIsbn('978-1-64651-654-4\r\n'), '9781646516544');
@@ -28,6 +28,11 @@ test('distinguishes no results, provider failures, and rate limits', () => {
   assert.equal(catalogFailure([{ status: 0, failed: true }, { status: 500, failed: true }], 0)?.status, 503);
   assert.equal(catalogFailure([{ status: 429, failed: true }, { status: 200, failed: false }], 0)?.status, 429);
   assert.equal(catalogFailure([{ status: 429, failed: true }], 1), null);
+});
+
+test('rejects informal or slang-filled AI synopsis output', () => {
+  assert.equal(professionalSynopsis('mr mad guy gets put into a project lmao'), '');
+  assert.equal(professionalSynopsis('A young striker enters an intensive program designed to develop Japan’s leading football forward.'), 'A young striker enters an intensive program designed to develop Japan’s leading football forward.');
 });
 
 test('rejects broken/non-image cover responses and accepts images', async () => {

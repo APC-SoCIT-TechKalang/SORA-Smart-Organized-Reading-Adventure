@@ -128,6 +128,11 @@ function cleanHtml(value: unknown) {
   return String(value ?? "").replace(/<br\s*\/?>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/\s+/g, " ").trim();
 }
 
+export function professionalSynopsis(value: unknown) {
+  const cleaned = cleanHtml(value).slice(0, 1600);
+  return /\b(?:lmao|lol|idk|tbh|wtf|yeah thats|mr mad guy)\b/i.test(cleaned) ? "" : cleaned;
+}
+
 export function cleanLabels(values: string[], limit = 10) {
   const seen = new Set<string>();
   return values.map(item => item.trim()).filter(item => {
@@ -357,4 +362,27 @@ export function toFormMetadata(metadata: BookMetadata): FormMetadata {
     cover_image_url: metadata.coverUrls[0] ?? "",
     genres: metadata.genres.join(", "),
   };
+}
+
+export function fromFormMetadata(metadata: Partial<FormMetadata>): BookMetadata {
+  const result = emptyBookMetadata(metadata.isbn ?? "");
+  result.title = metadata.title ?? "";
+  result.originalTitle = metadata.original_title ?? "";
+  result.romanizedTitle = metadata.romanized_title ?? "";
+  result.authors = (metadata.author ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  result.contributors = (metadata.contributors ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  result.series = metadata.series_name ?? "";
+  result.volume = metadata.volume_number ?? "";
+  result.publisher = metadata.publisher ?? "";
+  result.publicationDate = metadata.publication_date ?? "";
+  result.imprint = metadata.imprint ?? "";
+  result.format = metadata.format ?? "Physical";
+  result.bookType = metadata.book_type ?? "";
+  result.demographic = metadata.demographic ?? "";
+  result.ageRating = metadata.age_rating ?? "";
+  result.themes = (metadata.themes ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  result.genres = (metadata.genres ?? "").split(",").map((value) => value.trim()).filter(Boolean);
+  result.description = metadata.description ?? "";
+  result.coverUrls = metadata.cover_image_url ? [metadata.cover_image_url] : [];
+  return result;
 }

@@ -31,13 +31,14 @@ try {
   await db.exec(`select sora_v2.admin_create_book('Legacy','Old','Writer','Manga',13); select sora_v2.admin_add_copy(1,'legacy');`);
   await db.exec(readFileSync(new URL('../supabase/replacement/013_book_shelf_locations.sql',import.meta.url),'utf8'));
   await db.exec(readFileSync(new URL('../supabase/replacement/014_catalog_edition_metadata.sql',import.meta.url),'utf8'));
+  await db.exec(readFileSync(new URL('../supabase/replacement/016_refresh_existing_catalog_metadata.sql',import.meta.url),'utf8'));
   const scalar = async sql => Object.values((await db.query(sql)).rows[0])[0];
   assert.equal(await scalar('select shelf_location from sora_v2.book_copies where copy_id=1'), null);
   await assert.rejects(db.query(`select sora_v2.admin_add_copy(1,'missing')`), /Assign a Main Reading Hall shelf/);
   await assert.rejects(db.query(`select sora_v2.admin_create_located_book('Bad','A','Writer','Manga',13,'General','9781646516544','Shelf A6','BAD-1')`), /five Main Reading Hall shelves/);
   assert.equal(await scalar(`select count(*)::integer from sora_v2.books`),1,'Invalid shelf rolls back title creation');
   await db.query(`select sora_v2.admin_create_located_book('Blue Lock 1','Muneyuki','Kaneshiro','Manga',13,'Sports','9781646516544','Shelf A2','SORA-BL-001',null,null,'{"series_name":"Blue Lock","metadata_sources":["Open Library"]}'::jsonb,false,'2026-11-24')`);
-  await db.query(`select sora_v2.admin_create_located_book('Blue Lock 1','Muneyuki','Kaneshiro','Manga',13,'Sports','9781646516544','Shelf A3','SORA-BL-002')`);
+  await db.query(`select sora_v2.admin_create_located_book('Blue Lock 1','Muneyuki','Kaneshiro','Manga',13,'Sports','9781646516544','Shelf A3','SORA-BL-002',null,'https://example.test/blue-lock.jpg','{"description":"A professional refreshed synopsis."}'::jsonb,false,'2026-11-24')`);
   assert.equal(await scalar(`select count(*)::integer from sora_v2.books`),2);
   const copies = (await db.query(`select * from sora_v2.book_copies where book_id<>1 order by copy_number`)).rows;
   assert.equal(copies.length,2);
@@ -45,6 +46,7 @@ try {
     ['SORA-BL-001','In-Shelf','Shelf A2'],['SORA-BL-002','In-Shelf','Shelf A3'],
   ]);
   assert.equal(await scalar(`select series_name from sora_v2.books where isbn='9781646516544'`),'Blue Lock');
+  assert.equal(await scalar(`select book_description from sora_v2.books where isbn='9781646516544'`),'A professional refreshed synopsis.');
   assert.equal(await scalar(`select count(*)::integer from sora_v2.books where isbn='9781646516544'`),1,'Duplicate ISBN reuses one edition');
   await assert.rejects(db.query(`select sora_v2.admin_create_located_book('Duplicate','A','Writer','Manga',13,'Sports','9781646516544','Shelf A4','SORA-BL-002')`), /duplicate key/);
   await assert.rejects(db.query(`select sora_v2.admin_create_located_book('Bad checksum','A','Writer','Manga',13,'General','9781646516543','Shelf A4','BAD-ISBN')`), /checksum/);

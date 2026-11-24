@@ -10,7 +10,6 @@ import {
   Search,
   RefreshCw,
   RotateCcw,
-  Sparkles,
   X,
 } from "lucide-react";
 import { database, usesReplacementSchema } from "../../lib/supabase";
@@ -190,7 +189,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     { key: "age_rating", label: "Age rating", placeholder: "e.g. Teen / 13+" },
   ];
 
-  const lookupIsbn = async (useAi = false) => {
+  const lookupIsbn = async (useAi = true) => {
     if (lookingUp) return;
     if (!validIsbn(form.isbn)) {
       setLookupMessage("Enter a valid ISBN-10 or ISBN-13. Check the digits and checksum.");
@@ -261,7 +260,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       setLookupMessage(
         result.source === "catalog"
           ? "Existing title found. Add the barcode for this new physical copy."
-          : `Found metadata from ${(result.sources || []).join(" and ") || "trusted catalog sources"}.`,
+          : "Book details found. Review the imported information before saving.",
       );
     } catch (error) {
       if (
@@ -301,9 +300,6 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     setAiFields([]);
   };
 
-  const sourceBadge = (key: FormKey) => fieldSources[key] ? (
-    <span className={`ml-2 inline-block rounded-full px-2 py-0.5 text-[8px] normal-case tracking-normal ${aiFields.includes(key) ? "bg-amber-100 text-amber-800" : "bg-emerald-50 text-emerald-700"}`}>{fieldSources[key]}</span>
-  ) : null;
   const authorHasFirstAndLast = form.author.trim().split(/\s+/).length >= 2;
   const numericAge = Number.parseInt(form.age_rating, 10);
   const formValid = Boolean(
@@ -404,7 +400,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     }
     setTitleCandidates([]);
     setTitleSearchMessage(
-      `Applied missing series details from ${candidate.source}. Review them before saving.`,
+      "Applied the selected matching series details. Review them before saving.",
     );
   };
 
@@ -649,9 +645,8 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" disabled={lookingUp || !validIsbn(form.isbn)} onClick={() => void lookupIsbn(false)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c98a45] px-3 py-2 text-[10px] font-bold text-[#8a481d] disabled:opacity-40"><RefreshCw size={13}/>Retry lookup</button>
+              <button type="button" disabled={lookingUp || !validIsbn(form.isbn)} onClick={() => void lookupIsbn(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c98a45] px-3 py-2 text-[10px] font-bold text-[#8a481d] disabled:opacity-40"><RefreshCw size={13}/>Retry lookup</button>
               <button type="button" disabled={lookingUp} onClick={resetLookup} className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfcfbe] px-3 py-2 text-[10px] font-bold text-[#795a42]"><RotateCcw size={13}/>Reset lookup</button>
-              {lookupSource === "isbn" && <button type="button" disabled={lookingUp} onClick={() => void lookupIsbn(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-[10px] font-bold text-amber-800"><Sparkles size={13}/>Suggest missing fields with AI</button>}
               {aiFields.length > 0 && <button type="button" onClick={clearAiSuggestions} className="rounded-lg border border-amber-300 px-3 py-2 text-[10px] font-bold text-amber-800">Clear AI suggestions</button>}
             </div>
             {form.isbn && !validIsbn(form.isbn) && <p className="mt-2 text-[10px] font-semibold text-red-700">Invalid ISBN checksum.</p>}
@@ -667,7 +662,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               <div className="mt-3 rounded-xl border border-[#dfcfbe] bg-[#fffaf1] px-3.5 py-3 text-[10px] leading-4 text-[#795a42]">
                 <p className="font-bold uppercase tracking-[.12em] text-[#8a481d]">Lookup completed · English metadata</p>
                 <p className="mt-1">{lookupMessage}</p>
-                <p className="mt-1 font-semibold">{lookupSource === "catalog" ? "Existing catalog edition found." : `Found metadata from ${lookupSources.join(" and ")}.`}</p>
+                <p className="mt-1 font-semibold">{lookupSource === "catalog" ? "Existing catalog edition refreshed." : "ISBN metadata loaded."}</p>
                 {reviewFields.length > 0 && <p className="mt-1 font-semibold">{reviewFields.length} field{reviewFields.length === 1 ? "" : "s"} need review: {reviewFields.join(", ")}.</p>}
                 {lookupWarnings.length > 0 && <ul className="mt-2 list-disc space-y-1 pl-4">{lookupWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>}
               </div>
@@ -736,7 +731,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                               {candidate.subtitle}
                             </span>
                           )}
-                          <span className="mt-1 block text-[9px] font-bold uppercase tracking-wider text-[#b66a3c]">
+                          <span className="hidden">
                             {candidate.source} ·{" "}
                             {candidate.metadata.book_type || "Book"}
                           </span>
@@ -784,7 +779,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             </div>
             <div className="space-y-4">
               <label className={label}>
-                Title * {sourceBadge("title")}
+                Title *
                 <input
                   required
                   value={form.title}
@@ -795,7 +790,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className={label}>
-                  Series {sourceBadge("series_name")}
+                  Series
                   <input
                     value={form.series_name}
                     onChange={(event) =>
@@ -806,7 +801,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                   />
                 </label>
                 <label className={label}>
-                  Volume {sourceBadge("volume_number")}
+                  Volume
                   <input
                     value={form.volume_number}
                     onChange={(event) =>
@@ -818,7 +813,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 </label>
               </div>
               <label className={label}>
-                Author * {sourceBadge("author")}
+                Author *
                 <input
                   value={form.author}
                   onChange={(event) => update("author", event.target.value)}
@@ -827,7 +822,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 />
               </label>
               <label className={label}>
-                Cover image URL {sourceBadge("cover_image_url")}
+                Cover image URL
                 <input
                   type="url"
                   value={form.cover_image_url}
@@ -894,7 +889,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             <div className="grid gap-4 sm:grid-cols-2">
               {fields.map((item) => (
                 <label key={item.key} className={label}>
-                  {item.label} {sourceBadge(item.key)}
+                  {item.label}
                   <input
                     value={form[item.key]}
                     onChange={(event) => update(item.key, event.target.value)}
@@ -940,7 +935,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </label>
             </div>
             <label className={`${label} mt-4`}>
-              Synopsis {sourceBadge("description")}
+              Synopsis
               <textarea
                 rows={4}
                 value={form.description}
