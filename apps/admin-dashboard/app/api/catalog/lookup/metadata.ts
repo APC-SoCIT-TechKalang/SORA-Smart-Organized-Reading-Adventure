@@ -129,7 +129,10 @@ function cleanHtml(value: unknown) {
 }
 
 export function professionalSynopsis(value: unknown) {
-  const cleaned = cleanHtml(value).replace(/[*_#`]/g, "").replace(/\s*[\r\n]+\s*/g, " ").slice(0, 1600).trim();
+  const cleaned = cleanHtml(value)
+    .replace(/\s*\((?:Source|Sources|Publisher|Reference|Citation)\s*:[^)]*\)/gi, "")
+    .replace(/\s*\bNote\s*:\s*(?:Winner|Nominated|Awarded|Recipient)[^.?!]*(?:[.!?]|$)/gi, "")
+    .replace(/[*_#`]/g, "").replace(/\s*[\r\n]+\s*/g, " ").slice(0, 1600).trim();
   return /\b(?:lmao|lol|idk|tbh|wtf|yeah thats|mr mad guy)\b/i.test(cleaned) ? "" : cleaned;
 }
 

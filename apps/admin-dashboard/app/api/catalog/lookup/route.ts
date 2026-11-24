@@ -826,7 +826,7 @@ export async function POST(request: NextRequest) {
         /* The deterministic multi-source result remains usable. */
       }
     }
-    if (metadata.description && !professionalSynopsis(metadata.description)) metadata.description = "";
+    metadata.description = professionalSynopsis(metadata.description);
     metadata.age_rating = numericAgeRating(metadata.age_rating);
     let ageRatingSuggested = false;
     if (!metadata.age_rating) {

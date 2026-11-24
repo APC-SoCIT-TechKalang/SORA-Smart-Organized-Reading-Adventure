@@ -35,6 +35,10 @@ test('rejects informal or slang-filled AI synopsis output', () => {
   assert.equal(professionalSynopsis('A young striker enters an intensive program designed to develop Japan’s leading football forward.'), 'A young striker enters an intensive program designed to develop Japan’s leading football forward.');
 });
 
+test('removes source credits and award notes from a synopsis', () => {
+  assert.equal(professionalSynopsis("A striker joins a training program. (Source: Kodansha USA) Note: Winner of the 45th Kodansha Manga Award in 2021."), "A striker joins a training program.");
+});
+
 test('normalizes and conservatively suggests numeric age ratings', () => {
   assert.equal(numericAgeRating('Teen / 13+'), '13');
   assert.equal(numericAgeRating('16 and up'), '16');
