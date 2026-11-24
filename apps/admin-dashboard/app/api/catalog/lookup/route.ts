@@ -818,6 +818,14 @@ export async function POST(request: NextRequest) {
     }
     if (metadata.description && !professionalSynopsis(metadata.description)) metadata.description = "";
 
+    // Validate covers before calculating review fields. A provider placeholder
+    // must be treated as missing, so the UI can offer title search or upload.
+    let coverCandidates = await validatedCoverUrls(normalized.coverUrls);
+    if (!coverCandidates.length && mangaEnrichments.length)
+      coverCandidates = await validatedCoverUrls(mangaEnrichments.flatMap((result) => result.metadata?.coverUrls ?? []));
+    metadata.cover_image_url = coverCandidates[0] ?? "";
+    fieldSources.cover_image_url = coverCandidates.length ? (fieldSources.cover_image_url || sources[0]) : "";
+
     const missing = [
       ["author", metadata.author],
       ["series", metadata.series_name],
@@ -852,11 +860,6 @@ export async function POST(request: NextRequest) {
       warnings.push(
         `Still unavailable from reliable sources: ${missing.join(", ")}.`,
       );
-    let coverCandidates = await validatedCoverUrls(normalized.coverUrls);
-    if (!coverCandidates.length && mangaEnrichments.length)
-      coverCandidates = await validatedCoverUrls(mangaEnrichments.flatMap((result) => result.metadata?.coverUrls ?? []));
-    metadata.cover_image_url = coverCandidates[0] ?? "";
-    fieldSources.cover_image_url = coverCandidates.length ? (fieldSources.cover_image_url || sources[0]) : "";
     if (!metadata.title || !metadata.author)
       return NextResponse.json({ error: "The sources returned incomplete metadata without a reliable title and author. Search by title explicitly or enter the record manually." }, { status: 422 });
     return NextResponse.json({

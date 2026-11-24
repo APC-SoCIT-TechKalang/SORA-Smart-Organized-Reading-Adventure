@@ -256,7 +256,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       setFieldSources(result.fieldSources || {});
       setAiFields(result.aiFields || []);
       setReviewFields(result.reviewFields || []);
-      setTitleSearchAvailable(false);
+      setTitleSearchAvailable(!(result.coverCandidates || []).length);
       setTitleQuery(
         String(result.metadata.series_name || result.metadata.title || ""),
       );
@@ -391,7 +391,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     if (
       !manuallyEdited.current.has("cover_image_url") &&
       !coverFile &&
-      !form.cover_image_url
+      (!form.cover_image_url || coverFailed)
     ) {
       const candidates = [
         ...new Set(candidate.coverCandidates.filter(Boolean)),
@@ -415,7 +415,10 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       setCoverIndex(nextIndex);
       setCoverFailed(false);
       setForm((current) => ({ ...current, cover_image_url: nextUrl }));
-    } else setCoverFailed(true);
+    } else {
+      setCoverFailed(true);
+      setTitleSearchAvailable(true);
+    }
   };
 
   const submit = async (event: React.FormEvent) => {
@@ -647,7 +650,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                       void lookupIsbn();
                     }
                   }}
-                  placeholder="Scan or enter ISBN-10 / ISBN-13"
+                  placeholder="Scan or Enter ISBN"
                   className={`${input} mt-0 pl-11 ${showErrors && !validIsbn(form.isbn) ? "border-red-600" : ""}`}
                 />
               </label>
@@ -797,6 +800,16 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               <p className="mt-2 text-[10px] leading-4 text-[#9d8877]">
                 Full image preview · portrait artwork fits best.
               </p>
+              {titleSearchAvailable && titleQuery.trim().length >= 2 && (
+                <button
+                  type="button"
+                  disabled={searchingTitles}
+                  onClick={() => void searchTitles()}
+                  className="mt-3 w-full rounded-lg border border-[#c98a45] px-3 py-2 text-[10px] font-bold text-[#8a481d] disabled:opacity-50"
+                >
+                  {searchingTitles ? "Finding covers..." : "Find another cover"}
+                </button>
+              )}
             </div>
             <div className="space-y-4">
               <label className={label}>
@@ -971,18 +984,16 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </span>
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className={label}>
-                {usesReplacementSchema ? "Generated barcode" : "Barcode *"}
+              {!usesReplacementSchema && <label className={label}>
+                Barcode *
                 <input
-                  required={!usesReplacementSchema}
+                  required
                   value={form.barcode}
                   onChange={(event) => update("barcode", event.target.value)}
-                  disabled={usesReplacementSchema}
-                  placeholder={usesReplacementSchema ? "Generated from ISBN and copy number" : "Scan the unique physical-copy barcode"}
+                  placeholder="Scan the unique physical-copy barcode"
                   className={input}
                 />
-                {usesReplacementSchema && <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal">The system assigns ISBN-1, ISBN-2, and so on after saving.</span>}
-              </label>
+              </label>}
               <label className={label}>
                 Acquisition date *
                 <input required type="date" value={form.acquisition_date} onChange={(event) => update("acquisition_date", event.target.value)} className={input}/>

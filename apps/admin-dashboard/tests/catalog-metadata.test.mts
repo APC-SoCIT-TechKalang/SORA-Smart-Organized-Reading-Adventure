@@ -37,9 +37,20 @@ test('rejects informal or slang-filled AI synopsis output', () => {
 
 test('rejects broken/non-image cover responses and accepts images', async () => {
   const broken = await validateCoverUrl('https://example.test/broken.jpg', async () => new Response('missing', { status: 404, headers: { 'content-type': 'text/html' } }));
-  const image = await validateCoverUrl('https://example.test/cover.jpg', async () => new Response(new Uint8Array([1, 2]), { status: 200, headers: { 'content-type': 'image/jpeg' } }));
+  const png = new Uint8Array(512);
+  png.set([0x89, 0x50, 0x4e, 0x47], 0);
+  new DataView(png.buffer).setUint32(16, 600);
+  new DataView(png.buffer).setUint32(20, 900);
+  const image = await validateCoverUrl('https://example.test/cover.png', async () => new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }));
+  const placeholder = await validateCoverUrl('https://example.test/no-image-available.png', async () => new Response(png, { status: 200, headers: { 'content-type': 'image/png' } }));
+  const tiny = new Uint8Array(png);
+  new DataView(tiny.buffer).setUint32(16, 100);
+  new DataView(tiny.buffer).setUint32(20, 100);
+  const tinyImage = await validateCoverUrl('https://example.test/tiny.png', async () => new Response(tiny, { status: 200, headers: { 'content-type': 'image/png' } }));
   assert.equal(broken, '');
-  assert.equal(image, 'https://example.test/cover.jpg');
+  assert.equal(image, 'https://example.test/cover.png');
+  assert.equal(placeholder, '');
+  assert.equal(tinyImage, '');
 });
 
 test('manga enrichment cannot overwrite trusted edition facts or cover', () => {

@@ -147,19 +147,46 @@ function cleanUrls(values: string[]) {
   return [...new Set(values.map(value => value.replace(/^http:/, "https:")).filter(value => /^https:\/\//i.test(value)))];
 }
 
+function coverDimensions(bytes: Uint8Array, type: string) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (type.includes("png") && bytes.length >= 24)
+    return { width: view.getUint32(16), height: view.getUint32(20) };
+  if (type.includes("gif") && bytes.length >= 10)
+    return { width: view.getUint16(6, true), height: view.getUint16(8, true) };
+  if ((type.includes("jpeg") || type.includes("jpg")) && bytes.length >= 4) {
+    let offset = 2;
+    while (offset + 8 < bytes.length) {
+      if (bytes[offset] !== 0xff) { offset += 1; continue; }
+      const marker = bytes[offset + 1];
+      if (marker >= 0xc0 && marker <= 0xc3)
+        return { width: view.getUint16(offset + 7), height: view.getUint16(offset + 5) };
+      const length = view.getUint16(offset + 2);
+      if (length < 2) break;
+      offset += length + 2;
+    }
+  }
+  return null;
+}
+
 export async function validateCoverUrl(
   url: string,
   request: typeof fetch = fetch,
 ) {
   if (!/^https:\/\//i.test(url)) return "";
+  if (/(?:no[-_ ]?(?:image|cover|photo)|image[-_ ]?(?:unavailable|not[-_ ]?found)|placeholder|default[-_ ]?(?:book|cover))/i.test(url)) return "";
   try {
     const response = await request(url, {
-      method: "GET", headers: { Range: "bytes=0-1024" }, redirect: "follow",
+      method: "GET", headers: { Range: "bytes=0-65535" }, redirect: "follow",
       signal: AbortSignal.timeout(5000), cache: "no-store",
     });
     const type = response.headers.get("content-type") || "";
-    const valid = response.ok && type.toLowerCase().startsWith("image/");
-    await response.body?.cancel();
+    if (!response.ok || !type.toLowerCase().startsWith("image/")) {
+      await response.body?.cancel();
+      return "";
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    const dimensions = coverDimensions(bytes, type.toLowerCase());
+    const valid = bytes.length >= 512 && (!dimensions || (dimensions.width >= 120 && dimensions.height >= 160));
     return valid ? response.url || url : "";
   } catch { return ""; }
 }
