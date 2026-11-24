@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/api/kiosk/rfid-login", "destination": "/api/kiosk-rfid-login" },
     { "source": "/((?!api(?:/|$)).*)", "destination": "/index.html" }
   ]
 }
