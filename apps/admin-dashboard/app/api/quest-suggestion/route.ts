@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
-import { cleanQuestText as clean, difficultyBounds, templateQuestDraft, validateQuestDraft, type Difficulty, type QuestDraft } from "../../../../../shared/quest-engine";
+import { cleanQuestText as clean, difficultyBounds, inferQuestDifficulty, templateQuestDraft, validateQuestDraft, type Difficulty, type QuestDraft } from "../../../../../shared/quest-engine";
 
 type CatalogBook = { book_genre: string | null; book_copies: { copy_status: string }[] | null };
 const levels: Difficulty[] = ["Easy", "Medium", "Hard"];
@@ -26,8 +26,8 @@ export async function POST(request: Request) {
   const caller = createClient(url, key, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
   const librarian = await caller.schema("sora_v2").rpc("is_librarian"); if (librarian.error || librarian.data !== true) return NextResponse.json({ error: "Librarian access is required." }, { status: 403 });
   let body: Record<string, unknown>; try { body = await request.json(); } catch { return NextResponse.json({ error: "Invalid request body." }, { status: 400 }); }
-  const requested = clean(body.difficulty, 20); const difficulty: Difficulty = requested === "Medium" || requested === "Hard" ? requested : "Easy";
-  const prompt = clean(body.prompt, 800) || `Generate one ${difficulty} quest.`; const counts = requestedCounts(prompt, body.counts, difficulty);
+  const requested = clean(body.difficulty, 20); const requestedDifficulty: Difficulty = requested === "Medium" || requested === "Hard" ? requested : "Easy";
+  const prompt = clean(body.prompt, 800) || `Generate one ${requestedDifficulty} quest.`; const difficulty = inferQuestDifficulty(prompt, requestedDifficulty); const counts = requestedCounts(prompt, body.counts, difficulty);
   const [catalogResult, questResult, feedbackResult] = await Promise.all([
     caller.schema("sora_v2").from("books").select("book_genre,book_copies(copy_status)"), caller.schema("sora_v2").from("quests").select("target_genre").order("created_at", { ascending: false }).limit(30),
     caller.schema("sora_v2").from("quests").select("revised_parameters").not("revised_parameters", "is", null).order("updated_at", { ascending: false }).limit(20),

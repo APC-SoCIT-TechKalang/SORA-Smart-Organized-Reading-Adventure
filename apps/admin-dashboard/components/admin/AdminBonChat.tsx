@@ -85,7 +85,7 @@ export function AdminBonChat({ data }: { data: ChatData }) {
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Librarian sign-in is required.");
       const currentDrafts = refinementDrafts ?? latestDrafts();
-      const questRequest = /\b(generate|create|draft|regenerate|refine|increase|decrease|adjust)\b[^.]*\bquests?\b|\bquests?\b[^.]*\b(generate|create|draft|regenerate|refine|increase|decrease|adjust)\b/i.test(question) || Boolean(currentDrafts.length && /\b(refine|increase|decrease|adjust|change|make it)\b/i.test(question));
+      const questRequest = (/\b(?:quests?|challenges?)\b/i.test(question) && /\b(?:generate|create|draft|regenerate|refine|increase|decrease|adjust|change|make|read|reading)\b/i.test(question)) || Boolean(currentDrafts.length && /\b(?:regenerate|alternative|refine|increase|decrease|adjust|change|make it|same difficulty)\b/i.test(question));
       const response = await fetch(questRequest ? "/api/quest-suggestion" : "/api/admin-bon-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
@@ -102,7 +102,7 @@ export function AdminBonChat({ data }: { data: ChatData }) {
   function submit(event: FormEvent) { event.preventDefault(); if (draft.trim() && !busy) void answer(draft.trim()); }
   const suggestions = ["Today's analytics summary", "Which genre is most read?", "Show the least-used books", "How is quest participation?"];
 
-  useEffect(() => { const openQuest = (event: Event) => { setOpen(true); const prompt=(event as CustomEvent<string>).detail||"Generate balanced quests from our available catalog."; window.setTimeout(()=>void answer(prompt),0); }; window.addEventListener("open-bon-quest",openQuest); return()=>window.removeEventListener("open-bon-quest",openQuest); });
+  useEffect(() => { const openQuest = () => setOpen(true); window.addEventListener("open-bon-quest",openQuest); return()=>window.removeEventListener("open-bon-quest",openQuest); },[]);
 
   useEffect(() => {
     if (!dragging || pos === null) return;
