@@ -10,6 +10,7 @@ import {
 import {
   BookOpen,
   ChartNoAxesCombined,
+  ChevronRight,
   Clock3,
   Edit3,
   LayoutDashboard,
@@ -1013,6 +1014,9 @@ function Readers({
   ) => Promise<boolean>;
 }) {
   const [search, setSearch] = useState("");
+  const [readerFilter, setReaderFilter] = useState<"ALL" | "READING" | "AVAILABLE" | "AWAITING" | "DEACTIVATED">("ALL");
+  const [readerPage, setReaderPage] = useState(1);
+  const [selectedReaderId, setSelectedReaderId] = useState<string | null>(null);
   const [readerId, setReaderId] = useState("");
   const [planId, setPlanId] = useState("");
   const [membershipNumber, setMembershipNumber] = useState("");
@@ -1027,11 +1031,6 @@ function Readers({
     birthdate: "",
     mobileNumber: "",
   });
-  const readers = data.readers.filter((reader) =>
-    `${reader.first_name} ${reader.last_name}`
-      .toLowerCase()
-      .includes(search.toLowerCase()),
-  );
   const pending = data.readers.filter(
     (reader) =>
       reader.is_active &&
@@ -1046,20 +1045,35 @@ function Readers({
   const selectedPlan = plans.find(
     (plan) => String(plan.membership_type_id) === planId,
   );
+  const readerDirectory = data.readers
+    .filter((reader) => reader.roles?.name === "reader")
+    .map((reader) => {
+      const member = data.memberAccounts.find((item) => item.user_id === reader.user_id && item.status === "ACTIVE");
+      const visit = active.find((item) => item.user_id === reader.user_id);
+      const status = !reader.is_active ? "DEACTIVATED" : visit ? "READING" : member ? "AVAILABLE" : "AWAITING";
+      return { reader, member, visit, status } as const;
+    });
+  const normalizedSearch = search.trim().toLowerCase();
+  const visibleReaders = readerDirectory.filter(({ reader, member, status }) =>
+    (readerFilter === "ALL" || readerFilter === status) &&
+    (!normalizedSearch || `${reader.first_name} ${reader.last_name} ${member?.membership_label ?? ""} ${reader.user_id}`.toLowerCase().includes(normalizedSearch)),
+  );
+  const readerFilters = [
+    ["ALL", "All readers", readerDirectory.length],
+    ["READING", "Reading now", readerDirectory.filter(item => item.status === "READING").length],
+    ["AVAILABLE", "Available", readerDirectory.filter(item => item.status === "AVAILABLE").length],
+    ["AWAITING", "Awaiting activation", readerDirectory.filter(item => item.status === "AWAITING").length],
+    ["DEACTIVATED", "Deactivated", readerDirectory.filter(item => item.status === "DEACTIVATED").length],
+  ] as const;
+  const readersPerPage = 8;
+  const readerPages = Math.max(1, Math.ceil(visibleReaders.length / readersPerPage));
+  const pagedReaders = visibleReaders.slice((readerPage - 1) * readersPerPage, readerPage * readersPerPage);
+  const selectedReader = readerDirectory.find(item => item.reader.user_id === selectedReaderId) ?? null;
+  useEffect(() => { setReaderPage(1); }, [search, readerFilter]);
+  useEffect(() => { setReaderPage(page => Math.min(page, readerPages)); }, [readerPages]);
   return (
     <>
       {usesReplacementSchema && <ReaderCheckIn />}
-      <div className="mb-6 flex flex-col gap-3 sm:flex-row">
-        <label className="flex flex-1 items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 shadow-sm">
-          <Search size={16} className="text-[#9a806b]" />
-          <input
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            className="w-full bg-transparent py-3 text-sm outline-none"
-            placeholder="Search reader"
-          />
-        </label>
-      </div>
       <div className="mb-6 grid gap-4 sm:grid-cols-4">
         {[
           [
@@ -1288,6 +1302,21 @@ function Readers({
         )}
       </section>
       <section className="overflow-hidden rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] shadow-sm">
+        <div className="border-b border-[#eadfd3] bg-[linear-gradient(135deg,#fffdf9,#fff8ec)] px-5 py-5 sm:px-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#a83d12]">Reader directory</p><h2 className="mt-1 font-serif text-xl font-semibold text-[#543822]">Find and manage readers</h2><p className="mt-1 text-xs text-[#8d735e]">Search by name or membership, then narrow the list by current status.</p></div>
+            <p aria-live="polite" className="text-xs font-semibold text-[#8d735e]">Showing {visibleReaders.length} of {readerDirectory.length}</p>
+          </div>
+          <label className="mt-5 flex min-h-12 items-center gap-3 rounded-xl border border-[#ddcdbd] bg-white px-4 shadow-[0_4px_14px_rgba(84,56,34,.06)] transition focus-within:border-[#c4800c] focus-within:ring-2 focus-within:ring-[#f3d793]/60">
+            <Search size={17} aria-hidden="true" className="shrink-0 text-[#a83d12]" />
+            <span className="sr-only">Search readers by name or membership</span>
+            <input value={search} onChange={(event) => setSearch(event.target.value)} className="w-full bg-transparent py-3 text-sm outline-none placeholder:text-[#aa9583]" placeholder="Search reader name or membership…" />
+            {search && <button type="button" onClick={() => setSearch("")} className="shrink-0 rounded-lg px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-[#9a806b] transition hover:bg-[#f7eee4] hover:text-[#a83d12]">Clear</button>}
+          </label>
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1" role="group" aria-label="Filter readers by status">
+            {readerFilters.map(([value, label, count]) => <button key={value} type="button" aria-pressed={readerFilter === value} onClick={() => setReaderFilter(value)} className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4800c] ${readerFilter === value ? "border-[#543822] bg-[#543822] text-white shadow-sm" : "border-[#ddcdbd] bg-white/80 text-[#765943] hover:border-[#c49a70] hover:bg-white"}`}><span>{label}</span><span className={`grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[9px] ${readerFilter === value ? "bg-white/15 text-[#f7df9c]" : "bg-[#f3e9dc] text-[#8a684e]"}`}>{count}</span></button>)}
+          </div>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[680px] text-left text-xs">
             <thead className="bg-[#fcf8f2] text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]">
@@ -1296,21 +1325,12 @@ function Readers({
                 <th className="px-4 py-3">Membership</th>
                 <th className="px-4 py-3">Visit state</th>
                 <th className="px-4 py-3">Time balance</th>
-                <th className="px-5 py-3" />
+                <th className="px-5 py-3 text-right">Details</th>
               </tr>
             </thead>
             <tbody>
-              {readers
-                .filter((reader) => reader.roles?.name === "reader")
-                .map((reader) => {
-                  const member = data.memberAccounts.find(
-                    (item) =>
-                      item.user_id === reader.user_id &&
-                      item.status === "ACTIVE",
-                  );
-                  const visit = active.find(
-                    (item) => item.user_id === reader.user_id,
-                  );
+              {pagedReaders
+                .map(({ reader, member, visit, status }) => {
                   return (
                     <tr
                       className="border-t border-[#f0e9e1] hover:bg-[#fffbf5]"
@@ -1323,12 +1343,9 @@ function Readers({
                         {member?.membership_label ?? "Awaiting activation"}
                       </td>
                       <td className="px-4 py-4">
-                        <span className="rounded-full bg-[#fff0c9] px-2.5 py-1 text-[10px] font-bold text-[#804916]">
-                          {!reader.is_active
-                            ? "Deactivated"
-                            : visit
-                              ? "Active session"
-                              : "Not checked in"}
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold ${status === "READING" ? "border-amber-200 bg-amber-50 text-amber-800" : status === "AVAILABLE" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : status === "DEACTIVATED" ? "border-stone-200 bg-stone-100 text-stone-600" : "border-orange-200 bg-orange-50 text-orange-800"}`}>
+                          <span className={`h-1.5 w-1.5 rounded-full ${status === "READING" ? "animate-pulse bg-amber-500" : status === "AVAILABLE" ? "bg-emerald-500" : status === "DEACTIVATED" ? "bg-stone-400" : "bg-orange-400"}`} />
+                          {status === "READING" ? "Reading now" : status === "AVAILABLE" ? "Available" : status === "DEACTIVATED" ? "Deactivated" : "Awaiting activation"}
                         </span>
                       </td>
                       <td className="px-4 py-4 font-bold">
@@ -1337,66 +1354,7 @@ function Readers({
                           : `${member.remaining_minutes} min`}
                       </td>
                       <td className="px-5 py-4 text-right">
-                        {usesReplacementSchema ? (
-                          <button
-                            disabled={Boolean(visit)}
-                            onClick={() =>
-                              void run(
-                                () =>
-                                  replacementDb().rpc("admin_set_user_active", {
-                                    p_user_id: reader.user_id,
-                                    p_is_active: !reader.is_active,
-                                  }),
-                                reader.is_active
-                                  ? "Reader account deactivated"
-                                  : "Reader account reactivated",
-                              )
-                            }
-                            className="font-bold text-[#a83d12] hover:underline disabled:cursor-not-allowed disabled:opacity-40"
-                            title={
-                              visit
-                                ? "End the active reading session first"
-                                : undefined
-                            }
-                          >
-                            {visit
-                              ? "Reading"
-                              : reader.is_active
-                                ? "Deactivate"
-                                : "Reactivate"}
-                          </button>
-                        ) : visit ? (
-                          <button
-                            onClick={() =>
-                              void run(
-                                () =>
-                                  database().rpc("admin_check_out", {
-                                    p_visit_id: visit.visit_id,
-                                  }),
-                                "Reader checked out",
-                              )
-                            }
-                            className="font-bold text-[#a83d12] hover:underline"
-                          >
-                            Check out
-                          </button>
-                        ) : (
-                          <button
-                            disabled={!member}
-                            onClick={() =>
-                              void run(
-                                () =>
-                                  database().rpc("admin_check_in", {
-                                    p_user_id: reader.user_id,
-                                  }),
-                                "Reader checked in",
-                              )
-                            }
-                            className="font-bold text-[#a83d12] hover:underline disabled:opacity-40"
-                          >
-                            Check in
-                          </button>
-                        )}
+                        <button type="button" onClick={() => setSelectedReaderId(reader.user_id)} className="group inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#d8c3ad] bg-white px-3 py-2 text-[10px] font-bold text-[#704d34] transition hover:border-[#a83d12] hover:bg-[#fff5e8] hover:text-[#a83d12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4800c]">View details<ChevronRight size={14} aria-hidden="true" className="transition group-hover:translate-x-0.5" /></button>
                       </td>
                     </tr>
                   );
@@ -1404,9 +1362,69 @@ function Readers({
             </tbody>
           </table>
         </div>
+        {visibleReaders.length > readersPerPage && <div className="flex items-center justify-between border-t border-[#eadfd3] bg-[#fcf8f2] px-5 py-3"><p className="text-[10px] font-semibold text-[#8d735e]">Page {readerPage} of {readerPages}</p><div className="flex gap-2"><button type="button" disabled={readerPage === 1} onClick={() => setReaderPage(page => page - 1)} className="rounded-lg border border-[#d8c3ad] bg-white px-3 py-2 text-[10px] font-bold text-[#704d34] disabled:cursor-not-allowed disabled:opacity-40">Previous</button><button type="button" disabled={readerPage === readerPages} onClick={() => setReaderPage(page => page + 1)} className="rounded-lg border border-[#d8c3ad] bg-white px-3 py-2 text-[10px] font-bold text-[#704d34] disabled:cursor-not-allowed disabled:opacity-40">Next</button></div></div>}
+        {!visibleReaders.length && <div className="grid min-h-52 place-items-center border-t border-[#f0e9e1] px-6 py-10 text-center"><div><Users className="mx-auto text-[#c9ad92]" aria-hidden="true" /><h3 className="mt-3 font-serif text-lg font-semibold text-[#543822]">No readers found</h3><p className="mt-1 text-xs text-[#8d735e]">Try a different name or choose another status filter.</p><button type="button" onClick={() => { setSearch(""); setReaderFilter("ALL"); }} className="mt-4 rounded-lg border border-[#c8a681] px-3 py-2 text-[10px] font-bold uppercase tracking-wider text-[#a83d12] hover:bg-[#fff6e9]">Reset filters</button></div></div>}
       </section>
+      {selectedReader && <ReaderDetailsDrawer entry={selectedReader} close={() => setSelectedReaderId(null)} run={run} />}
     </>
   );
+}
+
+type ReaderDirectoryEntry = {
+  reader: Data["readers"][number];
+  member: Data["memberAccounts"][number] | undefined;
+  visit: Visit | undefined;
+  status: "DEACTIVATED" | "READING" | "AVAILABLE" | "AWAITING";
+};
+
+function ReaderDetailsDrawer({ entry, close, run }: {
+  entry: ReaderDirectoryEntry;
+  close: () => void;
+  run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean>;
+}) {
+  const { reader, member, visit, status } = entry;
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => { document.body.style.overflow = previousOverflow; window.removeEventListener("keydown", onKeyDown); };
+  }, [close]);
+  const statusText = status === "READING" ? "Reading now" : status === "AVAILABLE" ? "Available" : status === "DEACTIVATED" ? "Deactivated" : "Awaiting activation";
+  const statusClass = status === "READING" ? "border-amber-200 bg-amber-50 text-amber-800" : status === "AVAILABLE" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : status === "DEACTIVATED" ? "border-stone-200 bg-stone-100 text-stone-600" : "border-orange-200 bg-orange-50 text-orange-800";
+
+  const performPrimaryAction = async () => {
+    if (usesReplacementSchema) {
+      const ok = await run(() => replacementDb().rpc("admin_set_user_active", { p_user_id: reader.user_id, p_is_active: !reader.is_active }), reader.is_active ? "Reader account deactivated" : "Reader account reactivated");
+      if (ok) close();
+      return;
+    }
+    const ok = visit
+      ? await run(() => database().rpc("admin_check_out", { p_visit_id: visit.visit_id }), "Reader checked out")
+      : await run(() => database().rpc("admin_check_in", { p_user_id: reader.user_id }), "Reader checked in");
+    if (ok) close();
+  };
+
+  return <div className="fixed inset-0 z-[65] bg-[#2d190c]/35 backdrop-blur-[2px]" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
+    <aside role="dialog" aria-modal="true" aria-labelledby="reader-details-title" className="ml-auto flex h-full w-full max-w-lg flex-col border-l border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[-24px_0_70px_rgba(50,27,13,.22)]">
+      <header className="relative overflow-hidden border-b border-[#eadfd3] bg-[#543822] px-6 py-7 text-white sm:px-8"><div aria-hidden="true" className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-[#f3d793]/15" /><div className="relative flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#f3d793]">Reader profile</p><h2 id="reader-details-title" className="mt-2 font-serif text-2xl font-semibold">{reader.first_name} {reader.last_name}</h2><span className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}>{statusText}</span></div><button type="button" onClick={close} aria-label="Close reader details" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20"><X size={18} aria-hidden="true" /></button></div></header>
+      <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <ReaderDetail label="Membership" value={member?.membership_label ?? "Not activated"} />
+          <ReaderDetail label="Time balance" value={member?.remaining_minutes == null ? "—" : `${member.remaining_minutes} minutes`} />
+          <ReaderDetail label="Visit state" value={visit ? "Active reading session" : "Not checked in"} />
+          <ReaderDetail label="Birthday" value={reader.birthday ? new Date(reader.birthday).toLocaleDateString() : "Not provided"} />
+        </div>
+        <div className="mt-5 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#9a806b]">Reader ID</p><p className="mt-2 break-all font-mono text-xs text-[#654a36]">{reader.user_id}</p></div>
+        {visit && usesReplacementSchema && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">This reader has an active session. Finish the session before deactivating the account.</p>}
+      </div>
+      <footer className="border-t border-[#eadfd3] bg-[#fcf8f2] px-6 py-5 sm:px-8"><button type="button" disabled={usesReplacementSchema ? Boolean(visit) : !visit && !member} onClick={() => void performPrimaryAction()} className={`min-h-11 w-full rounded-xl border px-4 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45 ${usesReplacementSchema && !reader.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-[#e3c1ad] bg-white text-[#a83d12] hover:bg-[#fff1e7]"}`}>{usesReplacementSchema ? visit ? "Reading session in progress" : reader.is_active ? "Deactivate reader" : "Reactivate reader" : visit ? "Check out reader" : "Check in reader"}</button></footer>
+    </aside>
+  </div>;
+}
+
+function ReaderDetail({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-xl border border-[#eadfd3] bg-white p-4"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">{label}</p><p className="mt-2 text-sm font-semibold text-[#543822]">{value}</p></div>;
 }
 
 function TopUp({
