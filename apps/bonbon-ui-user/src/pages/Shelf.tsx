@@ -65,7 +65,7 @@ export function Shelf() {
                       {volume?.author && <p className="mt-1 text-xs font-700 text-umber/55">{volume.author}</p>}
                       <p className="mt-4 flex items-center gap-2 text-xs font-700 text-umber/55"><Clock3Icon className="h-4 w-4 text-gold" /> Started {formatDate(log.started_at)}</p>
                       <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-gold/20 pt-4">
-                        <p className="max-w-md text-xs leading-5 text-umber/60">{usesReplacementSchema ? 'Scan this copy again to return only this book. Your seat and session timer continue until Check Out.' : 'When you are done, return the physical copy to the return cart and close this session.'}</p>
+                        <p className="max-w-md text-xs leading-5 text-umber/60">{usesReplacementSchema ? 'Scan this book’s ISBN or copy barcode to return it. Your seat and session timer continue until Check Out.' : 'When you are done, return the physical copy to the return cart and close this session.'}</p>
                         <button type="button" disabled={busy} onClick={() => usesReplacementSchema ? setReturning(log) : void giveBack(log.reading_log_id)} className="tb-button-primary tb-cut-sm shrink-0 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">Finish reading</button>
                       </div>
                     </div>
