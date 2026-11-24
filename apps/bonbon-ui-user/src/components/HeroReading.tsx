@@ -35,7 +35,7 @@ export function HeroReading() {
           </div>
 
           <div className="my-auto py-5 sm:py-6">
-            <p className="text-xs font-800 uppercase tracking-[.18em] text-rust">{isReading ? 'Continue your journey' : firstName ? `Welcome back, ${firstName}` : 'Welcome to Tankobonbon'}</p>
+            <p className="text-xs font-800 uppercase tracking-[.18em] text-rust">{isReading ? 'Continue your journey' : firstName ? `Your shelf awaits, ${firstName}` : 'Welcome to Tankobonbon'}</p>
             <h1 className="mt-3 max-w-2xl font-display text-4xl font-900 leading-[.98] tracking-[-.035em] text-umber sm:text-[2.8rem] lg:text-[3rem]">{isReading ? 'Pick up where you left off.' : 'A remarkable story is waiting for you.'}</h1>
             <p className="mt-3 max-w-xl text-sm font-600 leading-6 text-umber/60">{isReading ? 'Your reading session is ready on My Shelf. Time spent in the library is recorded automatically.' : 'Discover a reader-worthy selection from the collection, check live availability, and begin your next in-library session.'}</p>
 
