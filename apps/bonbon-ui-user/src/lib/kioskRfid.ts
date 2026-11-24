@@ -1,4 +1,7 @@
-export type BridgeAuthentication = { tokenHash: string; account: unknown };
+export type BridgeAuthentication = {
+  tokenHash: string;
+  account: { userId?: string; firstName?: string; lastName?: string; rfidUid?: string };
+};
 type NdefRecord = { recordType: string; data?: ArrayBuffer | null };
 type NdefReadingEvent = Event & { message: { records: NdefRecord[] } };
 type NdefReader = { scan: () => Promise<void>; addEventListener: (name: 'reading', listener: (event: NdefReadingEvent) => void, options?: { once?: boolean }) => void };

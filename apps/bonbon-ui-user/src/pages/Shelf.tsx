@@ -1,12 +1,14 @@
 import { ArrowRightIcon, BookOpenIcon, CalendarDaysIcon, CheckCircle2Icon, Clock3Icon, HistoryIcon, SparklesIcon, UserRoundIcon } from 'lucide-react';
-import type { ReactNode } from 'react';
-import { useGame } from '../contexts/GameContext';
+import { useState, type ReactNode } from 'react';
+import { useGame, type ReadingLog } from '../contexts/GameContext';
 import { GuestPrompt } from '../components/GuestPrompt';
 import { OrnatePanel, SectionHeading } from '../components/OrnatePanel';
 import { usesReplacementSchema } from '../lib/replacement-library';
+import { ReturnBookPrompt } from '../components/ReturnBookPrompt';
 
 export function Shelf() {
   const { session, profile, logs, volumeById, giveBack, busy, saveProfile, setSection } = useGame();
+  const [returning, setReturning] = useState<ReadingLog | null>(null);
   if (!session) return <div className="space-y-6"><SectionHeading title="My shelf" meta="Reading activity" /><GuestPrompt title="Keep your reading adventure together" detail="Sign in to view active reading sessions, your history, membership details, and earned library points." /></div>;
 
   const active = logs.filter((log) => !log.returned_at);
@@ -45,13 +47,13 @@ export function Shelf() {
               <div className="rounded-2xl border border-dashed border-gold/35 bg-cream/65 px-6 py-12 text-center shadow-[0_12px_32px_rgba(84,56,34,.06)]">
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-parch/40"><BookOpenIcon aria-hidden="true" className="h-6 w-6 text-gold" /></span>
                 <h3 className="mt-4 font-display text-xl font-800 text-umber">Your shelf is ready for a story</h3>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-umber/60">Explore the catalog and begin an in-library reading session when you find your next book.</p>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-umber/60">{usesReplacementSchema ? 'If you have returned every book, use Check Out to stop your session timer. You can also browse for another book.' : 'Explore the catalog and begin an in-library reading session when you find your next book.'}</p>
                 <button type="button" onClick={() => setSection('catalog')} className="tb-button-primary tb-cut-sm mt-5 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Browse books <ArrowRightIcon className="h-4 w-4" /></button>
+                {usesReplacementSchema && <a href="/checkout" className="tb-button-secondary tb-cut-sm ml-3 mt-5 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Check Out</a>}
               </div>
             ) : (
-              <div className="grid gap-4">{active.map((log, index) => {
+              <div className="grid gap-4">{active.map((log) => {
                 const volume = volumeById(String(log.book_id));
-                const showFinishButton = !usesReplacementSchema || index === 0;
                 return <article key={log.reading_log_id} className="group relative overflow-hidden rounded-2xl border border-gold/30 bg-cream/90 shadow-[0_16px_38px_rgba(84,56,34,.1)]">
                   <div className="grid gap-5 p-5 sm:grid-cols-[110px_minmax(0,1fr)] sm:p-6">
                     <div className="mx-auto w-[110px] sm:mx-0">
@@ -65,8 +67,8 @@ export function Shelf() {
                       {volume?.author && <p className="mt-1 text-xs font-700 text-umber/55">{volume.author}</p>}
                       <p className="mt-4 flex items-center gap-2 text-xs font-700 text-umber/55"><Clock3Icon className="h-4 w-4 text-gold" /> Started {formatDate(log.started_at)}</p>
                       <div className="mt-5 flex flex-wrap items-center justify-between gap-4 border-t border-gold/20 pt-4">
-                        <p className="max-w-md text-xs leading-5 text-umber/60">{usesReplacementSchema ? 'All books share this seat and timer. Finishing closes the session and sends every active copy to the return cart.' : 'When you are done, return the physical copy to the return cart and close this session.'}</p>
-                        {showFinishButton && <button type="button" disabled={busy} onClick={() => void giveBack(String(log.book_id))} className="tb-button-primary tb-cut-sm shrink-0 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">{busy ? 'Finishing…' : usesReplacementSchema ? 'Finish session' : 'Finish reading'}</button>}
+                        <p className="max-w-md text-xs leading-5 text-umber/60">{usesReplacementSchema ? 'Scan this copy again to return only this book. Your seat and session timer continue until Check Out.' : 'When you are done, return the physical copy to the return cart and close this session.'}</p>
+                        <button type="button" disabled={busy} onClick={() => usesReplacementSchema ? setReturning(log) : void giveBack(log.reading_log_id)} className="tb-button-primary tb-cut-sm shrink-0 px-4 py-2.5 font-display text-xs uppercase tracking-[.1em]">Finish reading</button>
                       </div>
                     </div>
                   </div>
@@ -85,7 +87,7 @@ export function Shelf() {
                   <div className="min-w-0 flex-1"><h3 className="truncate font-display text-sm font-800 text-umber sm:text-base">{volume?.title ?? `Book #${log.book_id}`}</h3><p className="mt-1 flex items-center gap-1.5 text-[10px] font-700 text-umber/50"><CalendarDaysIcon className="h-3.5 w-3.5" /> Completed {formatDate(log.returned_at ?? '')}</p></div>
                   <span className="shrink-0 rounded-full bg-parch/35 px-3 py-1.5 text-[10px] font-900 text-rust">{log.total_reading_minutes ?? 0} min</span>
                 </div>;
-              })}</div> : <div className="px-6 py-10 text-center"><HistoryIcon className="mx-auto h-7 w-7 text-gold/60" /><p className="mt-3 text-sm font-700 text-umber/60">Completed sessions will appear here.</p><p className="mt-1 text-xs text-umber/45">Finish your current book session to begin building your history.</p></div>}
+              })}</div> : <div className="px-6 py-10 text-center"><HistoryIcon className="mx-auto h-7 w-7 text-gold/60" /><p className="mt-3 text-sm font-700 text-umber/60">Finished books will appear here.</p><p className="mt-1 text-xs text-umber/45">Scan a book again after reading to add it to your history.</p></div>}
             </div>
           </section>
         </div>
@@ -106,6 +108,11 @@ export function Shelf() {
           )}
         </section>
       </div>
+      {returning && <ReturnBookPrompt title={volumeById(String(returning.book_id))?.title ?? `Book #${returning.book_id}`} busy={busy} close={() => setReturning(null)} confirm={async barcode => {
+        const ok = await giveBack(returning.reading_log_id, barcode);
+        if (ok) setReturning(null);
+        return ok;
+      }} />}
     </div>
   );
 }

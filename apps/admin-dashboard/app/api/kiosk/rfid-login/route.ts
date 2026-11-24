@@ -29,6 +29,6 @@ export async function POST(request: Request) {
     if (authUser.error || authUser.data.user?.app_metadata?.sora_user_id !== account.user_id) return reply('This card is not linked to a reader login. Please ask staff.', 403);
     const link = await admin.auth.admin.generateLink({ type: 'magiclink', email: account.email });
     if (link.error || !link.data.properties?.hashed_token || link.data.user?.id !== account.auth_user_id) return reply('Could not create a card session. Please ask staff.', 503);
-    return NextResponse.json({ tokenHash: link.data.properties.hashed_token, account: { userId: account.user_id, firstName: account.first_name, lastName: account.last_name } }, { headers: { 'Cache-Control': 'no-store' } });
+    return NextResponse.json({ tokenHash: link.data.properties.hashed_token, account: { userId: account.user_id, firstName: account.first_name, lastName: account.last_name, rfidUid: uid } }, { headers: { 'Cache-Control': 'no-store' } });
   } catch { return reply('The card login service could not be reached. Please try again.', 503); }
 }

@@ -17,11 +17,16 @@ interface LibraryState {
 }
 const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', coins: 0, streak: 0, claimed: [], enrolled: [] };
 
+function initialSection(): SectionId {
+  if (new URLSearchParams(window.location.search).has('reading')) return 'shelf';
+  return 'archive';
+}
+
 function useLibraryState() {
   const [state, setState] = useState<LibraryState>(empty);
   const [session, setSession] = useState<Session | null>(null);
   const readerAccess = useReaderAccess(session);
-  const [section, setSection] = useState<SectionId>(new URLSearchParams(window.location.search).has('reading') ? 'shelf' : 'archive');
+  const [section, setSection] = useState<SectionId>(initialSection);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -211,11 +216,14 @@ function useLibraryState() {
       }
       return run(() => database().rpc('start_reading', { p_book_id: Number(id) }), 'Reading started');
     },
-    giveBack: (id: string) => {
-      const log = state.logs.find(l => String(l.book_id) === id && !l.returned_at);
+    giveBack: (logId: number, barcode?: string) => {
+      const log = state.logs.find(l => l.reading_log_id === logId && !l.returned_at);
       return log ? run(() => usesReplacementSchema
-        ? replacementApi().rpc('finish_reading', { p_session_id: log.session_id ?? log.reading_log_id })
-        : database().rpc('finish_reading', { p_log_id: log.reading_log_id }), 'Reading finished — place the book on the return cart') : Promise.resolve(false);
+        ? replacementApi().rpc('kiosk_return_book', {
+          p_session_id: log.session_id, p_copy_id: log.copy_id, p_barcode: barcode?.trim(),
+        })
+        : database().rpc('finish_reading', { p_log_id: log.reading_log_id }),
+        usesReplacementSchema ? 'Book returned — your reading session remains active' : 'Reading finished') : Promise.resolve(false);
     },
     logSession: (_id: string) => { message('Reading time is recorded automatically', 'Finish reading and return the book to complete your session.'); },
     claim: (q: Commission) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('claim_quest', { p_quest_id: Number(q.id) }), 'Quest points claimed'),

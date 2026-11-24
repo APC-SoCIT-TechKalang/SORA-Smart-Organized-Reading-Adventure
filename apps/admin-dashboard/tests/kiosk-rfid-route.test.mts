@@ -54,6 +54,9 @@ test('database setup errors return an actionable message without leaking interna
 test('a trusted scan of a linked active reader yields a non-cached one-time token', async () => {
   const f = fixture(); const response = await f.POST(request());
   assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(await response.json(), { tokenHash:'one-use-token', account:{userId:readerId,firstName:'Test',lastName:'Reader'} });
+  assert.deepEqual(await response.json(), {
+    tokenHash: 'one-use-token',
+    account: { userId: readerId, firstName: 'Test', lastName: 'Reader', rfidUid: '0001234567' },
+  });
   assert.equal(f.tokens(), 1);
 });

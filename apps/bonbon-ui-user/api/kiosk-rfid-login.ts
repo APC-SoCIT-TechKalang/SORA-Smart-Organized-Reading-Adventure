@@ -125,7 +125,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
     }
     return response.status(200).json({
       tokenHash: link.data.properties.hashed_token,
-      account: { userId: account.user_id, firstName: account.first_name, lastName: account.last_name },
+      account: { userId: account.user_id, firstName: account.first_name, lastName: account.last_name, rfidUid: uid },
     });
   } catch {
     return response.status(503).json({ error: 'The card login service could not be reached. Please try again.' });
