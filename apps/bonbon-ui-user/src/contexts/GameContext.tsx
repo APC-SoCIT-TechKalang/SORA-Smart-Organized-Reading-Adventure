@@ -249,7 +249,8 @@ export function useGame() {
 }
 
 const WARNING_AFTER_MS = 30_000;
-const LOGOUT_AFTER_MS = WARNING_AFTER_MS + 120_000;
+const WARNING_COUNTDOWN_SECONDS = 60;
+const LOGOUT_AFTER_MS = WARNING_AFTER_MS + WARNING_COUNTDOWN_SECONDS * 1_000;
 const KIOSK_ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'touchstart', 'keydown', 'scroll'] as const;
 
 function KioskInactivityWarning() {
@@ -258,7 +259,7 @@ function KioskInactivityWarning() {
   const signOutRef = useRef(signOut);
   signOutRef.current = signOut;
   const [visible, setVisible] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(120);
+  const [secondsLeft, setSecondsLeft] = useState(WARNING_COUNTDOWN_SECONDS);
   const lastActivity = useRef(Date.now());
   const loggingOut = useRef(false);
 
@@ -271,7 +272,7 @@ function KioskInactivityWarning() {
       if (loggingOut.current) return;
       lastActivity.current = Date.now();
       setVisible(false);
-      setSecondsLeft(120);
+      setSecondsLeft(WARNING_COUNTDOWN_SECONDS);
     };
     const checkInactivity = () => {
       const idleFor = Date.now() - lastActivity.current;
@@ -303,7 +304,7 @@ function KioskInactivityWarning() {
     <section role="alertdialog" aria-modal="true" aria-labelledby="kiosk-idle-title" aria-describedby="kiosk-idle-description" className="w-full max-w-md rounded-2xl border border-gold/40 bg-cream p-6 text-center text-umber shadow-[0_24px_70px_rgba(46,25,12,.4)] sm:p-8">
       <h2 id="kiosk-idle-title" className="font-display text-2xl font-900">Are you still there?</h2>
       <p id="kiosk-idle-description" className="mt-3 text-sm leading-6 text-umber/70">For your privacy, this kiosk will sign you out in <strong aria-live="off">{minutes}:{seconds}</strong> if you remain inactive.</p>
-      <button type="button" onClick={() => { lastActivity.current = Date.now(); setVisible(false); setSecondsLeft(120); }} className="tb-button-primary tb-cut-sm mt-6 min-h-12 px-6">Yes, I'm still here</button>
+      <button type="button" onClick={() => { lastActivity.current = Date.now(); setVisible(false); setSecondsLeft(WARNING_COUNTDOWN_SECONDS); }} className="tb-button-primary tb-cut-sm mt-6 min-h-12 px-6">Yes, I'm still here</button>
     </section>
   </div>;
 }
