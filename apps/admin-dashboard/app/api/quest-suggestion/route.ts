@@ -9,6 +9,7 @@ function requestedCounts(prompt: string, requested: unknown, fallback: Difficult
   const counts: Record<Difficulty, number> = { Easy: 0, Medium: 0, Hard: 0 };
   if (requested && typeof requested === "object") for (const level of levels) counts[level] = Math.max(0, Math.min(10, Math.floor(Number((requested as Record<string, unknown>)[level]) || 0)));
   for (const level of levels) { const match = prompt.match(new RegExp(`(?:generate|create|draft)?\\s*(\\d+)\\s+${level}`, "i")); if (match) counts[level] = Math.min(10, Number(match[1])); }
+  if (!levels.some(level => counts[level])) for (const level of levels) if (new RegExp(`\\b${level}\\b`,"i").test(prompt)) counts[level]=1;
   if (!levels.some(level => counts[level])) counts[fallback] = 1;
   return counts;
 }
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
   ]);
   if (catalogResult.error) return NextResponse.json({ error: "The catalog could not be checked right now." }, { status: 503 });
   const inventory = new Map<string, number>(); let total = 0;
-  for (const book of catalogResult.data as CatalogBook[]) if (book.book_copies?.some(copy => copy.copy_status === "In-Shelf")) { total++; for (const genre of (book.book_genre ?? "").split(",").map(value => value.trim()).filter(Boolean)) inventory.set(genre, (inventory.get(genre) ?? 0) + 1); }
+  for (const book of catalogResult.data as CatalogBook[]) if (book.book_copies?.some(copy => ["in-shelf","in_shelf","available"].includes(copy.copy_status.trim().toLowerCase()))) { total++; for (const genre of (book.book_genre ?? "").split(",").map(value => value.trim()).filter(Boolean)) inventory.set(genre, (inventory.get(genre) ?? 0) + 1); }
   inventory.set("*", total);
   const existingDrafts = Array.isArray(body.existingDrafts) ? body.existingDrafts.slice(0, 30) : [];
   const priorDraftGenres = existingDrafts.map(item => item && typeof item === "object" ? clean((item as Record<string,unknown>).targetGenre,100) : "").filter(Boolean);

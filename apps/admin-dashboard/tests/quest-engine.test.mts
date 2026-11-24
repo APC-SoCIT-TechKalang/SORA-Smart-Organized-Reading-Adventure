@@ -18,3 +18,7 @@ test('natural book-count requests infer difficulty and never expose the total in
   assert.equal(inferQuestDifficulty('Make a challenge to read 3 mystery books'),'Medium');
   assert.notEqual(templateQuestDraft('Easy',new Map([['*',10],['Fantasy',2]]),[])?.targetGenre,'*');
 });
+test('template fallback creates a general quest when available books lack genre metadata', () => {
+  const draft=templateQuestDraft('Hard',new Map([['*',4]]),[]);
+  assert.equal(draft?.targetGenre,''); assert.equal(draft?.targetValue,4); assert.equal(draft?.title,'Hard Library Trail');
+});
