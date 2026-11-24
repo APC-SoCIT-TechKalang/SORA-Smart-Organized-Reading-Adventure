@@ -381,7 +381,7 @@ async function gemini(
     age_rating: metadata.age_rating,
     themes: metadata.themes,
   };
-  const prompt = `Suggest only library classification fields from this trusted ISBN evidence. Never create or change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. If a source description exists, rewrite it as a concise, professional library synopsis using only facts present in that description; remove slang, filler, opinions, and informal wording. If no description evidence exists, return an empty description rather than inventing a plot. Leave unsupported fields empty. Return JSON only. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty.\n${JSON.stringify(evidence)}`;
+  const prompt = `Suggest library classification fields from this ISBN evidence. Never change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. Write one concise, professional paragraph for description. Rewrite a supplied description using its facts; if absent, describe only the verified premise supported by title, genres, and themes. Do not invent characters, events, outcomes, or plot details. If those fields cannot support a meaningful synopsis, leave description empty. Leave other unsupported fields empty. Return JSON only. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty.\n${JSON.stringify(evidence)}`;
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -461,7 +461,7 @@ async function openRouter(
     age_rating: metadata.age_rating,
     themes: metadata.themes,
   };
-  const prompt = `Suggest only library classification fields from this trusted ISBN evidence. Never create or change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. If a source description exists, rewrite it as a concise, professional library synopsis using only facts present in that description; remove slang, filler, opinions, and informal wording. If no description evidence exists, return an empty description rather than inventing a plot. Leave unsupported fields empty. Genres and themes must be short labels. Return JSON only with exactly the schema fields. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Evidence:\n${JSON.stringify(evidence)}`;
+  const prompt = `Suggest library classification fields from this ISBN evidence. Never change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. Write one concise, professional paragraph for description. Rewrite a supplied description using its facts; if absent, describe only the verified premise supported by title, genres, and themes. Do not invent characters, events, outcomes, or plot details. If those fields cannot support a meaningful synopsis, leave description empty. Leave other unsupported fields empty. Genres and themes must be short labels. Return JSON only with exactly the schema fields. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Evidence:\n${JSON.stringify(evidence)}`;
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,

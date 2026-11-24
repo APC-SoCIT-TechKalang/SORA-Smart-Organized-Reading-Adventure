@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  ArrowLeft,
   BookOpenCheck,
   ImagePlus,
   LoaderCircle,
@@ -432,9 +433,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     setSubmitError("");
     setSubmitting(true);
     try {
+    let showCopyLabel = false;
     const ok = await run(
       async () => {
         const result = await saveVolume();
+        showCopyLabel = result.showCopyLabel === true;
         if (result.error) {
           const error = result.error as { message?: string };
           setSubmitError(error.message || "Could not save this volume. Please try again.");
@@ -445,7 +448,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
         ? "Physical copy added to the catalogue"
         : "Volume added to the catalogue",
     );
-    if (ok && !usesReplacementSchema) close();
+    if (ok && !showCopyLabel) close();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Could not save this volume. Please try again.");
     } finally {
@@ -453,7 +456,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     }
   };
 
-  const saveVolume = async () => {
+  const saveVolume = async (): Promise<{ error: unknown; showCopyLabel?: boolean }> => {
         if (!usesReplacementSchema && existingBookId && !form.barcode.trim())
           return {
             error: new Error(
@@ -530,8 +533,10 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             }],
           });
           if (created.error) return { error: created.error };
-          setCreatedLabels(created.data as BookLabel[]);
-          return { error: null };
+          const labels = created.data as BookLabel[];
+          const showCopyLabel = existingBookId !== null || labels.some((label) => label.copy_number > 1);
+          if (showCopyLabel) setCreatedLabels(labels);
+          return { error: null, showCopyLabel };
         }
         const result = await database().rpc("admin_create_catalog_entry", {
           p_book: {
@@ -610,7 +615,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
           {createdLabels.map(label => <p key={label.copy_id} className="rounded-xl border border-[#dfcfbe] bg-[#fffaf1] p-4 text-sm"><b>{label.title}</b><br />Copy {label.copy_number} · {label.barcode}</p>)}
           <button type="button" onClick={() => { try { printBookLabels(createdLabels); } catch (error) { setSubmitError(error instanceof Error ? error.message : "Could not print labels."); } }} className="rounded-xl bg-[#a83d12] px-5 py-3 text-xs font-bold text-white">Print barcode label</button>
           {submitError && <p role="alert" className="text-sm text-red-700">{submitError}</p>}
-          <button type="button" onClick={close} className="ml-3 rounded-xl border border-[#dfcfbe] px-5 py-3 text-xs font-bold">Done</button>
+          <button type="button" onClick={close} className="ml-3 inline-flex items-center gap-2 rounded-xl border border-[#dfcfbe] px-5 py-3 text-xs font-bold"><ArrowLeft size={14} />Back to catalogue</button>
         </div> : <form onSubmit={submit} onInvalidCapture={(event) => {
           setShowErrors(true);
           const field = event.target as HTMLInputElement;
