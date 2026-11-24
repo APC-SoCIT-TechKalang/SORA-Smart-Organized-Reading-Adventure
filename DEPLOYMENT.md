@@ -91,6 +91,12 @@ Existing unknown locations remain null so the application does not invent a
 physical location. Staff must inspect these copies and assign their actual
 shelves using Book Management → Shelf / status; the table marks them Shelf
 missing until assigned. Titles without copies need a physical copy added.
+In Book Management, these titles show "No physical copies"; Shelf / status
+offers a copy registration form. Staff must check the physical item, scan its
+unique barcode, and select its actual shelf. The existing
+`admin_add_located_copy` function adds one copy to the existing title and
+rejects duplicate barcodes; it does not change the title metadata or assign
+invented locations.
 
 Book Details lists locations per copy, highlights only copies currently in
 shelf, and refreshes with the catalog's existing polling. Copies with readers,
