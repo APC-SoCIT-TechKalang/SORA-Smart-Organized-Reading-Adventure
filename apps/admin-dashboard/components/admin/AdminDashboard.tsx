@@ -44,6 +44,7 @@ import { EditCopyLocation } from "./EditCopyLocation";
 import { CatalogueEditor } from "./CatalogueEditor";
 import { ReaderCheckIn } from "./ReaderCheckIn";
 import { AnalyticsWorkspace } from "./AnalyticsWorkspace";
+import { CheckoutQueue } from "./CheckoutQueue";
 
 type Page =
   "Overview" | "Analytics" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
@@ -510,6 +511,7 @@ function Overview({
           </div>
         </section>
       </div>
+      <CheckoutQueue run={run} />
     </>
   );
 }

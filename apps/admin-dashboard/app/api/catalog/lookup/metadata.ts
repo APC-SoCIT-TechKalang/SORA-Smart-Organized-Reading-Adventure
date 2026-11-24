@@ -58,6 +58,13 @@ export function normalizeIsbn(value: string) {
   return value.toUpperCase().replace(/[^0-9X]/g, "");
 }
 
+export function completeIsbn13(value: string) {
+  const digits = normalizeIsbn(value);
+  if (!/^97[89]\d{9}$/.test(digits)) return digits;
+  const sum = digits.split("").reduce((total, digit, index) => total + Number(digit) * (index % 2 ? 3 : 1), 0);
+  return `${digits}${(10 - (sum % 10)) % 10}`;
+}
+
 export function validIsbn(value: string) {
   const normalized = normalizeIsbn(value);
   if (/^97[89]\d{10}$/.test(normalized)) {
@@ -129,7 +136,10 @@ function cleanHtml(value: unknown) {
 }
 
 export function professionalSynopsis(value: unknown) {
-  const cleaned = cleanHtml(value).slice(0, 1600);
+  const cleaned = cleanHtml(value)
+    .replace(/\s*\((?:Source|Sources|Publisher|Reference|Citation)\s*:[^)]*\)/gi, "")
+    .replace(/\s*\bNote\s*:\s*(?:Winner|Nominated|Awarded|Recipient)[^.?!]*(?:[.!?]|$)/gi, "")
+    .replace(/[*_#`]/g, "").replace(/\s*[\r\n]+\s*/g, " ").slice(0, 1600).trim();
   return /\b(?:lmao|lol|idk|tbh|wtf|yeah thats|mr mad guy)\b/i.test(cleaned) ? "" : cleaned;
 }
 

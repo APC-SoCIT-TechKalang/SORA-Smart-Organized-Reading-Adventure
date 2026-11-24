@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogFailure, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, numericAgeRating, openLibraryAdapter, professionalSynopsis, suggestedAgeRating, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
+import { catalogFailure, completeIsbn13, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, numericAgeRating, openLibraryAdapter, professionalSynopsis, suggestedAgeRating, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
 
 test('validates ISBN-13, ISBN-10, checksum failures, and scanner formatting', () => {
   assert.equal(normalizeIsbn('978-1-64651-654-4\r\n'), '9781646516544');
@@ -8,6 +8,9 @@ test('validates ISBN-13, ISBN-10, checksum failures, and scanner formatting', ()
   assert.equal(validIsbn('0-306-40615-2'), true);
   assert.equal(isbn13('0306406152'), '9780306406157');
   assert.equal(validIsbn('9781646516543'), false);
+  assert.equal(completeIsbn13('978193565432'), '9781935654322');
+  assert.equal(completeIsbn13('9781646516544'), '9781646516544');
+  assert.equal(completeIsbn13('0306406152'), '0306406152');
 });
 
 test('adapts the supplied Blue Lock ISBN into trusted catalog fields', () => {
@@ -33,6 +36,10 @@ test('distinguishes no results, provider failures, and rate limits', () => {
 test('rejects informal or slang-filled AI synopsis output', () => {
   assert.equal(professionalSynopsis('mr mad guy gets put into a project lmao'), '');
   assert.equal(professionalSynopsis('A young striker enters an intensive program designed to develop Japan’s leading football forward.'), 'A young striker enters an intensive program designed to develop Japan’s leading football forward.');
+});
+
+test('removes source credits and award notes from a synopsis', () => {
+  assert.equal(professionalSynopsis("A striker joins a training program. (Source: Kodansha USA) Note: Winner of the 45th Kodansha Manga Award in 2021."), "A striker joins a training program.");
 });
 
 test('normalizes and conservatively suggests numeric age ratings', () => {

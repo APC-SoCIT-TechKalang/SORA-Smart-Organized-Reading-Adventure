@@ -6,6 +6,7 @@ import {
   aniListAdapter,
   catalogFailure,
   cleanLabels,
+  completeIsbn13,
   emptyBookMetadata,
   fromFormMetadata,
   googleAdapter,
@@ -381,7 +382,7 @@ async function gemini(
     age_rating: metadata.age_rating,
     themes: metadata.themes,
   };
-  const prompt = `Suggest only library classification fields from this trusted ISBN evidence. Never create or change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. If a source description exists, rewrite it as a concise, professional library synopsis using only facts present in that description; remove slang, filler, opinions, and informal wording. If no description evidence exists, return an empty description rather than inventing a plot. Leave unsupported fields empty. Return JSON only. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty.\n${JSON.stringify(evidence)}`;
+  const prompt = `Suggest library classification fields from this ISBN evidence. Never change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. Write one concise, professional paragraph for description. Rewrite a supplied description using its facts; if absent, describe only the verified premise supported by title, genres, and themes. Do not invent characters, events, outcomes, or plot details. If those fields cannot support a meaningful synopsis, leave description empty. Leave other unsupported fields empty. Return JSON only. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty.\n${JSON.stringify(evidence)}`;
   const response = await fetch(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
@@ -461,7 +462,7 @@ async function openRouter(
     age_rating: metadata.age_rating,
     themes: metadata.themes,
   };
-  const prompt = `Suggest only library classification fields from this trusted ISBN evidence. Never create or change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. If a source description exists, rewrite it as a concise, professional library synopsis using only facts present in that description; remove slang, filler, opinions, and informal wording. If no description evidence exists, return an empty description rather than inventing a plot. Leave unsupported fields empty. Genres and themes must be short labels. Return JSON only with exactly the schema fields. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Evidence:\n${JSON.stringify(evidence)}`;
+  const prompt = `Suggest library classification fields from this ISBN evidence. Never change ISBN, title, author, publisher, imprint, publication data, series, volume, or cover. Write one concise, professional paragraph for description. Rewrite a supplied description using its facts; if absent, describe only the verified premise supported by title, genres, and themes. Do not invent characters, events, outcomes, or plot details. If those fields cannot support a meaningful synopsis, leave description empty. Leave other unsupported fields empty. Genres and themes must be short labels. Return JSON only with exactly the schema fields. demographic: Shonen, Shojo, Seinen, Josei, Children, Young Adult, Adult, General, or empty. Evidence:\n${JSON.stringify(evidence)}`;
   const headers = {
     "Content-Type": "application/json",
     Authorization: `Bearer ${apiKey}`,
@@ -618,7 +619,7 @@ export async function POST(request: NextRequest) {
       query?: string;
       useAi?: boolean;
     };
-    const enteredIsbn = normalizeIsbn(body.isbn ?? "");
+    const enteredIsbn = completeIsbn13(body.isbn ?? "");
     if (!validIsbn(enteredIsbn))
       return NextResponse.json(
         { error: "Enter a valid ISBN-10 or ISBN-13." },
@@ -756,6 +757,12 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = toFormMetadata(normalized);
+    // An old catalog synopsis can block better provider text during merging.
+    // Prefer a clean provider description before asking AI to rewrite it.
+    const providerSynopsis = [...found, ...mangaEnrichments]
+      .map((result) => professionalSynopsis(result.metadata?.description))
+      .find(Boolean);
+    metadata.description = providerSynopsis || professionalSynopsis(metadata.description);
     let inheritedFrom = "";
     if (metadata.series_name && !replacementSchema) {
       let templateQuery = await client
@@ -807,8 +814,10 @@ export async function POST(request: NextRequest) {
     const needsAiCleanup = !metadata.genres || !metadata.themes || !metadata.demographic || !metadata.age_rating || !metadata.description;
     if ((needsAiCleanup || Boolean(metadata.description)) && body.useAi === true) {
       try {
-        const enrichment =
-          (await openRouter(metadata)) ?? (await gemini(metadata));
+        let enrichment = await openRouter(metadata);
+        if (!enrichment?.description && !metadata.description)
+          enrichment = (await gemini(metadata)) ?? enrichment;
+        else if (!enrichment) enrichment = await gemini(metadata);
         if (enrichment) {
           aiFields = applyAiSuggestions(metadata, enrichment);
           for (const key of aiFields) fieldSources[key] = "AI suggestion — review required";
@@ -818,7 +827,7 @@ export async function POST(request: NextRequest) {
         /* The deterministic multi-source result remains usable. */
       }
     }
-    if (metadata.description && !professionalSynopsis(metadata.description)) metadata.description = "";
+    metadata.description = professionalSynopsis(metadata.description);
     metadata.age_rating = numericAgeRating(metadata.age_rating);
     let ageRatingSuggested = false;
     if (!metadata.age_rating) {

@@ -27,15 +27,9 @@ interface ReplacementUser {
   membership_rank: string | null;
 }
 
-interface ReplacementSession {
-  session_id: number;
-  copy_id: number;
-  borrow_date: string | null;
-  return_date: string | null;
-}
-
-interface ReplacementActiveBook {
-  copy_id: number;
+interface ReplacementReadingActivity {
+  session_id: number; copy_id: number; book_id: number;
+  started_at: string; returned_at: string | null; total_reading_minutes: number | null;
 }
 
 interface ReplacementQuest {
@@ -117,55 +111,26 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
   if (account.error) throw account.error;
   if (account.data == null) throw new Error('This sign-in has not been linked to a library account yet. Ask staff for help.');
   const userId = String(account.data);
-  const [user, copies, sessions, quests, enrollments, balance, readingState] = await Promise.all([
+  const [user, quests, enrollments, balance, activity] = await Promise.all([
     api().from('users').select('id,first_name,last_name,birthdate,is_active,membership_rank').eq('id', userId).single(),
-    readAll<{ copy_id: number; book_id: number }>('book_copies', 'copy_id,book_id', 'copy_id'),
-    readAll<ReplacementSession>('sessions', 'session_id,copy_id,borrow_date,return_date', 'session_id'),
     readAll<ReplacementQuest>('quests', 'quest_id,quest_name,quest_description,points_reward,time_limit_days', 'quest_id'),
     readAll<ReplacementEnrollment>('user_quests', 'quest_id,quest_status,points_awarded', 'user_quest_id'),
     api().rpc('points_balance'),
-    api().rpc('kiosk_reading_state'),
+    api().rpc('reader_book_activity'),
   ]);
   if (user.error) throw user.error;
   if (balance.error) throw balance.error;
-  if (readingState.error) throw readingState.error;
-  const copyBookIds = new Map(copies.map(copy => [copy.copy_id, copy.book_id]));
-  const kioskState = readingState.data as { active?: { session_id?: number } | null; books?: ReplacementActiveBook[] } | null;
-  const attachedBooks = kioskState?.books ?? [];
+  if (activity.error) throw activity.error;
   const profile = user.data as ReplacementUser;
   if (!profile.is_active) throw new Error('This reader account has been deactivated. Ask library staff for help.');
   return {
     ...base,
     profile: { user_id: profile.id, first_name: profile.first_name,
       last_name: profile.last_name, birthday: profile.birthdate, bio: null },
-    logs: sessions.flatMap(item => {
-      const totalMinutes = item.return_date && item.borrow_date
-        ? Math.max(0, Math.floor((new Date(item.return_date).getTime() - new Date(item.borrow_date).getTime()) / 60000))
-        : null;
-      if (!item.return_date && kioskState?.active?.session_id === item.session_id && attachedBooks.length) {
-        return attachedBooks.flatMap(book => {
-          const bookId = copyBookIds.get(book.copy_id);
-          return bookId == null ? [] : [{
-            reading_log_id: -((item.session_id * 1000000) + book.copy_id),
-            session_id: item.session_id,
-            copy_id: book.copy_id,
-            book_id: bookId,
-            started_at: item.borrow_date ?? '',
-            returned_at: null,
-            total_reading_minutes: null,
-          }];
-        });
-      }
-      return [{
-        reading_log_id: item.session_id,
-        session_id: item.session_id,
-        copy_id: item.copy_id,
-        book_id: copyBookIds.get(item.copy_id) ?? 0,
-        started_at: item.borrow_date ?? '',
-        returned_at: item.return_date,
-        total_reading_minutes: totalMinutes,
-      }];
-    }),
+    logs: (activity.data as ReplacementReadingActivity[]).map(item => ({
+      reading_log_id: -((item.session_id * 1000000) + item.copy_id),
+      ...item,
+    })),
     rank: profile.membership_rank ?? 'F',
     coins: Number(balance.data ?? 0),
     claimed: enrollments.filter(item => item.points_awarded > 0).map(item => String(item.quest_id)),

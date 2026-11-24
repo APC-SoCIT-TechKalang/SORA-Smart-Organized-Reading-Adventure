@@ -120,6 +120,23 @@ After saving, print the Code 128 labels from the confirmation screen or reprint
 them from the catalogue. Bulk Add accepts CSV/TSV with
 `isbn,title,author,genre,tags,book_type,age_rating,shelf` headers or manual rows.
 
+## Per-book returns and UC-05 checkout
+
+Apply `supabase/replacement/018_per_book_returns_checkout.sql` after `017`
+before deploying the reader and admin apps. It preserves existing rows and adds
+copy-specific return, reader book activity, card-verified checkout, dispute,
+charge adjustment, and counter-payment functions. On My Shelf, Finish reading
+requires a scan of that copy's barcode and moves only that copy to the return
+cart; the seat and timer continue. The standalone `/checkout` kiosk requires no
+username/password sign-in. The reader taps the RFID card linked to their active
+session; the server silently identifies that reader, requires all copies to
+have been returned, stops the timer, and shows that session's summary plus food
+and other charges. A session with no unpaid charge closes immediately. A
+session with a charge waits for counter payment before closing. A disputed
+charge pauses checkout and appears in the admin dashboard's
+Checkout counter; staff adjust it there and record payment. The reader then
+completes checkout, which releases the seat. Self-payment is not enabled.
+
 Apply `supabase/replacement/014_catalog_edition_metadata.sql` after `013`
 before deploying the improved Add Volume workflow. It adds reviewed metadata
 provenance, acquisition dates, checksum validation, duplicate-ISBN reuse, and
