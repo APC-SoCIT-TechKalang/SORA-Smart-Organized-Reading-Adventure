@@ -3,7 +3,7 @@ import { BookOpenIcon, CameraIcon, QrCodeIcon, RadioIcon, XIcon } from 'lucide-r
 import type { IScannerControls } from '@zxing/browser';
 import { database, errorMessage } from './lib/supabase';
 import { requireReaderAccount } from './lib/replacement-library';
-import { startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
+import { startWebNfcScan, subscribeToHidScanner, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
 import { parseKioskQrPayload } from './lib/kioskQr';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'error';
@@ -51,6 +51,20 @@ export function KioskApp() {
 
   const authenticateUid = useCallback((rfidUid: string) => authenticate({ rfidUid }), [authenticate]);
   const authenticateUser = useCallback((userId: string) => authenticate({ userId }), [authenticate]);
+  const authenticateScannerPayload = useCallback((payload: string) => {
+    if (authenticating.current) return;
+    const userId = parseKioskQrPayload(payload);
+    if (userId) {
+      void authenticateUser(userId);
+      return;
+    }
+    if (payload.startsWith('tankobonbon:')) {
+      setStatus('error');
+      setMessage('That QR code is not a valid Tankobonbon digital card.');
+      return;
+    }
+    void authenticateUid(payload);
+  }, [authenticateUid, authenticateUser]);
 
   const startPhysicalScan = useCallback(async () => {
     if (!supportsWebNfc()) { setMessage('USB card scanning is enabled. Keep this window focused and tap your card on the reader.'); setStatus('scanning'); return; }
@@ -116,7 +130,7 @@ export function KioskApp() {
   }, [authenticateUser, qrScanning]);
 
   useEffect(() => subscribeToReaderBridge(authentication => void establishSession(authentication)), [establishSession]);
-  useEffect(() => subscribeToKeyboardReader(uid => void authenticateUid(uid)), [authenticateUid]);
+  useEffect(() => subscribeToHidScanner(authenticateScannerPayload), [authenticateScannerPayload]);
   useEffect(() => { void clearSession(); }, [clearSession]);
 
   return <main className="tb-field tb-world-shell min-h-screen text-umber"><KioskHeader />
