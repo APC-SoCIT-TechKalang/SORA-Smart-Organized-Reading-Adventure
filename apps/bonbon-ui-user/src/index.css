@@ -2424,9 +2424,11 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
   position: absolute;
   width: 100%;
 }
+.digital-card-face[aria-hidden="true"] { pointer-events: none; }
 .digital-card-front {
   background: linear-gradient(135deg, #442b19 0%, #543822 48%, #6b4326 100%);
   border: 1px solid rgba(243,215,147,.52);
+  transform: rotateY(0deg);
 }
 .digital-card-front::after {
   background: linear-gradient(112deg, transparent 22%, rgba(255,255,255,.13) 42%, transparent 61%);
@@ -2453,34 +2455,7 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
 }
 @media (max-width: 640px) {
   .digital-card-stage { aspect-ratio: 1 / 1; }
-  .digital-card-flipper,
-  .digital-card-flipper.is-flipped {
-    transform: none;
-    transform-style: flat;
-    -webkit-transform-style: flat;
-  }
-  .digital-card-face {
-    transition: opacity 180ms ease, visibility 180ms ease;
-  }
-  .digital-card-front {
-    opacity: 1;
-    transform: none;
-    visibility: visible;
-  }
-  .digital-card-back {
-    opacity: 0;
-    transform: none;
-    visibility: hidden;
-  }
-  .digital-card-flipper.is-flipped .digital-card-front {
-    opacity: 0;
-    visibility: hidden;
-  }
-  .digital-card-flipper.is-flipped .digital-card-back {
-    opacity: 1;
-    visibility: visible;
-  }
-  .digital-card-back > .relative {
+  .digital-card-back-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
     padding: .75rem;

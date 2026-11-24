@@ -63,7 +63,7 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
         <section aria-labelledby="profile-card-title" className="space-y-4">
           <div><p className="tb-eyebrow">Your library identity</p><h3 id="profile-card-title" className="mt-1 font-display text-2xl font-900">Digital library card</h3></div>
           <div className="digital-card-stage mx-auto max-w-2xl">
-            <div className={`digital-card-flipper ${flipped ? 'is-flipped' : ''}`} role="button" tabIndex={0} aria-label={flipped ? 'Show the front of your digital reader card' : 'Show the QR code on the back of your digital reader card'} onClick={() => setFlipped(value => !value)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setFlipped(value => !value); } }}>
+            <div className={`digital-card-flipper ${flipped ? 'is-flipped' : ''}`} role="group" aria-label="Digital reader card" onClick={() => setFlipped(value => !value)}>
               <article className="digital-card-face digital-card-front" aria-hidden={flipped}>
                 <img src="/digital-card-front-art-v1.png" alt="" className="absolute inset-0 h-full w-full object-cover" />
                 <div aria-hidden="true" className="absolute inset-0 bg-[linear-gradient(180deg,rgba(43,25,12,.58)_0%,rgba(43,25,12,.06)_39%,rgba(43,25,12,.12)_57%,rgba(43,25,12,.82)_100%)]" />
@@ -72,7 +72,20 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
               <article className="digital-card-face digital-card-back" aria-hidden={!flipped}>
                 <div aria-hidden="true" className="digital-card-back-pattern" />
                 <div className="relative z-10 flex h-full flex-col items-center justify-center gap-2 p-3 sm:gap-3 sm:p-5">
-                  <div className="rounded-xl bg-white p-2 shadow-lg sm:p-3">{qrPayload ? <QRCodeSVG value={qrPayload} level="H" marginSize={2} bgColor="#ffffff" fgColor="#321b0d" className="h-auto w-[min(48vw,220px)] sm:w-[min(28vw,260px)]" title="Tankobonbon kiosk login QR code" /> : <div className="grid h-32 w-32 place-items-center text-center text-xs text-rust"><QrCodeIcon aria-hidden="true" />QR unavailable</div>}</div>
+                  {qrPayload ? (
+                    <button
+                      type="button"
+                      aria-label="Enlarge kiosk QR code"
+                      aria-haspopup="dialog"
+                      tabIndex={flipped ? 0 : -1}
+                      onClick={event => { event.stopPropagation(); setQrExpanded(true); }}
+                      className="flex shrink-0 items-center justify-center rounded-xl bg-white p-2 shadow-lg focus-visible:outline focus-visible:outline-4 focus-visible:outline-offset-4 focus-visible:outline-gold sm:p-3"
+                    >
+                      <QRCodeSVG value={qrPayload} level="H" marginSize={2} bgColor="#ffffff" fgColor="#321b0d" className="block h-auto w-[min(48vw,220px)] sm:w-[min(28vw,260px)]" title="Tankobonbon kiosk login QR code" />
+                    </button>
+                  ) : (
+                    <div className="grid h-32 w-32 place-items-center rounded-xl bg-white p-2 text-center text-xs text-rust shadow-lg"><QrCodeIcon aria-hidden="true" />QR unavailable</div>
+                  )}
                   <p className="rounded bg-white/90 px-3 py-1 text-center text-xs font-800 text-umber">{qrPayload ? 'Scan to log in at the kiosk' : 'QR login is unavailable'}</p>
                 </div>
               </article>

@@ -171,7 +171,7 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
 
             <article className="digital-card-face digital-card-back" aria-hidden={!flipped}>
               <div aria-hidden="true" className="digital-card-back-pattern" />
-              <div className="relative z-10 grid h-full grid-cols-[minmax(120px,.72fr)_1.28fr] gap-2.5 p-3 sm:grid-cols-[minmax(170px,.76fr)_1.24fr] sm:gap-4 sm:p-5">
+              <div className="digital-card-back-layout relative z-10 grid h-full grid-cols-[minmax(120px,.72fr)_1.28fr] gap-2.5 p-3 sm:grid-cols-[minmax(170px,.76fr)_1.24fr] sm:gap-4 sm:p-5">
                 <div className="digital-card-qr-panel flex min-w-0 flex-col rounded-xl border border-[#c4800c]/25 bg-white p-2 shadow-inner sm:p-3">
                   <div className="grid min-h-0 flex-1 place-items-center rounded-lg bg-white p-1.5 sm:p-2">
                     {credential.qrPayload ? (
