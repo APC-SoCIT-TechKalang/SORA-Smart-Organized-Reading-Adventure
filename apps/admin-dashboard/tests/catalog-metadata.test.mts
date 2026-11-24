@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogFailure, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, openLibraryAdapter, professionalSynopsis, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
+import { catalogFailure, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, numericAgeRating, openLibraryAdapter, professionalSynopsis, suggestedAgeRating, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
 
 test('validates ISBN-13, ISBN-10, checksum failures, and scanner formatting', () => {
   assert.equal(normalizeIsbn('978-1-64651-654-4\r\n'), '9781646516544');
@@ -35,6 +35,18 @@ test('rejects informal or slang-filled AI synopsis output', () => {
   assert.equal(professionalSynopsis('A young striker enters an intensive program designed to develop Japan’s leading football forward.'), 'A young striker enters an intensive program designed to develop Japan’s leading football forward.');
 });
 
+test('normalizes and conservatively suggests numeric age ratings', () => {
+  assert.equal(numericAgeRating('Teen / 13+'), '13');
+  assert.equal(numericAgeRating('16 and up'), '16');
+  assert.equal(numericAgeRating('Teen'), '');
+  const manga = emptyBookMetadata('9781646516544');
+  manga.bookType = 'Manga';
+  manga.demographic = 'Shonen';
+  assert.equal(suggestedAgeRating(manga), '13');
+  manga.bookType = 'Adult Manga';
+  assert.equal(suggestedAgeRating(manga), '18');
+});
+
 test('rejects broken/non-image cover responses and accepts images', async () => {
   const broken = await validateCoverUrl('https://example.test/broken.jpg', async () => new Response('missing', { status: 404, headers: { 'content-type': 'text/html' } }));
   const png = new Uint8Array(512);
@@ -60,6 +72,7 @@ test('manga enrichment cannot overwrite trusted edition facts or cover', () => {
   const manga = emptyBookMetadata('9781646516544');
   manga.title = 'Wrong title'; manga.authors = ['Wrong author']; manga.publisher = 'Wrong publisher';
   manga.coverUrls = ['https://untrusted.example/cover.jpg']; manga.genres = ['Sports']; manga.themes = ['Soccer'];
+  manga.description = 'High school strikers enter an intensive program to compete for a place on Japanâ€™s national team.';
   const merged = mergeMangaEnrichment(trusted, manga);
   assert.equal(merged.title, 'Blue Lock 1');
   assert.deepEqual(merged.authors, ['Muneyuki Kaneshiro']);
@@ -67,4 +80,5 @@ test('manga enrichment cannot overwrite trusted edition facts or cover', () => {
   assert.deepEqual(merged.coverUrls, ['https://trusted.example/cover.jpg']);
   assert.deepEqual(merged.genres, ['Sports']);
   assert.deepEqual(merged.themes, ['Soccer']);
+  assert.equal(merged.description, manga.description);
 });

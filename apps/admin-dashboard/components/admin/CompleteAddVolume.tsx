@@ -189,7 +189,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     },
     { key: "themes", label: "Themes", placeholder: "Friendship, found family" },
     { key: "demographic", label: "Demographic", placeholder: "e.g. Shonen" },
-    { key: "age_rating", label: "Age rating", placeholder: "e.g. Teen / 13+" },
+    { key: "age_rating", label: "Age rating (minimum age)", placeholder: "e.g. 13" },
   ];
 
   const lookupIsbn = async (useAi = true) => {

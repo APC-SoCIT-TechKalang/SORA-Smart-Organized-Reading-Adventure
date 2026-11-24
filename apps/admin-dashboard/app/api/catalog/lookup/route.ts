@@ -18,6 +18,8 @@ import {
   normalizeIsbn,
   openLibraryAdapter,
   professionalSynopsis,
+  numericAgeRating,
+  suggestedAgeRating,
   sameIsbn,
   titleMatches,
   toFormMetadata,
@@ -817,6 +819,13 @@ export async function POST(request: NextRequest) {
       }
     }
     if (metadata.description && !professionalSynopsis(metadata.description)) metadata.description = "";
+    metadata.age_rating = numericAgeRating(metadata.age_rating);
+    let ageRatingSuggested = false;
+    if (!metadata.age_rating) {
+      metadata.age_rating = suggestedAgeRating(normalized);
+      ageRatingSuggested = Boolean(metadata.age_rating);
+      if (ageRatingSuggested) fieldSources.age_rating = "Audience classification suggestion â€” review required";
+    }
 
     // Validate covers before calculating review fields. A provider placeholder
     // must be treated as missing, so the UI can offer title search or upload.
@@ -843,6 +852,8 @@ export async function POST(request: NextRequest) {
     ]
       .filter(([, value]) => !value)
       .map(([name]) => name);
+    const reviewFields = [...missing];
+    if (ageRatingSuggested) reviewFields.push("age rating");
     const warnings = ["Review edition-specific details before saving."];
     if (normalized.collectedVolumeRange)
       warnings.push(
@@ -868,7 +879,7 @@ export async function POST(request: NextRequest) {
       warnings,
       metadata,
       sources: [...new Set(sources)], fieldSources, aiFields,
-      reviewFields: missing, usable: Boolean(metadata.title && metadata.author),
+      reviewFields, usable: Boolean(metadata.title && metadata.author),
       coverCandidates,
     });
   } catch (error) {

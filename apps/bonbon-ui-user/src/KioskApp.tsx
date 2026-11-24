@@ -33,12 +33,12 @@ export function KioskApp() {
     } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
 
-  const authenticateUid = useCallback(async (rfidUid: string) => {
+  const authenticate = useCallback(async (credential: { rfidUid: string } | { userId: string }) => {
     if (authenticating.current) return;
     authenticating.current = true;
     setStatus('authorizing'); setMessage('');
     try {
-      const response = await fetch('/api/kiosk/rfid-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rfidUid }), cache: 'no-store' });
+      const response = await fetch('/api/kiosk/rfid-login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(credential), cache: 'no-store' });
       if (!response.headers.get('content-type')?.includes('application/json')) {
         throw new Error('Card detected, but the kiosk login service is unavailable. Please ask staff to start the kiosk server.');
       }
@@ -48,6 +48,9 @@ export function KioskApp() {
     } catch (cause) { setMessage(errorMessage(cause)); setStatus('error'); }
     finally { authenticating.current = false; }
   }, [establishSession]);
+
+  const authenticateUid = useCallback((rfidUid: string) => authenticate({ rfidUid }), [authenticate]);
+  const authenticateUser = useCallback((userId: string) => authenticate({ userId }), [authenticate]);
 
   const startPhysicalScan = useCallback(async () => {
     if (!supportsWebNfc()) { setMessage('USB card scanning is enabled. Keep this window focused and tap your card on the reader.'); setStatus('scanning'); return; }
@@ -88,14 +91,14 @@ export function KioskApp() {
           video,
           result => {
             if (disposed || !result) return;
-            const cardId = parseKioskQrPayload(result.getText());
-            if (!cardId) {
+            const userId = parseKioskQrPayload(result.getText());
+            if (!userId) {
               setMessage('That QR code is not a Tankobonbon digital card.');
               return;
             }
             controls?.stop();
             setQrScanning(false);
-            void authenticateUid(cardId);
+            void authenticateUser(userId);
           },
         );
         if (disposed) controls.stop();
@@ -110,7 +113,7 @@ export function KioskApp() {
     };
     void openCamera();
     return stop;
-  }, [authenticateUid, qrScanning]);
+  }, [authenticateUser, qrScanning]);
 
   useEffect(() => subscribeToReaderBridge(authentication => void establishSession(authentication)), [establishSession]);
   useEffect(() => subscribeToKeyboardReader(uid => void authenticateUid(uid)), [authenticateUid]);

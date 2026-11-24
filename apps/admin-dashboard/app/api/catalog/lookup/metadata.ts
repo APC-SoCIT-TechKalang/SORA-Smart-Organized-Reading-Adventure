@@ -133,6 +133,22 @@ export function professionalSynopsis(value: unknown) {
   return /\b(?:lmao|lol|idk|tbh|wtf|yeah thats|mr mad guy)\b/i.test(cleaned) ? "" : cleaned;
 }
 
+export function numericAgeRating(value: unknown) {
+  const match = String(value ?? "").match(/\b(\d{1,2})\b/);
+  if (!match) return "";
+  const age = Number(match[1]);
+  return age >= 0 && age <= 21 ? String(age) : "";
+}
+
+export function suggestedAgeRating(metadata: BookMetadata) {
+  const evidence = `${metadata.bookType} ${metadata.demographic} ${metadata.genres.join(" ")} ${metadata.themes.join(" ")}`.toLocaleLowerCase();
+  if (/adult manga|hentai|erotica/.test(evidence)) return "18";
+  if (/seinen|josei|adult|horror/.test(evidence)) return "16";
+  if (/children|kids|kodomo/.test(evidence)) return "8";
+  if (/shonen|shounen|shojo|shoujo|young adult|teen|manga|light novel/.test(evidence)) return "13";
+  return "";
+}
+
 export function cleanLabels(values: string[], limit = 10) {
   const seen = new Set<string>();
   return values.map(item => item.trim()).filter(item => {
@@ -331,6 +347,7 @@ export function mergeMangaEnrichment(primary: BookMetadata, ...matches: BookMeta
     result.volume ||= match.volume;
     result.demographic ||= match.demographic;
     result.bookType ||= match.bookType;
+    result.description ||= professionalSynopsis(match.description);
     result.genres = cleanLabels([...result.genres, ...match.genres]);
     result.themes = cleanLabels([...result.themes, ...match.themes]);
     result.contributors = cleanLabels([...result.contributors, ...match.contributors]);
