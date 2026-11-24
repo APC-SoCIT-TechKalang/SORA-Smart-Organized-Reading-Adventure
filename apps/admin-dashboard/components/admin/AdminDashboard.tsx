@@ -38,6 +38,7 @@ import {
 } from "./dashboard-data";
 import { AdminBonChat } from "./AdminBonChat";
 import { CompleteAddVolume } from "./CompleteAddVolume";
+import { BulkAddBooks } from "./BulkAddBooks";
 import { EditBookCover } from "./EditBookCover";
 import { EditCopyLocation } from "./EditCopyLocation";
 import { CatalogueEditor } from "./CatalogueEditor";
@@ -86,6 +87,7 @@ export function AdminDashboard() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false);
+  const [bulkDrawer, setBulkDrawer] = useState(false);
   const [editingCover, setEditingCover] = useState<Book | null>(null);
   const [editingLocation, setEditingLocation] = useState<Book | null>(null);
   const generation = useRef(0);
@@ -162,6 +164,7 @@ export function AdminDashboard() {
         query={query}
         setQuery={setQuery}
         setDrawer={setDrawer}
+        setBulkDrawer={setBulkDrawer}
         setEditingCover={setEditingCover}
         setEditingLocation={setEditingLocation}
       />
@@ -283,6 +286,7 @@ export function AdminDashboard() {
             run={run}
           />
         )}{" "}
+        {bulkDrawer && <BulkAddBooks close={() => setBulkDrawer(false)} run={run} />}
         {editingCover && (
           <EditBookCover
             book={editingCover}

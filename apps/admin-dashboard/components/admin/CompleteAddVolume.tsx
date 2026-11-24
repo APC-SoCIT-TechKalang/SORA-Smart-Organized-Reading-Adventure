@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { database, usesReplacementSchema } from "../../lib/supabase";
 import type { Shelf } from "./dashboard-data";
+import { printBookLabels, type BookLabel } from "./BookBarcodeLabels";
 
 type Props = {
   data: { shelves: Shelf[] };
@@ -76,6 +77,8 @@ export function CompleteAddVolume({ data, close, run }: Props) {
   const [form, setForm] = useState(initial);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [showErrors, setShowErrors] = useState(false);
+  const [createdLabels, setCreatedLabels] = useState<BookLabel[]>([]);
   const [coverFailed, setCoverFailed] = useState(false);
   const [coverCandidates, setCoverCandidates] = useState<string[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
@@ -122,7 +125,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     setFieldSources((current) => ({ ...current, [key]: "Manual edit" }));
     setForm((current) => ({ ...current, [key]: value }));
   };
-  const normalizeIsbn = (value: string) => value.toUpperCase().replace(/[^0-9X]/g, "");
+  const normalizeIsbn = (value: string) => value.toUpperCase().replace(/[\s-]/g, "");
   const validIsbn = (value: string) => {
     const normalized = normalizeIsbn(value);
     if (/^97[89]\d{10}$/.test(normalized)) {
@@ -301,10 +304,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
   };
 
   const authorHasFirstAndLast = form.author.trim().split(/\s+/).length >= 2;
-  const numericAge = Number.parseInt(form.age_rating, 10);
+  const numericAge = /^\d+$/.test(form.age_rating) ? Number(form.age_rating) : NaN;
   const formValid = Boolean(
-    form.title.trim() && authorHasFirstAndLast && validIsbn(form.isbn) &&
-    form.barcode.trim() && form.shelf && Number.isInteger(numericAge) && numericAge >= 0 &&
+    form.title.trim() && authorHasFirstAndLast && form.genres.trim() && validIsbn(form.isbn) &&
+    (!usesReplacementSchema || ["Manga", "Light Novel", "Adult Manga"].includes(form.book_type)) &&
+    (usesReplacementSchema || form.barcode.trim()) && form.shelf && Number.isInteger(numericAge) && numericAge >= 0 &&
     (!form.cover_image_url || !coverFailed || Boolean(coverFile)),
   );
 
@@ -417,6 +421,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (submitting) return;
+    setShowErrors(true);
+    if (!formValid) {
+      setSubmitError("Check the highlighted required fields and enter a valid ISBN before saving.");
+      return;
+    }
     setSubmitError("");
     setSubmitting(true);
     try {
@@ -433,7 +442,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
         ? "Physical copy added to the catalogue"
         : "Volume added to the catalogue",
     );
-    if (ok) close();
+    if (ok && !usesReplacementSchema) close();
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : "Could not save this volume. Please try again.");
     } finally {
@@ -498,24 +507,27 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 "Book type must be Manga, Light Novel, or Adult Manga.",
               ),
             };
-          const created = await database().schema("sora_v2").rpc("admin_create_located_book", {
-            p_title: form.title, p_author_firstname: authorFirst, p_author_lastname: authorLast,
-            p_book_type: form.book_type, p_age_rating: ageRating,
-            p_genre: (genres.join(", ") || "General").slice(0,100), p_isbn: clean(form.isbn),
-            p_shelf_location: form.shelf ? `Shelf A${form.shelf}` : null,
-            p_barcode: clean(form.barcode), p_condition_notes: clean(form.condition_notes),
-            p_cover_image_url: coverUrl,
-            p_metadata: {
+          const created = await database().schema("sora_v2").rpc("admin_register_books", {
+            p_entries: [{
+              title: form.title, author: `${authorFirst} ${authorLast}`,
+              book_type: form.book_type, age_rating: ageRating,
+              genre: (genres.join(", ") || "General").slice(0,100), isbn: form.isbn,
+              shelf_location: form.shelf ? `Shelf A${form.shelf}` : null,
+              condition_notes: clean(form.condition_notes),
+              cover_image_url: coverUrl,
+              metadata: {
               original_title: clean(form.original_title), romanized_title: clean(form.romanized_title),
               contributors: clean(contributorNames), series_name: clean(form.series_name), volume_number: clean(form.volume_number),
               publisher: clean(form.publisher), publication_date: clean(form.publication_date), imprint: clean(form.imprint), format: form.format,
               demographic: clean(form.demographic), themes: clean(form.themes), description: clean(form.description),
               genres, metadata_sources: lookupSources, field_sources: fieldSources,
-            },
-            p_needs_review: reviewFields.length > 0 || aiFields.length > 0,
-            p_acquisition_date: form.acquisition_date,
+              },
+              needs_review: reviewFields.length > 0 || aiFields.length > 0,
+              acquisition_date: form.acquisition_date,
+            }],
           });
           if (created.error) return { error: created.error };
+          setCreatedLabels(created.data as BookLabel[]);
           return { error: null };
         }
         const result = await database().rpc("admin_create_catalog_entry", {
@@ -589,7 +601,15 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             <X size={20} />
           </button>
         </header>
-        <form onSubmit={submit} onInvalidCapture={(event) => {
+        {createdLabels.length > 0 ? <div className="flex-1 space-y-4 overflow-y-auto p-7">
+          <h3 className="font-serif text-2xl">Book copy added</h3>
+          <p className="text-sm">The copy is In Shelf. Print and attach its generated barcode label.</p>
+          {createdLabels.map(label => <p key={label.copy_id} className="rounded-xl border border-[#dfcfbe] bg-[#fffaf1] p-4 text-sm"><b>{label.title}</b><br />Copy {label.copy_number} · {label.barcode}</p>)}
+          <button type="button" onClick={() => { try { printBookLabels(createdLabels); } catch (error) { setSubmitError(error instanceof Error ? error.message : "Could not print labels."); } }} className="rounded-xl bg-[#a83d12] px-5 py-3 text-xs font-bold text-white">Print barcode label</button>
+          {submitError && <p role="alert" className="text-sm text-red-700">{submitError}</p>}
+          <button type="button" onClick={close} className="ml-3 rounded-xl border border-[#dfcfbe] px-5 py-3 text-xs font-bold">Done</button>
+        </div> : <form onSubmit={submit} onInvalidCapture={(event) => {
+          setShowErrors(true);
           const field = event.target as HTMLInputElement;
           setSubmitError(field.validationMessage || "Please review the required fields.");
           field.scrollIntoView({ block: "center", behavior: "smooth" });
@@ -618,6 +638,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 />
                 <input
                   autoFocus
+                  required
                   value={form.isbn}
                   onChange={(event) => updateIsbn(event.target.value)}
                   onKeyDown={(event) => {
@@ -627,7 +648,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                     }
                   }}
                   placeholder="Scan or enter ISBN-10 / ISBN-13"
-                  className={`${input} mt-0 pl-11`}
+                  className={`${input} mt-0 pl-11 ${showErrors && !validIsbn(form.isbn) ? "border-red-600" : ""}`}
                 />
               </label>
               <button
@@ -785,7 +806,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                   value={form.title}
                   onChange={(event) => update("title", event.target.value)}
                   placeholder="e.g. One Piece"
-                  className={input}
+                  className={`${input} ${showErrors && !form.title.trim() ? "border-red-600" : ""}`}
                 />
               </label>
               <div className="grid grid-cols-2 gap-3">
@@ -815,10 +836,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               <label className={label}>
                 Author *
                 <input
+                  required
                   value={form.author}
                   onChange={(event) => update("author", event.target.value)}
                   placeholder="Author or creator"
-                  className={input}
+                  className={`${input} ${showErrors && !authorHasFirstAndLast ? "border-red-600" : ""}`}
                 />
               </label>
               <label className={label}>
@@ -891,10 +913,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 <label key={item.key} className={label}>
                   {item.label}
                   <input
+                    required={item.key === "genres" || item.key === "age_rating"}
                     value={form[item.key]}
                     onChange={(event) => update(item.key, event.target.value)}
                     placeholder={item.placeholder}
-                    className={input}
+                    className={`${input} ${showErrors && ((item.key === "genres" && !form.genres.trim()) || (item.key === "age_rating" && !Number.isInteger(numericAge))) ? "border-red-600" : ""}`}
                   />
                   {item.key === "genres" && (
                     <span className="mt-1.5 block text-[10px] normal-case tracking-normal text-[#9d8877]">
@@ -912,12 +935,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                 >
                   <option>Manga</option>
                   <option>Light Novel</option>
-                  <option>Novel</option>
-                  <option>Comic</option>
-                  <option>Art Book</option>
-                  <option>Guidebook</option>
-                  <option>Magazine</option>
-                  <option>Other</option>
+                  {usesReplacementSchema ? <option>Adult Manga</option> : <><option>Novel</option><option>Comic</option><option>Art Book</option><option>Guidebook</option><option>Magazine</option><option>Other</option></>}
                 </select>
               </label>
               <label className={label}>
@@ -954,14 +972,16 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             </h3>
             <div className="grid gap-4 sm:grid-cols-2">
               <label className={label}>
-                Barcode *
+                {usesReplacementSchema ? "Generated barcode" : "Barcode *"}
                 <input
-                  required
+                  required={!usesReplacementSchema}
                   value={form.barcode}
                   onChange={(event) => update("barcode", event.target.value)}
-                  placeholder="Scan the unique physical-copy barcode"
+                  disabled={usesReplacementSchema}
+                  placeholder={usesReplacementSchema ? "Generated from ISBN and copy number" : "Scan the unique physical-copy barcode"}
                   className={input}
                 />
+                {usesReplacementSchema && <span className="mt-1 block text-[10px] font-normal normal-case tracking-normal">The system assigns ISBN-1, ISBN-2, and so on after saving.</span>}
               </label>
               <label className={label}>
                 Acquisition date *
@@ -973,7 +993,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                   value={form.shelf}
                   onChange={(event) => update("shelf", event.target.value)}
                   required={usesReplacementSchema}
-                  className={input}
+                  className={`${input} ${showErrors && !form.shelf ? "border-red-600" : ""}`}
                 >
                   <option value="">Select a Main Reading Hall shelf</option>
                   {data.shelves.map((item) => (
@@ -1004,10 +1024,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
             </p>
             <button
               type="submit"
-              disabled={
-                submitting ||
-                !formValid
-              }
+              disabled={submitting}
               className="ml-auto inline-flex min-w-44 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-5 py-3 text-xs font-bold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-[#8f320d] disabled:translate-y-0 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? (
@@ -1023,7 +1040,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               )}
             </button>
           </footer>
-        </form>
+        </form>}
       </aside>
     </div>
   );

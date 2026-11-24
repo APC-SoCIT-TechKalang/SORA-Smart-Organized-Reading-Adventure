@@ -1,7 +1,7 @@
 import { database, readReplacementRows } from "../../lib/supabase";
 
 export type Book = { book_id: number; title: string; author: string | null; cover_image_url: string | null; acquisition_status: string; book_genres: { genre: string }[]; book_copies: { copy_id: number; status: string; identifier_value: string }[] };
-export type Copy = { copy_id: number; book_id: number; identifier_value: string; status: string; condition_notes: string | null; shelf_location: string | null; shelf_id: number | null };
+export type Copy = { copy_id: number; book_id: number; copy_number: number; identifier_value: string; status: string; condition_notes: string | null; shelf_location: string | null; shelf_id: number | null };
 export type Reader = { user_id: string; first_name: string; last_name: string; birthday: string | null; is_active: boolean; roles: { name: string } | null };
 export type MemberAccount = { user_id: string; membership_label: string; remaining_minutes: number | null; status: string; expires_at: string | null };
 export type Visit = { visit_id: number; user_id: string | null; checked_in_at: string; scheduled_end_at: string | null; status: string };
@@ -34,7 +34,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
 }
 
 type ReplacementBook = { book_id:number; title:string; coverimage_url:string|null; authors:{author_firstname:string;author_lastname:string}|null; book_genre:string|null; book_copies:{copy_id:number;copy_status:string;barcode:string}[] };
-type ReplacementCopy = { copy_id:number; book_id:number; barcode:string; copy_status:string; shelf_location:string|null; condition_notes:string|null };
+type ReplacementCopy = { copy_id:number; book_id:number; copy_number:number; barcode:string; copy_status:string; shelf_location:string|null; condition_notes:string|null };
 type ReplacementUser = { id:string; first_name:string; last_name:string; birthdate:string; user_role:string; is_active:boolean; membership_type:string|null; membership_rank:string|null; remaining_minutes:number; membership_status:string; membership_expires_at:string|null };
 type ReplacementSession = { session_id:number; user_id:string; copy_id:number; borrow_date:string; return_date:string|null; checked_out_at:string|null; session_status:string };
 type ReplacementQuest = { quest_id:number; quest_name:string; quest_description:string; quest_difficulty:string; points_reward:number; review_decision:string };
@@ -43,7 +43,7 @@ type ReplacementEnrollment = { user_quest_id:number; quest_id:number; user_id:st
 async function loadFixedDashboardData(): Promise<DashboardData> {
   const [rawBooks, rawCopies, rawReaders, rawSessions, rawQuests, rawEnrollments] = await Promise.all([
     readReplacementRows<ReplacementBook>("books", "book_id,title,coverimage_url,authors(author_firstname,author_lastname),book_genre,book_copies(copy_id,copy_status,barcode)", "book_id"),
-    readReplacementRows<ReplacementCopy>("book_copies", "copy_id,book_id,barcode,copy_status,shelf_location,condition_notes", "copy_id"),
+    readReplacementRows<ReplacementCopy>("book_copies", "copy_id,book_id,copy_number,barcode,copy_status,shelf_location,condition_notes", "copy_id"),
     readReplacementRows<ReplacementUser>("users", "id,first_name,last_name,birthdate,user_role,is_active,membership_type,membership_rank,remaining_minutes,membership_status,membership_expires_at", "id"),
     readReplacementRows<ReplacementSession>("sessions", "session_id,user_id,copy_id,borrow_date,return_date,checked_out_at,session_status", "session_id"),
     readReplacementRows<ReplacementQuest>("quests", "quest_id,quest_name,quest_description,quest_difficulty,points_reward,review_decision", "quest_id"),
@@ -58,7 +58,7 @@ async function loadFixedDashboardData(): Promise<DashboardData> {
     book_genres: book.book_genre ? [{ genre: book.book_genre }] : [],
     book_copies: (book.book_copies ?? []).map(copy => ({ copy_id:copy.copy_id, status:status(copy.copy_status), identifier_value:copy.barcode })),
   }));
-  const copies: Copy[] = rawCopies.map(copy => ({ copy_id:copy.copy_id, book_id:copy.book_id, identifier_value:copy.barcode, status:status(copy.copy_status), condition_notes:copy.condition_notes, shelf_location:copy.shelf_location, shelf_id:null }));
+  const copies: Copy[] = rawCopies.map(copy => ({ copy_id:copy.copy_id, book_id:copy.book_id, copy_number:copy.copy_number, identifier_value:copy.barcode, status:status(copy.copy_status), condition_notes:copy.condition_notes, shelf_location:copy.shelf_location, shelf_id:null }));
   const readers: Reader[] = rawReaders.map(reader => ({ user_id:reader.id, first_name:reader.first_name, last_name:reader.last_name, birthday:reader.birthdate, is_active:reader.is_active, roles:{ name:reader.user_role === "Librarian" ? "admin" : "reader" } }));
   // UI compatibility projection; membership data now lives in each users row.
   const memberAccounts: MemberAccount[] = rawReaders.filter(item => item.membership_status !== "INACTIVE").map(item => ({ user_id:item.id, membership_label:`${item.membership_type ?? "Membership"} · ${item.id.slice(0,8)}`, remaining_minutes:item.remaining_minutes, status:item.membership_status, expires_at:item.membership_expires_at }));

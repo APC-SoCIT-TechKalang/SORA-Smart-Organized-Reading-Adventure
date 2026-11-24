@@ -105,6 +105,21 @@ Shelf information follows the existing signed-in availability access policy.
 Librarians can record condition notes and damage charges against unsettled
 reader sessions; borrowing remains tied to kiosk sessions.
 
+## UC-09 Add New Books
+
+Apply `supabase/replacement/017_uc09_add_books.sql` after
+`016_refresh_existing_catalog_metadata.sql` before deploying the updated admin
+dashboard. It adds the `sora_v2.admin_register_books` function without altering
+existing book or copy rows. Book Management's Add Book and Bulk Add actions use
+this function. Each submitted row represents one verified physical copy. The
+database checks the ISBN and mandatory fields, reuses an existing ISBN's book
+record, assigns the next copy number, generates an `ISBN-copy number` barcode,
+and starts the copy In-Shelf at the selected home shelf. A bulk batch of up to
+100 rows runs in one transaction: if any row fails, none of its rows are saved.
+After saving, print the Code 128 labels from the confirmation screen or reprint
+them from the catalogue. Bulk Add accepts CSV/TSV with
+`isbn,title,author,genre,tags,book_type,age_rating,shelf` headers or manual rows.
+
 Apply `supabase/replacement/014_catalog_edition_metadata.sql` after `013`
 before deploying the improved Add Volume workflow. It adds reviewed metadata
 provenance, acquisition dates, checksum validation, duplicate-ISBN reuse, and
