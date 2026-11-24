@@ -7,7 +7,7 @@ import { CheckoutKioskApp } from "./CheckoutKioskApp";
 import { GameProvider } from "./contexts/GameContext";
 
 const rootEl = document.getElementById("root");
-// The draft uses reader activation checks; its metrics remain zero.
+// Retain the original stats URL with activation checks and recorded history.
 const StatsDraft = lazy(() => import('./pages/ReadingStatsDraft'));
 if (rootEl) {
   ReactDOM.createRoot(rootEl).render(

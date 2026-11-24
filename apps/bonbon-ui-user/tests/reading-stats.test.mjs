@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readingDay, summarizeReading } from '../src/lib/reading-stats.ts';
+import { readingDay, readingStatsInput, summarizeReading } from '../src/lib/reading-stats.ts';
 
 const now = new Date('2026-11-22T12:00:00+08:00');
 const books = [{ id: 1, title: 'One', genre: 'Fantasy' }, { id: 2, title: 'Two', genre: 'Adventure' }];
@@ -31,3 +31,29 @@ assert.equal(summarizeReading([log(1, 99, '2026-11-22T00:00:00Z', -5)], books, '
 assert.deepEqual(summarizeReading([], books, 'all', now).genres, []);
 assert.equal(summarizeReading([], books, 'all', now).averageMinutes, 0);
 console.log('PASS: reading stats date boundaries, title deduplication, periods, invalid sessions, active sessions, and empty history');
+
+const live = readingStatsInput([
+  { reading_log_id: -1, session_id: 10, book_id: 1, started_at: '2026-11-22T08:00:00+08:00', returned_at: '2026-11-22T09:00:00+08:00', total_reading_minutes: 60 },
+  { reading_log_id: -2, session_id: 10, book_id: 2, started_at: '2026-11-22T08:30:00+08:00', returned_at: '2026-11-22T09:30:00+08:00', total_reading_minutes: 60 },
+  { reading_log_id: -3, session_id: 11, book_id: 1, started_at: '2026-11-22T10:00:00+08:00', returned_at: '2026-11-22T10:15:00+08:00', total_reading_minutes: 15 },
+  { reading_log_id: -4, session_id: 12, book_id: 1, started_at: '2026-11-22T11:00:00+08:00', returned_at: null, total_reading_minutes: null },
+], books.map(book => ({ ...book, id: String(book.id) })));
+const liveStats = summarizeReading(live.sessions, live.books, '30', now);
+assert.equal(liveStats.totalMinutes, 105, 'Overlapping books from one visit count once, with separate visits preserved');
+assert.equal(liveStats.completed, 3, 'Each returned book creates one completed reading record');
+assert.equal(liveStats.titles, 2);
+assert.equal(liveStats.active, 1, 'An unreturned book contributes no completed time');
+assert.equal(liveStats.averageMinutes, 45, 'Per-book average uses the recorded book durations');
+assert.equal(liveStats.activity.at(-1).minutes, 105);
+assert.equal(live.sessions[0].sessionId, 10);
+assert.equal(live.books[0].title, 'One');
+
+const overnight = [
+  { id: 1, sessionId: 20, bookId: 1, startedAt: '2026-11-21T23:30:00+08:00', endedAt: '2026-11-22T00:30:00+08:00', minutes: 60 },
+  { id: 2, sessionId: 20, bookId: 2, startedAt: '2026-11-22T00:00:00+08:00', endedAt: '2026-11-22T01:00:00+08:00', minutes: 60 },
+];
+const overnightStats = summarizeReading(overnight, books, '30', now);
+assert.equal(overnightStats.totalMinutes, 90);
+assert.equal(overnightStats.activity.at(-2).minutes, 30);
+assert.equal(overnightStats.activity.at(-1).minutes, 60);
+console.log('PASS: live history mapping, multiple books per visit, ongoing books, repeat titles, per-book averages, and Manila midnight activity');

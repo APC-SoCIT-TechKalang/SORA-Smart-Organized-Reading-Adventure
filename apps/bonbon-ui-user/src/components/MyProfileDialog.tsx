@@ -5,7 +5,9 @@ import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGame } from '../contexts/GameContext';
 import { createKioskQrPayload } from '../lib/kioskQr';
-import { summarizeReading, type StatsBook, type StatsPeriod, type StatsSession } from '../lib/reading-stats';
+import { type StatsPeriod } from '../lib/reading-stats';
+import { useReadingStats } from '../lib/use-reading-stats';
+import { ReadingStatsData } from './ReadingStatsData';
 import { OrnatePanel } from './OrnatePanel';
 
 interface MyProfileDialogProps {
@@ -14,14 +16,12 @@ interface MyProfileDialogProps {
   onOpenReadingStats: () => void;
 }
 
-const books: StatsBook[] = [];
-const sessions: StatsSession[] = [];
 const duration = (minutes: number) => minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 
 export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfileDialogProps) {
   const { session, profile, rank, readerAccess } = useGame();
   const [period, setPeriod] = useState<StatsPeriod>('30');
-  const [now] = useState(() => new Date());
+  const { stats } = useReadingStats(period);
   const [flipped, setFlipped] = useState(false);
   const [qrExpanded, setQrExpanded] = useState(false);
   const displayName = profile?.first_name || session?.user.user_metadata?.first_name || 'Reader';
@@ -30,10 +30,9 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
   if (open && session && readerAccess === 'active') {
     try { qrPayload = createKioskQrPayload(session.user.id); } catch { /* Invalid IDs cannot be used for kiosk login. */ }
   }
-  const stats = summarizeReading(sessions, books, period, now);
   const cards = [
     { label: 'Reading time', value: duration(stats.totalMinutes), icon: Clock3Icon, detail: 'From completed sessions' },
-    { label: 'Sessions completed', value: stats.completed, icon: HistoryIcon, detail: 'Every visit adds a chapter' },
+    { label: 'Books returned', value: stats.completed, icon: HistoryIcon, detail: 'Completed book reading records' },
     { label: 'Titles explored', value: stats.titles, icon: BookOpenIcon, detail: 'Unique titles across sessions' },
     { label: 'Days spent reading', value: stats.activeDays, icon: CalendarDaysIcon, detail: 'A little reading goes a long way' },
   ];
@@ -94,8 +93,10 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
           <div className="flex flex-wrap items-center justify-center gap-3"><button type="button" onClick={() => setFlipped(value => !value)} className="tb-button-secondary tb-cut-sm inline-flex min-h-11 items-center gap-2 px-4 text-sm"><RotateCcwIcon aria-hidden="true" className="h-4 w-4" />{flipped ? 'View card front' : 'Flip to scan QR code'}</button>{flipped && qrPayload && <button type="button" onClick={() => setQrExpanded(true)} className="tb-button-primary tb-cut-sm inline-flex min-h-11 items-center gap-2 px-4 text-sm"><ScanLineIcon aria-hidden="true" className="h-4 w-4" />Enlarge QR code</button>}</div>
         </section>
         <section aria-labelledby="profile-stats-title" className="border-t border-gold/25 pt-7"><div className="flex flex-wrap items-end justify-between gap-4"><div><p className="tb-eyebrow">Your reading adventure</p><h3 id="profile-stats-title" className="mt-1 font-display text-2xl font-900">My reading journal</h3><p className="mt-2 text-sm text-umber/65">See where your library visits have taken you.</p></div><div className="flex items-end gap-3"><label className="flex flex-col gap-2 text-xs font-800 uppercase tracking-wider">Time period<select className="tb-input min-h-11 rounded-lg px-3 py-2 text-sm normal-case tracking-normal" value={period} onChange={event => setPeriod(event.target.value as StatsPeriod)}><option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option></select></label><button type="button" onClick={onOpenReadingStats} className="tb-button-secondary tb-cut-sm min-h-11 px-3 text-xs">Open full stats</button></div></div>
-          <section aria-label="Personal reading statistics" className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">{cards.map(({ label, value, icon: Icon, detail }) => <OrnatePanel key={label} className="tb-cut-sm"><div className="p-4"><Icon aria-hidden="true" className="mb-3 h-5 w-5 text-rust" /><p className="text-xs font-800 text-umber/65">{label}</p><p className="mt-2 break-words font-display text-2xl font-900">{value}</p><p className="mt-2 text-xs leading-5 text-umber/60">{detail}</p></div></OrnatePanel>)}</section>
-          {stats.completed === 0 && <section className="tb-state tb-cut-sm mt-5"><BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" /><h4 className="mt-3 font-display text-xl font-800">Reading stats are being prepared</h4><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Your reading activity will appear here once your history is connected.</p></section>}
+          <ReadingStatsData>
+            <section aria-label="Personal reading statistics" className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">{cards.map(({ label, value, icon: Icon, detail }) => <OrnatePanel key={label} className="tb-cut-sm"><div className="p-4"><Icon aria-hidden="true" className="mb-3 h-5 w-5 text-rust" /><p className="text-xs font-800 text-umber/65">{label}</p><p className="mt-2 break-words font-display text-2xl font-900">{value}</p><p className="mt-2 text-xs leading-5 text-umber/60">{detail}</p></div></OrnatePanel>)}</section>
+            {stats.completed === 0 && <section className="tb-state tb-cut-sm mt-5"><BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" /><h4 className="mt-3 font-display text-xl font-800">No returned books in this period</h4><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Return a book after reading to record its time here, or choose a longer time period.</p></section>}
+          </ReadingStatsData>
         </section>
       </div>
     </motion.section>

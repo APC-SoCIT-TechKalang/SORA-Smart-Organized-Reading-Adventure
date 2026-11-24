@@ -1,13 +1,14 @@
 import { AwardIcon, BookCheckIcon, Clock3Icon, SparklesIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
+import { useReadingStats } from '../lib/use-reading-stats';
 
 export function StatStrip() {
-  const { logs, coins, rank, readerAccess } = useGame();
-  if (readerAccess !== 'active') return null;
-  const completed = logs.filter((log) => log.returned_at);
+  const { coins, rank, readerAccess, loading, error } = useGame();
+  const { stats: reading } = useReadingStats('all');
+  if (readerAccess !== 'active' || loading || error) return null;
   const stats = [
-    { label: 'Sessions', value: completed.length, icon: BookCheckIcon, emblem: false },
-    { label: 'Minutes', value: completed.reduce((sum, log) => sum + (log.total_reading_minutes ?? 0), 0), icon: Clock3Icon, emblem: false },
+    { label: 'Books returned', value: reading.completed, icon: BookCheckIcon, emblem: false },
+    { label: 'Minutes', value: reading.totalMinutes, icon: Clock3Icon, emblem: false },
     { label: 'Guild points', value: coins, icon: SparklesIcon, emblem: true },
     { label: 'Archivist rank', value: rank, icon: AwardIcon, emblem: true },
   ];

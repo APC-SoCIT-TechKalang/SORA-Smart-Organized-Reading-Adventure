@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { ArrowLeftIcon, BookOpenIcon, CalendarDaysIcon, Clock3Icon, FlaskConicalIcon, HistoryIcon, SparklesIcon } from 'lucide-react';
+import { ArrowLeftIcon, BookOpenIcon, CalendarDaysIcon, Clock3Icon, HistoryIcon, SparklesIcon } from 'lucide-react';
 import { OrnatePanel } from '../components/OrnatePanel';
 import { useGame } from '../contexts/GameContext';
-import { readingDay, statsTimeZone, summarizeReading, type StatsBook, type StatsPeriod, type StatsSession } from '../lib/reading-stats';
-
-// Keep draft metrics at zero until verified reader history is connected.
-const books: StatsBook[] = [];
-const sessions: StatsSession[] = [];
+import { readingDay, statsTimeZone, type StatsPeriod } from '../lib/reading-stats';
+import { useReadingStats } from '../lib/use-reading-stats';
+import { ReadingStatsData } from '../components/ReadingStatsData';
 
 function duration(minutes: number) {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
@@ -27,12 +25,11 @@ export default function ReadingStatsDraft() {
 
 function ActivatedReadingStatsDraft() {
   const [period, setPeriod] = useState<StatsPeriod>('30');
-  const [now] = useState(() => new Date());
-  const stats = summarizeReading(sessions, books, period, now);
+  const { stats, books, now } = useReadingStats(period);
   const dateLabel = (value: string) => new Date(value).toLocaleDateString('en-PH', { timeZone: statsTimeZone, month: 'short', day: 'numeric' });
   const cards = [
     { label: 'Reading time', value: duration(stats.totalMinutes), icon: Clock3Icon, detail: 'From completed sessions' },
-    { label: 'Sessions completed', value: stats.completed, icon: HistoryIcon, detail: 'Every visit adds a chapter' },
+    { label: 'Books returned', value: stats.completed, icon: HistoryIcon, detail: 'Completed book reading records' },
     { label: 'Titles explored', value: stats.titles, icon: BookOpenIcon, detail: 'Unique titles across sessions' },
     { label: 'Days spent reading', value: stats.activeDays, icon: CalendarDaysIcon, detail: 'A little reading goes a long way' },
   ];
@@ -41,10 +38,6 @@ function ActivatedReadingStatsDraft() {
     <div className="tb-field min-h-screen px-4 py-6 text-umber sm:px-8 sm:py-10">
       <main className="mx-auto max-w-6xl space-y-6">
         <a className="inline-flex min-h-11 items-center gap-2 text-sm font-700 underline underline-offset-4" href="/"><ArrowLeftIcon aria-hidden="true" className="h-4 w-4" />Back to library</a>
-        <aside aria-label="Reading stats" className="rounded-xl border border-gold/40 bg-cream p-4 sm:p-5">
-          <div className="flex items-center gap-2 font-800"><FlaskConicalIcon aria-hidden="true" className="h-5 w-5 text-rust" />Draft · Reading stats</div>
-          <p className="mt-2 text-sm leading-6 text-umber/70">dipa tapos kase dko pa maconnect sa kung ano man na pagkukuhaan mga guys.</p>
-        </aside>
 
         <header className="flex flex-wrap items-end justify-between gap-5 py-3">
           <div><p className="tb-eyebrow">Your reading adventure</p><h1 className="mt-2 font-display text-3xl font-900 sm:text-4xl">My reading journal</h1><p className="mt-3 max-w-xl text-sm leading-6 text-umber/70">A little time, a new world. See where your library visits have taken you.</p></div>
@@ -55,12 +48,12 @@ function ActivatedReadingStatsDraft() {
           </label>
         </header>
 
-        <>
+        <ReadingStatsData>
           <section aria-label="Personal reading statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             {cards.map(({ label, value, icon: Icon, detail }) => <OrnatePanel key={label} className="tb-cut-sm"><div className="p-4 sm:p-5"><Icon aria-hidden="true" className="mb-4 h-5 w-5 text-rust" /><p className="text-xs font-800 text-umber/65">{label}</p><p className="mt-2 break-words font-display text-2xl font-900 sm:text-3xl">{value}</p><p className="mt-2 text-xs leading-5 text-umber/60">{detail}</p></div></OrnatePanel>)}
           </section>
 
-          {stats.completed === 0 ? <section className="tb-state tb-cut-sm"><BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" /><h2 className="mt-3 font-display text-xl font-800">Reading stats are being prepared</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Your reading activity will appear here once your history is connected. These zeros are draft placeholders.</p><a href="/" className="tb-button-primary tb-cut-sm mt-5 inline-flex min-h-11 items-center px-5 py-2">Explore the library</a></section> : <>
+          {stats.completed === 0 ? <section className="tb-state tb-cut-sm"><BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" /><h2 className="mt-3 font-display text-xl font-800">No returned books in this period</h2><p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Return a book after reading to record its time here, or choose a longer time period.</p><a href="/" className="tb-button-primary tb-cut-sm mt-5 inline-flex min-h-11 items-center px-5 py-2">Explore the library</a></section> : <>
             <div className="grid gap-6 lg:grid-cols-3">
               <OrnatePanel as="section" className="tb-cut-sm lg:col-span-2"><div className="p-5 sm:p-6"><p className="tb-eyebrow">Make room for a good book</p><h2 className="mt-2 font-display text-xl font-800">Your reading rhythm</h2><p className="mt-2 text-xs leading-5 text-umber/65">Minutes from completed sessions over the last 14 days. Dates use Philippine time.</p>
                 <div className="mt-6 flex h-44 items-end gap-1.5 border-b border-gold/30 pb-2 sm:gap-3" aria-hidden="true">{stats.activity.map(day => <div key={day.day} className="flex h-full min-w-0 flex-1 items-end" title={`${day.day}: ${day.minutes} minutes`}><div className={`w-full rounded-t-sm ${day.minutes ? 'bg-rust/80' : 'bg-gold/20'}`} style={{ height: `${Math.max(3, day.minutes / Math.max(1, ...stats.activity.map(item => item.minutes)) * 100)}%` }} /></div>)}</div>
@@ -74,7 +67,7 @@ function ActivatedReadingStatsDraft() {
               <div className="p-5 sm:p-6">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <h2 className="font-display text-xl font-800">Recent reading moments</h2>
-                  <span className="text-xs font-700 text-umber/65">{duration(stats.averageMinutes)} average session</span>
+                  <span className="text-xs font-700 text-umber/65">{duration(stats.averageMinutes)} average per returned book</span>
                 </div>
                 <ul className="mt-4 divide-y divide-gold/20">
                   {stats.recent.map(session => (
@@ -90,9 +83,9 @@ function ActivatedReadingStatsDraft() {
               </div>
             </OrnatePanel>
           </>}
-          {stats.active > 0 && <p className="flex items-start gap-2 rounded-xl border border-gold/30 bg-cream p-4 text-sm leading-6"><SparklesIcon aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-rust" />A reading session is in progress. Its time will appear here after the session ends.</p>}
-          <p className="pb-6 text-xs leading-6 text-umber/60">Draft journal as of {readingDay(now)}. A completed session means a library session ended; it does not mean a book was finished. Page progress and reading streaks are not yet available.</p>
-        </>
+          {stats.active > 0 && <p className="flex items-start gap-2 rounded-xl border border-gold/30 bg-cream p-4 text-sm leading-6"><SparklesIcon aria-hidden="true" className="mt-1 h-4 w-4 shrink-0 text-rust" />A book is still being read. Its recorded time will be added after it is returned.</p>}
+          <p className="pb-6 text-xs leading-6 text-umber/60">Journal as of {readingDay(now)}. Returned books do not necessarily mean books finished. Overlapping book time in one visit is counted once. Page progress and reading streaks are not yet available.</p>
+        </ReadingStatsData>
       </main>
     </div>
   );

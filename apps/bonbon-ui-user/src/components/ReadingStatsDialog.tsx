@@ -3,7 +3,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { createPortal } from 'react-dom';
 import { BarChart3Icon, BookOpenIcon, CalendarDaysIcon, Clock3Icon, HistoryIcon, XIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
-import { summarizeReading, type StatsBook, type StatsPeriod, type StatsSession } from '../lib/reading-stats';
+import { type StatsPeriod } from '../lib/reading-stats';
+import { useReadingStats } from '../lib/use-reading-stats';
+import { ReadingStatsData } from './ReadingStatsData';
 import { OrnatePanel } from './OrnatePanel';
 
 interface ReadingStatsDialogProps {
@@ -11,17 +13,12 @@ interface ReadingStatsDialogProps {
   onClose: () => void;
 }
 
-// The dialog is ready for live session history once that source is connected.
-const books: StatsBook[] = [];
-const sessions: StatsSession[] = [];
-
 const duration = (minutes: number) => minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
 
 export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
   const { readerAccess, setSection } = useGame();
   const [period, setPeriod] = useState<StatsPeriod>('30');
-  const [now] = useState(() => new Date());
-  const stats = summarizeReading(sessions, books, period, now);
+  const { stats } = useReadingStats(period);
 
   useEffect(() => {
     if (!open) return;
@@ -38,7 +35,7 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
 
   const cards = [
     { label: 'Reading time', value: duration(stats.totalMinutes), icon: Clock3Icon, detail: 'From completed sessions' },
-    { label: 'Sessions completed', value: stats.completed, icon: HistoryIcon, detail: 'Every visit adds a chapter' },
+    { label: 'Books returned', value: stats.completed, icon: HistoryIcon, detail: 'Completed book reading records' },
     { label: 'Titles explored', value: stats.titles, icon: BookOpenIcon, detail: 'Unique titles across sessions' },
     { label: 'Days spent reading', value: stats.activeDays, icon: CalendarDaysIcon, detail: 'A little reading goes a long way' },
   ];
@@ -92,6 +89,7 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
                 </label>
               </header>
 
+              <ReadingStatsData>
               <section aria-label="Personal reading statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                 {cards.map(({ label, value, icon: Icon, detail }) => (
                   <OrnatePanel key={label} className="tb-cut-sm">
@@ -103,11 +101,12 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
               {stats.completed === 0 && (
                 <section className="tb-state tb-cut-sm">
                   <BookOpenIcon aria-hidden="true" className="mx-auto h-8 w-8 text-gold" />
-                  <h3 className="mt-3 font-display text-xl font-800">Reading stats are being prepared</h3>
-                  <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Your reading activity will appear here once your history is connected.</p>
+                  <h3 className="mt-3 font-display text-xl font-800">No returned books in this period</h3>
+                  <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Return a book after reading to record its time here, or choose a longer time period.</p>
                   <button type="button" onClick={() => { setSection('archive'); onClose(); }} className="tb-button-primary tb-cut-sm mt-5 inline-flex min-h-11 items-center px-5 py-2">Explore the library</button>
                 </section>
               )}
+              </ReadingStatsData>
             </div>
           )}
         </motion.section>
