@@ -28,4 +28,4 @@ export function QuestManagement({ data, name, run }: Props) {
   </>;
 }
 function Stat({label,value}:{label:string;value:number}){return <div className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-4"><p className="text-[10px] font-bold uppercase tracking-wider text-[#8d735e]">{label}</p><b className="mt-2 block font-serif text-3xl">{value}</b></div>}
-function Field({label,hint,wide,children}:{label:string;hint?:string;wide?:boolean;children:React.ReactNode}){return <label className={wide?"sm:col-span-2":""}><span className="mb-1.5 block text-[11px] font-bold uppercase tracking-wider text-[#71543d]">{label}</span>{children}{hint&&<span className="mt-1 block text-[10px] text-[#8d735e]">{hint}</span>}</label>}
+function Field({label,hint,wide,children}:{label:string;hint?:string;wide?:boolean;children:React.ReactNode}){return <label className={`block rounded-xl bg-[#fffaf2] p-2 ${wide?"sm:col-span-2":""}`}><span className="mb-1.5 block text-xs font-extrabold uppercase tracking-wider text-[#59351e]">{label}</span>{children}{hint&&<span className="mt-1 block text-[10px] font-medium text-[#806b59]">{hint}</span>}</label>}
