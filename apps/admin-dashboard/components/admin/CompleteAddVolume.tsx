@@ -127,6 +127,12 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     setForm((current) => ({ ...current, [key]: value }));
   };
   const normalizeIsbn = (value: string) => value.toUpperCase().replace(/[\s-]/g, "");
+  const completeIsbn = (value: string) => {
+    const digits = normalizeIsbn(value);
+    if (!/^97[89]\d{9}$/.test(digits)) return digits;
+    const sum = digits.split("").reduce((total, digit, index) => total + Number(digit) * (index % 2 ? 3 : 1), 0);
+    return `${digits}${(10 - (sum % 10)) % 10}`;
+  };
   const validIsbn = (value: string) => {
     const normalized = normalizeIsbn(value);
     if (/^97[89]\d{10}$/.test(normalized)) {
@@ -195,7 +201,8 @@ export function CompleteAddVolume({ data, close, run }: Props) {
 
   const lookupIsbn = async (useAi = true) => {
     if (lookingUp) return;
-    if (!validIsbn(form.isbn)) {
+    const lookupNumber = completeIsbn(form.isbn);
+    if (!validIsbn(lookupNumber)) {
       setLookupMessage("Enter a valid ISBN-10 or ISBN-13. Check the digits and checksum.");
       setLookupSource(null);
       return;
@@ -220,7 +227,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ isbn: form.isbn, useAi }),
+        body: JSON.stringify({ isbn: lookupNumber, useAi }),
         signal: controller.signal,
       });
       const result = (await response.json()) as LookupResponse;
@@ -230,7 +237,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       setForm((current) => {
         const next = { ...current };
         for (const key of Object.keys(initial) as FormKey[]) {
-          const value = result.metadata[key];
+          const value = key === "isbn" ? lookupNumber : result.metadata[key];
           if (
             !manuallyEdited.current.has(key) &&
             typeof value === "string" &&
@@ -252,7 +259,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
       }
       setExistingBookId(result.existingBookId);
       setLookupSource(result.source);
-      setLookupWarnings(result.warnings || []);
+      setLookupWarnings([...(lookupNumber !== form.isbn ? [`Completed the check digit: ${lookupNumber}. Verify it against the book.`] : []), ...(result.warnings || [])]);
       setLookupSources(result.sources || []);
       setFieldSources(result.fieldSources || {});
       setAiFields(result.aiFields || []);
@@ -656,12 +663,12 @@ export function CompleteAddVolume({ data, close, run }: Props) {
                     }
                   }}
                   placeholder="Scan or Enter ISBN"
-                  className={`${input} mt-0 pl-11 ${showErrors && !validIsbn(form.isbn) ? "border-red-600" : ""}`}
+                  className={`${input} mt-0 pl-11 ${showErrors && !validIsbn(completeIsbn(form.isbn)) ? "border-red-600" : ""}`}
                 />
               </label>
               <button
                 type="button"
-                disabled={lookingUp || !validIsbn(form.isbn)}
+                disabled={lookingUp || !validIsbn(completeIsbn(form.isbn))}
                 onClick={() => void lookupIsbn()}
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#5b3924] px-5 text-xs font-bold text-white transition hover:bg-[#432617] disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -674,11 +681,11 @@ export function CompleteAddVolume({ data, close, run }: Props) {
               </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
-              <button type="button" disabled={lookingUp || !validIsbn(form.isbn)} onClick={() => void lookupIsbn(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c98a45] px-3 py-2 text-[10px] font-bold text-[#8a481d] disabled:opacity-40"><RefreshCw size={13}/>Retry lookup</button>
+              <button type="button" disabled={lookingUp || !validIsbn(completeIsbn(form.isbn))} onClick={() => void lookupIsbn(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-[#c98a45] px-3 py-2 text-[10px] font-bold text-[#8a481d] disabled:opacity-40"><RefreshCw size={13}/>Retry lookup</button>
               <button type="button" disabled={lookingUp} onClick={resetLookup} className="inline-flex items-center gap-1.5 rounded-lg border border-[#dfcfbe] px-3 py-2 text-[10px] font-bold text-[#795a42]"><RotateCcw size={13}/>Reset lookup</button>
               {aiFields.length > 0 && <button type="button" onClick={clearAiSuggestions} className="rounded-lg border border-amber-300 px-3 py-2 text-[10px] font-bold text-amber-800">Clear AI suggestions</button>}
             </div>
-            {form.isbn && !validIsbn(form.isbn) && <p className="mt-2 text-[10px] font-semibold text-red-700">Invalid ISBN checksum.</p>}
+            {form.isbn && !validIsbn(completeIsbn(form.isbn)) && <p className="mt-2 text-[10px] font-semibold text-red-700">Invalid ISBN checksum.</p>}
             {lookupMessage && !lookupSource && (
               <p
                 role="alert"

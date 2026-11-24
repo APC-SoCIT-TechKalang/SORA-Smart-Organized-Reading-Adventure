@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { catalogFailure, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, numericAgeRating, openLibraryAdapter, professionalSynopsis, suggestedAgeRating, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
+import { catalogFailure, completeIsbn13, emptyBookMetadata, isbn13, mergeMangaEnrichment, normalizeIsbn, numericAgeRating, openLibraryAdapter, professionalSynopsis, suggestedAgeRating, validIsbn, validateCoverUrl } from '../app/api/catalog/lookup/metadata.ts';
 
 test('validates ISBN-13, ISBN-10, checksum failures, and scanner formatting', () => {
   assert.equal(normalizeIsbn('978-1-64651-654-4\r\n'), '9781646516544');
@@ -8,6 +8,9 @@ test('validates ISBN-13, ISBN-10, checksum failures, and scanner formatting', ()
   assert.equal(validIsbn('0-306-40615-2'), true);
   assert.equal(isbn13('0306406152'), '9780306406157');
   assert.equal(validIsbn('9781646516543'), false);
+  assert.equal(completeIsbn13('978193565432'), '9781935654322');
+  assert.equal(completeIsbn13('9781646516544'), '9781646516544');
+  assert.equal(completeIsbn13('0306406152'), '0306406152');
 });
 
 test('adapts the supplied Blue Lock ISBN into trusted catalog fields', () => {

@@ -58,6 +58,13 @@ export function normalizeIsbn(value: string) {
   return value.toUpperCase().replace(/[^0-9X]/g, "");
 }
 
+export function completeIsbn13(value: string) {
+  const digits = normalizeIsbn(value);
+  if (!/^97[89]\d{9}$/.test(digits)) return digits;
+  const sum = digits.split("").reduce((total, digit, index) => total + Number(digit) * (index % 2 ? 3 : 1), 0);
+  return `${digits}${(10 - (sum % 10)) % 10}`;
+}
+
 export function validIsbn(value: string) {
   const normalized = normalizeIsbn(value);
   if (/^97[89]\d{10}$/.test(normalized)) {

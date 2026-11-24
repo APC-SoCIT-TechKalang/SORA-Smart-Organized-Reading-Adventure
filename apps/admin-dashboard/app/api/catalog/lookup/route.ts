@@ -6,6 +6,7 @@ import {
   aniListAdapter,
   catalogFailure,
   cleanLabels,
+  completeIsbn13,
   emptyBookMetadata,
   fromFormMetadata,
   googleAdapter,
@@ -618,7 +619,7 @@ export async function POST(request: NextRequest) {
       query?: string;
       useAi?: boolean;
     };
-    const enteredIsbn = normalizeIsbn(body.isbn ?? "");
+    const enteredIsbn = completeIsbn13(body.isbn ?? "");
     if (!validIsbn(enteredIsbn))
       return NextResponse.json(
         { error: "Enter a valid ISBN-10 or ISBN-13." },
