@@ -297,7 +297,7 @@ export async function POST(request: Request) {
   const direct = directReply(message, context);
   if (direct) return NextResponse.json({ message: direct });
 
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const apiKey = process.env.OPENROUTER_API_KEY?.trim();
   if (!apiKey) return NextResponse.json({ message: "I can help with live member counts and names, catalog availability, active reading sessions, memberships, quests, and popular books. Try asking, \"Who are the registered members?\" or \"Give me today's analytics summary.\"" });
   if (openRouterUnavailableUntil > Date.now()) return NextResponse.json({ message: "I can answer live questions about members, book titles and availability, sessions, memberships, quests, and analytics. Try asking me for a specific member or book title." });
   const model = process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
