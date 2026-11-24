@@ -137,6 +137,37 @@ charge pauses checkout and appears in the admin dashboard's
 Checkout counter; staff adjust it there and record payment. The reader then
 completes checkout, which releases the seat. Self-payment is not enabled.
 
+## Quest and gamification module (UC-10 through UC-16)
+
+Apply `supabase/replacement/019_quest_gamification_existing_schema.sql` after
+`018` before deploying the reader and admin apps. It adds no tables and no
+columns. It reuses `quests.revised_parameters`, `user_quests`,
+`session_activity_logs`, `ai_requests`, `rank_history`, and `redemptions`, adding
+only server functions, a verified-activity trigger, and indexes. Existing rows
+are preserved. Earned quest rank is calculated from awarded quest points and
+kept separate from the paid membership fields.
+
+Quest progress is authoritative in PostgreSQL. Only a verified reading session
+followed by return of the same physical copy can advance an objective. The
+completion transaction marks the assignment complete, records points once in
+the existing assignment and activity audit log, and evaluates rank advancement
+in the existing rank history. Readers have read-only
+access to their progress and cannot submit progress or points directly.
+
+The reader `/api/quest-cycle` endpoint checks for an active quest before making
+an AI request. It uses earned rank, completed quest genres, live in-shelf
+inventory, difficulty bounds, and librarian feedback, then assigns the
+validated result through a service-role-only database function. Configure
+`SUPABASE_SECRET_KEY` only in the reader deployment's server environment; never
+expose it as a `VITE_` variable. Both that endpoint and the admin
+`/api/quest-suggestion` route require `OPENROUTER_API_KEY` for AI generation
+and accept `OPENROUTER_MODEL` and `OPENROUTER_SITE_URL`. Without the key, on
+provider failure, or on invalid structured output, the reader receives a
+catalog-validated predefined template. Librarian refinements are prompt
+guidance, not model retraining. Reward redemption tables and ledger transaction
+types are prepared, but the redemption UI and fulfillment workflow remain a
+later milestone.
+
 Apply `supabase/replacement/014_catalog_edition_metadata.sql` after `013`
 before deploying the improved Add Volume workflow. It adds reviewed metadata
 provenance, acquisition dates, checksum validation, duplicate-ISBN reuse, and

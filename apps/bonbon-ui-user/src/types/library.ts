@@ -34,6 +34,14 @@ export interface Commission {
   coins: number;
   progress: number;
   participants: number;
+  difficulty?: 'Easy' | 'Medium' | 'Hard';
+  status?: 'IN PROGRESS' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+  currentValue?: number;
+  targetValue?: number;
+  objectiveType?: 'BOOKS_READ' | 'READING_MINUTES';
+  deadlineAt?: string | null;
+  targetGenre?: string | null;
+  source?: 'AI' | 'TEMPLATE' | 'MANUAL';
 }
 
 export interface NavItem {

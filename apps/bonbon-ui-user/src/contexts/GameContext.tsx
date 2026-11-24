@@ -14,8 +14,9 @@ interface Progress { total_points: number; current_streak_days: number; membersh
 interface LibraryState {
   volumes: Volume[]; commissions: Commission[]; profile: Profile | null; logs: ReadingLog[];
   rank: string; coins: number; streak: number; claimed: string[]; enrolled: string[];
+  questUpdatedAt: string | null; nextRank: { name: string; pointsRequired: number } | null;
 }
-const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', coins: 0, streak: 0, claimed: [], enrolled: [] };
+const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', coins: 0, streak: 0, claimed: [], enrolled: [], questUpdatedAt: null, nextRank: null };
 
 function initialSection(): SectionId {
   if (new URLSearchParams(window.location.search).has('reading')) return 'shelf';

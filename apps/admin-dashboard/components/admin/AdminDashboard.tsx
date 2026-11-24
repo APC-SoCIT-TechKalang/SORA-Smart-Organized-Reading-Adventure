@@ -805,9 +805,19 @@ function Challenges({
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [points, setPoints] = useState("0");
+  const [targetValue, setTargetValue] = useState("1");
+  const [timeLimitDays, setTimeLimitDays] = useState("7");
+  const [draftSource, setDraftSource] = useState<"AI" | "TEMPLATE" | "MANUAL">("MANUAL");
   const [difficulty, setDifficulty] = useState("Easy");
   const [targetGenre, setTargetGenre] = useState("");
   const [questFilter, setQuestFilter] = useState("All");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [questSearch, setQuestSearch] = useState("");
+  const [refining, setRefining] = useState<number | null>(null);
+  const [refineTarget, setRefineTarget] = useState("1");
+  const [refineDays, setRefineDays] = useState("7");
+  const [refinePoints, setRefinePoints] = useState("50");
+  const [feedback, setFeedback] = useState("");
   const [aiBusy, setAiBusy] = useState(false);
   const [aiNote, setAiNote] = useState("");
   async function suggestQuest() {
@@ -818,9 +828,9 @@ function Challenges({
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Librarian sign-in is required.");
       const response = await fetch("/api/quest-suggestion", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ difficulty }) });
-      const payload = await response.json() as { draft?: { title: string; description: string; requirement: string; difficulty: string; targetGenre: string; points: number; timeLimitDays: number; rationale: string }; source?: string; error?: string };
+      const payload = await response.json() as { draft?: { title: string; description: string; requirement: string; difficulty: string; objectiveType: "BOOKS_READ"; targetValue: number; targetGenre: string; points: number; timeLimitDays: number; rationale: string }; source?: string; error?: string };
       if (!response.ok || !payload.draft) throw new Error(payload.error || "A quest draft could not be generated.");
-      setTitle(payload.draft.title); setDescription(payload.draft.requirement); setDifficulty(payload.draft.difficulty); setTargetGenre(payload.draft.targetGenre); setPoints(String(payload.draft.points));
+      setTitle(payload.draft.title); setDescription(payload.draft.requirement); setDifficulty(payload.draft.difficulty); setTargetGenre(payload.draft.targetGenre); setPoints(String(payload.draft.points)); setTargetValue(String(payload.draft.targetValue)); setTimeLimitDays(String(payload.draft.timeLimitDays)); setDraftSource(payload.source === "ai" ? "AI" : "TEMPLATE");
       setAiNote(`${payload.source === "ai" ? "AI draft" : "Safe template"}: ${payload.draft.rationale} Review before saving.`);
     } catch (cause) { setAiNote(errorMessage(cause)); } finally { setAiBusy(false); }
   }
@@ -828,9 +838,9 @@ function Challenges({
     <>
       <div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
         <p className="text-sm text-[#806b59]">
-          Monitor verified quest progress and reward eligibility.
+          Review generated quests, verified activity progress, rules, and generation failures.
         </p>
-        <div className="flex flex-wrap gap-2"><select value={questFilter} onChange={(event) => setQuestFilter(event.target.value)} className="rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-sm" aria-label="Filter quests by difficulty"><option>All</option><option>Easy</option><option>Medium</option><option>Hard</option></select><ActionButton onClick={() => setComposer((value) => !value)}><Plus size={15} />Create quest</ActionButton></div>
+        <div className="flex flex-wrap gap-2"><input value={questSearch} onChange={event => setQuestSearch(event.target.value)} placeholder="Search quests" className="rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-sm"/><select value={questFilter} onChange={(event) => setQuestFilter(event.target.value)} className="rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-sm" aria-label="Filter quests by difficulty"><option>All</option><option>Easy</option><option>Medium</option><option>Hard</option></select><select value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="rounded-xl border border-[#e2d5c8] bg-white px-3 py-2 text-sm" aria-label="Filter quests by status"><option>All</option><option>ACTIVE</option><option>PENDING</option><option>REJECTED</option></select><ActionButton onClick={() => setComposer((value) => !value)}><Plus size={15} />Create quest</ActionButton></div>
       </div>
       {composer && (
         <form
@@ -841,13 +851,16 @@ function Challenges({
               await run(
                 () =>
                   usesReplacementSchema
-                    ? replacementDb().rpc("admin_create_quest", {
+                    ? replacementDb().rpc("admin_create_generated_quest", {
                         p_name: title,
                         p_difficulty: difficulty,
                         p_description: description,
-                        p_requirement: description,
+                        p_objective_type: "BOOKS_READ",
+                        p_target_value: Number(targetValue),
                         p_points: Number(points),
+                        p_days: Number(timeLimitDays),
                         p_target_genre: targetGenre || null,
+                        p_source: draftSource,
                       })
                     : database()
                         .from("quests")
@@ -865,6 +878,7 @@ function Challenges({
               setComposer(false);
               setTitle("");
               setDescription("");
+              setDraftSource("MANUAL");
             }
           }}
         >
@@ -877,6 +891,8 @@ function Challenges({
           />
           <select value={difficulty} onChange={(event) => setDifficulty(event.target.value)} className="rounded-xl border p-3 text-sm" aria-label="Quest difficulty"><option>Easy</option><option>Medium</option><option>Hard</option></select>
           <input value={targetGenre} onChange={(event) => setTargetGenre(event.target.value)} placeholder="Target genre" className="rounded-xl border p-3 text-sm" />
+          <input required type="number" min="1" value={targetValue} onChange={event => setTargetValue(event.target.value)} placeholder="Books" aria-label="Target books" className="rounded-xl border p-3 text-sm" />
+          <input required type="number" min="1" max="90" value={timeLimitDays} onChange={event => setTimeLimitDays(event.target.value)} placeholder="Days" aria-label="Time limit days" className="rounded-xl border p-3 text-sm" />
           <input
             required
             value={description}
@@ -898,8 +914,9 @@ function Challenges({
           {aiNote && <p className="sm:col-span-2 lg:col-span-6 text-xs leading-5 text-[#71543d]" role="status">{aiNote}</p>}
         </form>
       )}
+      {data.questGenerations.some(item => item.status === "FAILED") && <div role="status" className="mb-5 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800"><b>Quest generation needs attention.</b> {data.questGenerations.filter(item => item.status === "FAILED").length} failed request(s) are recorded. Readers still receive validated template fallbacks.</div>}
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-        {data.quests.filter((quest) => questFilter === "All" || quest.quest_type.toLowerCase() === questFilter.toLowerCase()).map((quest) => {
+        {data.quests.filter((quest) => (questFilter === "All" || quest.quest_type.toLowerCase() === questFilter.toLowerCase()) && (statusFilter === "All" || quest.status === statusFilter) && `${quest.name} ${quest.description} ${quest.objective_type}`.toLowerCase().includes(questSearch.trim().toLowerCase())).map((quest) => {
           const pending = data.enrollments.filter(
             (item) =>
               item.quest_id === quest.quest_id &&
@@ -914,7 +931,7 @@ function Challenges({
                 <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#fff0c9] text-lg text-[#a65b1e]">
                   ★
                 </span>
-                {!usesReplacementSchema && (
+                {usesReplacementSchema ? <button onClick={() => { setRefining(refining === quest.quest_id ? null : quest.quest_id); setRefineTarget(String(quest.target_value)); setRefineDays(String(quest.time_limit_days)); setRefinePoints(String(quest.points_reward)); setFeedback(""); }} className="rounded-lg p-2 text-[#a83d12] hover:bg-[#fce8d8]" aria-label={`Refine ${quest.name}`}><Edit3 size={15}/></button> : (
                   <button
                     onClick={() =>
                       void run(
@@ -943,14 +960,14 @@ function Challenges({
                 {quest.name}
               </p>
               <p className="mt-1 text-[10px] font-bold uppercase tracking-[.15em] text-[#b66a3c]">
-                {quest.quest_type} · {quest.status}
+                {quest.quest_type} · {quest.objective_type.replace('_',' ')} · {quest.status}
               </p>
               <p className="mt-5 text-xs text-[#71543d]">{quest.description}</p>
-              <p className="mt-4 text-xs font-bold text-[#a83d12]">
-                {quest.points_reward} points
-              </p>
+              <p className="mt-4 text-xs font-bold text-[#a83d12]">Target {quest.target_value} · {quest.points_reward} points · {quest.time_limit_days} days</p>
+              <p className="mt-1 text-[10px] uppercase tracking-wider text-[#8d735e]">{quest.source} · {quest.generation_status}</p>
+              {refining === quest.quest_id && <form className="mt-4 space-y-2 rounded-xl border border-[#eadfd3] bg-[#fff7eb] p-3" onSubmit={async event => { event.preventDefault(); if (await run(() => replacementDb().rpc('admin_refine_quest',{p_quest_id:quest.quest_id,p_target_value:Number(refineTarget),p_points:Number(refinePoints),p_days:Number(refineDays),p_feedback:feedback}), 'Quest refined and feedback recorded')) setRefining(null); }}><div className="grid grid-cols-3 gap-2"><input required min="1" type="number" value={refineTarget} onChange={e=>setRefineTarget(e.target.value)} aria-label="Target value" className="min-w-0 rounded-lg border p-2 text-xs"/><input required min="1" max="90" type="number" value={refineDays} onChange={e=>setRefineDays(e.target.value)} aria-label="Days" className="min-w-0 rounded-lg border p-2 text-xs"/><input required min="0" type="number" value={refinePoints} onChange={e=>setRefinePoints(e.target.value)} aria-label="Points" className="min-w-0 rounded-lg border p-2 text-xs"/></div><textarea required minLength={5} value={feedback} onChange={e=>setFeedback(e.target.value)} placeholder="Why is this refinement needed?" className="w-full rounded-lg border p-2 text-xs"/><button disabled={!feedback.trim() || feedback.trim().length<5} className="w-full rounded-lg bg-[#a83d12] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Save refinement</button></form>}
               <div className="mt-5 space-y-2">
-                {pending.map((item) => (
+                {!usesReplacementSchema && pending.map((item) => (
                   <button
                     key={item.quest_progress_id}
                     onClick={() =>
@@ -964,9 +981,9 @@ function Challenges({
                     Verify {name(item.user_id)}
                   </button>
                 ))}
-                {!pending.length && (
+                {(usesReplacementSchema || !pending.length) && (
                   <small className="text-[#8d735e]">
-                    No completions awaiting verification.
+                    Progress and rewards are verified automatically from physical reading activity.
                   </small>
                 )}
               </div>

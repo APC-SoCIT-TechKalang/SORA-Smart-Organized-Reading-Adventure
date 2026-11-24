@@ -32,19 +32,13 @@ interface ReplacementReadingActivity {
   started_at: string; returned_at: string | null; total_reading_minutes: number | null;
 }
 
-interface ReplacementQuest {
-  quest_id: number;
-  quest_name: string;
-  quest_description: string;
-  points_reward: number;
-  time_limit_days: number | null;
+interface QuestDashboardItem {
+  quest_id: number; name: string; description: string; difficulty: 'Easy' | 'Medium' | 'Hard';
+  objective_type: 'BOOKS_READ' | 'READING_MINUTES'; current_value: number; target_value: number;
+  points: number; status: 'IN PROGRESS' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
+  deadline_at: string | null; target_genre: string | null; source: 'AI' | 'TEMPLATE' | 'MANUAL';
 }
-
-interface ReplacementEnrollment {
-  quest_id: number;
-  quest_status: string;
-  points_awarded: number;
-}
+interface QuestDashboard { rank: string; membership_tier: string | null; points: number; last_updated: string; next_rank: { name: string; points_required: number } | null; quests: QuestDashboardItem[]; }
 
 export interface ReplacementLibraryData {
   volumes: Volume[];
@@ -56,6 +50,8 @@ export interface ReplacementLibraryData {
   claimed: string[];
   enrolled: string[];
   commissions: Commission[];
+  questUpdatedAt: string | null;
+  nextRank: { name: string; pointsRequired: number } | null;
 }
 
 const api = () => database().schema('sora_v2');
@@ -104,6 +100,7 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
     volumes: books.map(book => toVolume(book, !!session)),
     profile: null, logs: [], rank: 'F', coins: 0, streak: 0,
     claimed: [], enrolled: [], commissions: [],
+    questUpdatedAt: null, nextRank: null,
   };
   if (!session) return base;
 
@@ -111,17 +108,19 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
   if (account.error) throw account.error;
   if (account.data == null) throw new Error('This sign-in has not been linked to a library account yet. Ask staff for help.');
   const userId = String(account.data);
-  const [user, quests, enrollments, balance, activity] = await Promise.all([
+  try {
+    await fetch('/api/quest-cycle', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' });
+  } catch { /* The database dashboard still assigns the safe template fallback. */ }
+  const [user, dashboard, activity] = await Promise.all([
     api().from('users').select('id,first_name,last_name,birthdate,is_active,membership_rank').eq('id', userId).single(),
-    readAll<ReplacementQuest>('quests', 'quest_id,quest_name,quest_description,points_reward,time_limit_days', 'quest_id'),
-    readAll<ReplacementEnrollment>('user_quests', 'quest_id,quest_status,points_awarded', 'user_quest_id'),
-    api().rpc('points_balance'),
+    api().rpc('reader_quest_dashboard'),
     api().rpc('reader_book_activity'),
   ]);
   if (user.error) throw user.error;
-  if (balance.error) throw balance.error;
+  if (dashboard.error) throw dashboard.error;
   if (activity.error) throw activity.error;
   const profile = user.data as ReplacementUser;
+  const questDashboard = dashboard.data as QuestDashboard;
   if (!profile.is_active) throw new Error('This reader account has been deactivated. Ask library staff for help.');
   return {
     ...base,
@@ -131,16 +130,19 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
       reading_log_id: -((item.session_id * 1000000) + item.copy_id),
       ...item,
     })),
-    rank: profile.membership_rank ?? 'F',
-    coins: Number(balance.data ?? 0),
-    claimed: enrollments.filter(item => item.points_awarded > 0).map(item => String(item.quest_id)),
-    enrolled: enrollments.map(item => String(item.quest_id)),
-    commissions: quests.map(quest => ({
-      id: String(quest.quest_id), name: quest.quest_name,
-      detail: quest.quest_description,
-      track: quest.time_limit_days === 7 ? 'weekly' : 'daily',
-      seal: 'Quest', coins: quest.points_reward, xp: 0, participants: 0,
-      progress: enrollments.some(item => item.quest_id === quest.quest_id && item.quest_status === 'COMPLETED') ? 100 : 0,
+    rank: questDashboard.rank ?? 'Novice Reader',
+    coins: Number(questDashboard.points ?? 0),
+    questUpdatedAt: questDashboard.last_updated,
+    nextRank: questDashboard.next_rank ? { name: questDashboard.next_rank.name, pointsRequired: questDashboard.next_rank.points_required } : null,
+    claimed: questDashboard.quests.filter(item => item.status === 'COMPLETED').map(item => String(item.quest_id)),
+    enrolled: questDashboard.quests.map(item => String(item.quest_id)),
+    commissions: questDashboard.quests.map(quest => ({
+      id: String(quest.quest_id), name: quest.name, detail: quest.description,
+      track: 'weekly', seal: quest.difficulty, coins: quest.points, xp: 0, participants: 0,
+      progress: Math.min(100, Math.round((quest.current_value / Math.max(1, quest.target_value)) * 100)),
+      difficulty: quest.difficulty, status: quest.status, currentValue: quest.current_value,
+      targetValue: quest.target_value, objectiveType: quest.objective_type,
+      deadlineAt: quest.deadline_at, targetGenre: quest.target_genre, source: quest.source,
     })),
   };
 }
