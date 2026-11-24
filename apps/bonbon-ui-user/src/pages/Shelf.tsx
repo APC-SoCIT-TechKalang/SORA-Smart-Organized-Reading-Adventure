@@ -44,10 +44,9 @@ export function Shelf() {
               <div className="rounded-2xl border border-dashed border-gold/35 bg-cream/65 px-6 py-12 text-center shadow-[0_12px_32px_rgba(84,56,34,.06)]">
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-parch/40"><BookOpenIcon aria-hidden="true" className="h-6 w-6 text-gold" /></span>
                 <h3 className="mt-4 font-display text-xl font-800 text-umber">Your shelf is ready for a story</h3>
-                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-umber/60">{usesReplacementSchema ? 'If you have returned every book, use Check Out to stop your session timer. You can also browse for another book.' : 'Explore the catalog and begin an in-library reading session when you find your next book.'}</p>
+                <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-umber/60">Explore the catalog and find your next book to read in the library.</p>
                 <div className="mt-5 flex flex-wrap justify-center gap-3">
                   <button type="button" onClick={() => setSection('catalog')} className="tb-button-primary tb-cut-sm min-h-11 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Browse books <ArrowRightIcon className="h-4 w-4" /></button>
-                  {usesReplacementSchema && <a href="/checkout" className="tb-button-secondary tb-cut-sm min-h-11 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Check Out</a>}
                 </div>
               </div>
             ) : (
