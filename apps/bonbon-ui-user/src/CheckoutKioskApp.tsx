@@ -10,6 +10,7 @@ type CheckoutState = {
   payment_status: string; disputed: boolean; books_to_return: number;
 };
 type Receipt = { session_id: number; minutes: number; total_charge: number };
+type CheckinOnlyResult = { checkin_only: true; seat_released: boolean };
 type Status = 'preparing' | 'ready' | 'scanning' | 'authorizing' | 'summary' | 'complete' | 'error';
 const money = (value: number) => `₱${Number(value).toFixed(2)}`;
 
@@ -19,6 +20,7 @@ export function CheckoutKioskApp() {
   const [readerName, setReaderName] = useState('Reader');
   const [checkout, setCheckout] = useState<CheckoutState | null>(null);
   const [receipt, setReceipt] = useState<Receipt | null>(null);
+  const [checkinOnly, setCheckinOnly] = useState<CheckinOnlyResult | null>(null);
   const [reason, setReason] = useState('');
   const ready = useRef(false);
   const authenticating = useRef(false);
@@ -30,7 +32,7 @@ export function CheckoutKioskApp() {
 
   const reset = useCallback(async () => {
     ready.current = false;
-    setStatus('preparing'); setMessage(''); setCheckout(null); setReceipt(null); setReason(''); setReaderName('Reader');
+    setStatus('preparing'); setMessage(''); setCheckout(null); setReceipt(null); setCheckinOnly(null); setReason(''); setReaderName('Reader');
     await signOut();
     ready.current = true;
     setStatus('ready');
@@ -51,6 +53,13 @@ export function CheckoutKioskApp() {
         setStatus('summary');
       }
       throw begun.error;
+    }
+    if ((begun.data as CheckinOnlyResult)?.checkin_only) {
+      setCheckinOnly(begun.data as CheckinOnlyResult);
+      setCheckout(null);
+      setStatus('complete');
+      await signOut();
+      return;
     }
     const state = begun.data as CheckoutState;
     if (state.books_to_return === 0 && !state.disputed
@@ -144,7 +153,7 @@ export function CheckoutKioskApp() {
         {['ready', 'scanning', 'authorizing', 'error'].includes(status) && !checkout && <div className="text-center">
           <span className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-parch/50 text-rust"><CreditCardIcon className="h-11 w-11" /></span>
           <p className="tb-eyebrow mt-6">UC-05 · Settle session</p><h1 className="mt-2 font-display text-3xl font-900 uppercase">Tap card to check out</h1>
-          <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-umber/65">Tap the RFID card linked to your active session. The kiosk will stop the timer and display your session summary.</p>
+          <p className="mx-auto mt-3 max-w-lg text-sm leading-6 text-umber/65">Tap the RFID card used at check-in. If you started reading, the kiosk will stop the timer and display your session summary.</p>
           {message && <p role={status === 'error' ? 'alert' : 'status'} className="mt-5 rounded-lg border border-rust/30 bg-rust/10 p-3 text-sm">{message}</p>}
           <button type="button" disabled={status === 'authorizing' || status === 'preparing'} onClick={() => void startScan()} className="tb-button-primary tb-cut-sm mt-7 min-h-14 w-full justify-center px-6 text-base disabled:opacity-60"><RadioIcon className="h-5 w-5" />{status === 'authorizing' ? 'Finding your session…' : 'Start RFID scan'}</button>
           <p className="mt-4 text-xs text-umber/50">No username, password, or account sign-in is required.</p>
@@ -159,6 +168,7 @@ export function CheckoutKioskApp() {
           {checkout.books_to_return > 0 && <button type="button" onClick={() => void reset()} className="tb-button-secondary tb-cut-sm mt-5 px-4 py-3"><RotateCcwIcon className="h-4 w-4" /> Ready for another card</button>}
         </div>}
         {status === 'complete' && receipt && <div className="text-center"><CheckCircle2Icon className="mx-auto h-14 w-14 text-emerald-700" /><p className="tb-eyebrow mt-4">Session closed</p><h1 className="mt-2 font-display text-3xl font-900">Checkout complete</h1><p className="mt-3 text-sm">Session #{receipt.session_id} · {receipt.minutes} minutes · {money(receipt.total_charge)} settled.</p><button type="button" onClick={() => void reset()} className="tb-button-primary tb-cut-sm mt-7 px-6 py-3"><RotateCcwIcon className="h-4 w-4" /> Next reader</button></div>}
+        {status === 'complete' && checkinOnly && <div className="text-center"><CheckCircle2Icon className="mx-auto h-14 w-14 text-emerald-700" /><p className="tb-eyebrow mt-4">Check-in ended</p><h1 className="mt-2 font-display text-3xl font-900">Checkout complete</h1><p className="mt-3 text-sm">Your check-in is closed{checkinOnly.seat_released ? ' and your reserved seat has been released' : ''}. No reading time was used.</p><button type="button" onClick={() => void reset()} className="tb-button-primary tb-cut-sm mt-7 px-6 py-3"><RotateCcwIcon className="h-4 w-4" /> Next reader</button></div>}
       </section>
     </div>
   </main>;
