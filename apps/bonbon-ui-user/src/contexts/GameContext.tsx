@@ -174,39 +174,21 @@ function useLibraryState() {
     if (mutation.current) return false;
     mutation.current = true; setBusy(true);
     try {
+      const kioskSession = Boolean(window.sessionStorage.getItem('sora.kiosk.session-started-at'));
       const { error } = await database().auth.signOut({ scope: 'local' });
       if (error) throw error;
       applySession(null);
       window.sessionStorage.removeItem('sora.kiosk.session-started-at');
       window.sessionStorage.removeItem('sora.kiosk.account');
-      setSection('archive');
-      message('Logged out successfully.', 'You have been signed out of your library account.');
+      if (kioskSession) window.location.replace('/kiosk');
+      else {
+        setSection('archive');
+        message('Logged out successfully.', 'You have been signed out of your library account.');
+      }
       return true;
     } catch (err) { message('Action could not be completed', errorMessage(err)); return false; }
     finally { mutation.current = false; setBusy(false); }
   }
-  useEffect(() => {
-    if (!session || !window.sessionStorage.getItem('sora.kiosk.session-started-at')) return;
-    const startedAt = Number(window.sessionStorage.getItem('sora.kiosk.session-started-at'));
-    const expire = async () => {
-      await database().auth.signOut({ scope: 'local' });
-      window.sessionStorage.removeItem('sora.kiosk.session-started-at');
-      window.sessionStorage.removeItem('sora.kiosk.account');
-      applySession(null);
-    };
-    let idleTimer = window.setTimeout(() => void expire(), 2 * 60 * 1000);
-    const maxTimer = window.setTimeout(() => void expire(), Math.max(0, startedAt + 15 * 60 * 1000 - Date.now()));
-    const resetIdle = () => {
-      window.clearTimeout(idleTimer);
-      idleTimer = window.setTimeout(() => void expire(), 2 * 60 * 1000);
-    };
-    // Any interaction resets the idle timer; the max timer remains absolute.
-    (['pointerdown', 'keydown', 'touchstart'] as const).forEach(event => window.addEventListener(event, resetIdle));
-    return () => {
-      window.clearTimeout(idleTimer); window.clearTimeout(maxTimer);
-      (['pointerdown', 'keydown', 'touchstart'] as const).forEach(event => window.removeEventListener(event, resetIdle));
-    };
-  }, [session, applySession]);
   const dismissToast = useCallback((id: string) => {
     setToasts(items => items.filter(toast => toast.id !== id));
   }, []);
@@ -258,10 +240,70 @@ function useLibraryState() {
 const GameContext = createContext<ReturnType<typeof useLibraryState> | null>(null);
 export function GameProvider({ children }: { children: ReactNode }) {
   const value = useLibraryState();
-  return <GameContext.Provider value={value}>{children}</GameContext.Provider>;
+  return <GameContext.Provider value={value}>{children}<KioskInactivityWarning /></GameContext.Provider>;
 }
 export function useGame() {
   const value = useContext(GameContext);
   if (!value) throw new Error('useGame must be used inside GameProvider');
   return value;
+}
+
+const WARNING_AFTER_MS = 30_000;
+const LOGOUT_AFTER_MS = WARNING_AFTER_MS + 120_000;
+const KIOSK_ACTIVITY_EVENTS = ['mousemove', 'mousedown', 'touchstart', 'keydown', 'scroll'] as const;
+
+function KioskInactivityWarning() {
+  const { session, signOut } = useGame();
+  const kioskSession = Boolean(session && window.sessionStorage.getItem('sora.kiosk.session-started-at'));
+  const signOutRef = useRef(signOut);
+  signOutRef.current = signOut;
+  const [visible, setVisible] = useState(false);
+  const [secondsLeft, setSecondsLeft] = useState(120);
+  const lastActivity = useRef(Date.now());
+  const loggingOut = useRef(false);
+
+  useEffect(() => {
+    if (!kioskSession) return;
+    lastActivity.current = Date.now();
+    loggingOut.current = false;
+
+    const onActivity = () => {
+      if (loggingOut.current) return;
+      lastActivity.current = Date.now();
+      setVisible(false);
+      setSecondsLeft(120);
+    };
+    const checkInactivity = () => {
+      const idleFor = Date.now() - lastActivity.current;
+      if (idleFor >= LOGOUT_AFTER_MS && !loggingOut.current) {
+        loggingOut.current = true;
+        void signOutRef.current().then(signedOut => {
+          if (!signedOut) { loggingOut.current = false; onActivity(); }
+        });
+        return;
+      }
+      if (idleFor >= WARNING_AFTER_MS) {
+        setVisible(true);
+        setSecondsLeft(Math.ceil((LOGOUT_AFTER_MS - idleFor) / 1000));
+      }
+    };
+
+    KIOSK_ACTIVITY_EVENTS.forEach(event => window.addEventListener(event, onActivity));
+    const interval = window.setInterval(checkInactivity, 250);
+    return () => {
+      window.clearInterval(interval);
+      KIOSK_ACTIVITY_EVENTS.forEach(event => window.removeEventListener(event, onActivity));
+    };
+  }, [kioskSession, session?.user.id]);
+
+  if (!kioskSession || !visible) return null;
+  const minutes = Math.floor(secondsLeft / 60);
+  const seconds = String(secondsLeft % 60).padStart(2, '0');
+  return <div className="fixed inset-0 z-[200] flex items-center justify-center bg-umber/75 p-4 backdrop-blur-sm" role="presentation">
+    <section role="alertdialog" aria-modal="true" aria-labelledby="kiosk-idle-title" aria-describedby="kiosk-idle-description" className="w-full max-w-md rounded-2xl border border-gold/40 bg-cream p-6 text-center text-umber shadow-[0_24px_70px_rgba(46,25,12,.4)] sm:p-8">
+      <h2 id="kiosk-idle-title" className="font-display text-2xl font-900">Are you still there?</h2>
+      <p id="kiosk-idle-description" className="mt-3 text-sm leading-6 text-umber/70">For your privacy, this kiosk will sign you out in <strong aria-live="off">{minutes}:{seconds}</strong> if you remain inactive.</p>
+      <button type="button" onClick={() => { lastActivity.current = Date.now(); setVisible(false); setSecondsLeft(120); }} className="tb-button-primary tb-cut-sm mt-6 min-h-12 px-6">Yes, I'm still here</button>
+    </section>
+  </div>;
 }
