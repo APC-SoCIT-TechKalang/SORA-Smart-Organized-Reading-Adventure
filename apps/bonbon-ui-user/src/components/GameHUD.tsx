@@ -3,7 +3,6 @@ import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserRoundIcon
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
-import { DigitalCardDialog } from './DigitalCardDialog';
 import { ReadingStatsDialog } from './ReadingStatsDialog';
 import { MyProfileDialog } from './MyProfileDialog';
 
@@ -11,14 +10,12 @@ export function GameHUD() {
   const [mode, setMode] = useState<'login' | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageAccountOpen, setManageAccountOpen] = useState(false);
-  const [digitalCardOpen, setDigitalCardOpen] = useState(false);
   const [readingStatsOpen, setReadingStatsOpen] = useState(false);
   const [myProfileOpen, setMyProfileOpen] = useState(false);
   const { session, profile, coins, rank, setSection, signOut, busy, readerAccess } = useGame();
   const displayName = profile?.first_name || session?.user.user_metadata?.first_name || 'Reader';
   const initial = displayName.slice(0, 1).toUpperCase();
   const closeAuth = useCallback(() => setMode(null), []);
-  const closeDigitalCard = useCallback(() => setDigitalCardOpen(false), []);
 
   useEffect(() => {
     const openAuth = () => setMode('login');
@@ -33,10 +30,6 @@ export function GameHUD() {
   const openMyProfile = () => {
     setAccountOpen(false);
     setMyProfileOpen(true);
-  };
-  const openDigitalCard = () => {
-    setMyProfileOpen(false);
-    setDigitalCardOpen(true);
   };
   const openManageAccount = () => {
     setAccountOpen(false);
@@ -91,9 +84,8 @@ export function GameHUD() {
       </header>
       <AccountDialog mode={mode} onClose={closeAuth} />
       <ManageAccountDialog open={manageAccountOpen} onClose={() => setManageAccountOpen(false)} />
-      <DigitalCardDialog open={digitalCardOpen} onClose={closeDigitalCard} />
       <ReadingStatsDialog open={readingStatsOpen} onClose={() => setReadingStatsOpen(false)} />
-      <MyProfileDialog open={myProfileOpen} onClose={() => setMyProfileOpen(false)} onOpenReadingStats={goToReadingStats} onOpenDigitalCard={openDigitalCard} />
+      <MyProfileDialog open={myProfileOpen} onClose={() => setMyProfileOpen(false)} onOpenReadingStats={goToReadingStats} />
     </>
   );
 }
