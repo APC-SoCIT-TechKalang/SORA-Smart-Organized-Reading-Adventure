@@ -2451,8 +2451,43 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
   position: absolute;
   transform: scale(1.05);
 }
-@media (max-width: 420px) {
-  .digital-card-stage { aspect-ratio: 1.42 / 1; }
+@media (max-width: 640px) {
+  .digital-card-stage { aspect-ratio: 1 / 1; }
+  .digital-card-flipper,
+  .digital-card-flipper.is-flipped {
+    transform: none;
+    transform-style: flat;
+    -webkit-transform-style: flat;
+  }
+  .digital-card-face {
+    transition: opacity 180ms ease, visibility 180ms ease;
+  }
+  .digital-card-front {
+    opacity: 1;
+    transform: none;
+    visibility: visible;
+  }
+  .digital-card-back {
+    opacity: 0;
+    transform: none;
+    visibility: hidden;
+  }
+  .digital-card-flipper.is-flipped .digital-card-front {
+    opacity: 0;
+    visibility: hidden;
+  }
+  .digital-card-flipper.is-flipped .digital-card-back {
+    opacity: 1;
+    visibility: visible;
+  }
+  .digital-card-back > .relative {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    padding: .75rem;
+  }
+  .digital-card-back-details { display: none; }
+  .digital-card-qr-panel { padding: .75rem; }
+  .digital-card-qr { max-width: 220px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .digital-card-flipper { transition-duration: 1ms; }

@@ -12,6 +12,7 @@ interface DigitalCardDialogProps {
 
 type CardCredential = { qrPayload: string; error: string };
 const emptyCredential: CardCredential = { qrPayload: '', error: '' };
+type WakeLockSentinel = { release: () => Promise<void> };
 
 export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
   const { session, profile, rank, readerAccess } = useGame();
@@ -53,6 +54,37 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
     loadCard();
     return () => { current = false; };
   }, [open, profile, readerAccess, session]);
+
+  useEffect(() => {
+    if (!open || !flipped) return;
+    let active = true;
+    let wakeLock: WakeLockSentinel | null = null;
+    const wakeLockApi = (navigator as Navigator & {
+      wakeLock?: { request: (type: 'screen') => Promise<WakeLockSentinel> };
+    }).wakeLock;
+
+    const keepScreenAwake = async () => {
+      if (!wakeLockApi || document.visibilityState !== 'visible') return;
+      try {
+        const lock = await wakeLockApi.request('screen');
+        if (active) wakeLock = lock;
+        else await lock.release();
+      } catch {
+        // Wake Lock is optional and may be unavailable or denied by the browser.
+      }
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && !wakeLock) void keepScreenAwake();
+    };
+
+    void keepScreenAwake();
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      active = false;
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      if (wakeLock) void wakeLock.release();
+    };
+  }, [flipped, open]);
 
   if (!open || !session || readerAccess !== 'active') return null;
 
@@ -140,10 +172,10 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
             <article className="digital-card-face digital-card-back" aria-hidden={!flipped}>
               <div aria-hidden="true" className="digital-card-back-pattern" />
               <div className="relative z-10 grid h-full grid-cols-[minmax(120px,.72fr)_1.28fr] gap-2.5 p-3 sm:grid-cols-[minmax(170px,.76fr)_1.24fr] sm:gap-4 sm:p-5">
-                <div className="flex min-w-0 flex-col rounded-xl border border-[#c4800c]/25 bg-white/90 p-2 shadow-inner sm:p-3">
+                <div className="digital-card-qr-panel flex min-w-0 flex-col rounded-xl border border-[#c4800c]/25 bg-white p-2 shadow-inner sm:p-3">
                   <div className="grid min-h-0 flex-1 place-items-center rounded-lg bg-white p-1.5 sm:p-2">
                     {credential.qrPayload ? (
-                      <QRCodeSVG value={credential.qrPayload} level="H" marginSize={0} bgColor="#ffffff" fgColor="#543822" className="h-auto w-full max-w-[155px]" title="Tankobonbon kiosk login QR code" />
+                      <QRCodeSVG value={credential.qrPayload} level="H" marginSize={0} bgColor="#ffffff" fgColor="#321b0d" className="digital-card-qr h-auto w-full max-w-[155px]" title="Tankobonbon kiosk login QR code" />
                     ) : (
                       <div className="text-center text-[#543822]/55">
                         <QrCodeIcon aria-hidden="true" className="mx-auto h-12 w-12" />
@@ -157,7 +189,7 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
                     <p className="mt-1 text-[6px] leading-2.5 text-[#543822]/65 sm:text-[7px] sm:leading-3">Open the kiosk, choose <strong>Scan digital card</strong>, then hold this QR code inside the frame.</p>
                   </div>
                 </div>
-                <div className="flex min-w-0 flex-col rounded-xl border border-white/70 bg-[#fffdf8]/95 p-2.5 text-[#543822] shadow-sm sm:p-3.5">
+                <div className="digital-card-back-details flex min-w-0 flex-col rounded-xl border border-white/70 bg-[#fffdf8]/95 p-2.5 text-[#543822] shadow-sm sm:p-3.5">
                   <div className="flex items-center gap-2 border-b border-[#c4800c]/25 pb-2">
                     <ShieldCheckIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#a33c12]" />
                     <p className="text-[9px] font-900 uppercase tracking-[.13em] sm:text-[11px]">Digital library card</p>
