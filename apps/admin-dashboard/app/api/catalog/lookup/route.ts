@@ -756,6 +756,12 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = toFormMetadata(normalized);
+    // An old catalog synopsis can block better provider text during merging.
+    // Prefer a clean provider description before asking AI to rewrite it.
+    const providerSynopsis = [...found, ...mangaEnrichments]
+      .map((result) => professionalSynopsis(result.metadata?.description))
+      .find(Boolean);
+    metadata.description = providerSynopsis || professionalSynopsis(metadata.description);
     let inheritedFrom = "";
     if (metadata.series_name && !replacementSchema) {
       let templateQuery = await client
@@ -807,8 +813,10 @@ export async function POST(request: NextRequest) {
     const needsAiCleanup = !metadata.genres || !metadata.themes || !metadata.demographic || !metadata.age_rating || !metadata.description;
     if ((needsAiCleanup || Boolean(metadata.description)) && body.useAi === true) {
       try {
-        const enrichment =
-          (await openRouter(metadata)) ?? (await gemini(metadata));
+        let enrichment = await openRouter(metadata);
+        if (!enrichment?.description && !metadata.description)
+          enrichment = (await gemini(metadata)) ?? enrichment;
+        else if (!enrichment) enrichment = await gemini(metadata);
         if (enrichment) {
           aiFields = applyAiSuggestions(metadata, enrichment);
           for (const key of aiFields) fieldSources[key] = "AI suggestion — review required";

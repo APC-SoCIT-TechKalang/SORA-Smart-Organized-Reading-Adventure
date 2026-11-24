@@ -129,7 +129,7 @@ function cleanHtml(value: unknown) {
 }
 
 export function professionalSynopsis(value: unknown) {
-  const cleaned = cleanHtml(value).slice(0, 1600);
+  const cleaned = cleanHtml(value).replace(/[*_#`]/g, "").replace(/\s*[\r\n]+\s*/g, " ").slice(0, 1600).trim();
   return /\b(?:lmao|lol|idk|tbh|wtf|yeah thats|mr mad guy)\b/i.test(cleaned) ? "" : cleaned;
 }
 
