@@ -20,6 +20,7 @@ try {
   await sql('019_quest_gamification_existing_schema.sql');
   assert.deepEqual((await db.query("select table_name from information_schema.tables where table_schema='sora_v2' order by table_name")).rows,tablesBefore,'migration must add no tables');
   assert.deepEqual((await db.query("select table_name,column_name,data_type from information_schema.columns where table_schema='sora_v2' order by table_name,ordinal_position")).rows,columnsBefore,'migration must add no columns');
+  await sql('021_quest_review_pool.sql');
   await db.exec('reset role');
   await db.query(`insert into sora_v2.users(id,first_name,last_name,username,birthdate,user_role,mobile_number,membership_type,membership_rank,membership_status,membership_expires_at,remaining_minutes)
     values($1,'Reader','One','reader','2000-01-01','Reader','1','Guild Member','F','ACTIVE',now()+interval '1 day',120),($2,'Staff','One','staff','1990-01-01','Librarian','2',null,null,'INACTIVE',null,0)`,[reader,staff]);
@@ -41,5 +42,16 @@ try {
   await as(staff);
   const questId=Number(await scalar('select quest_id from sora_v2.quests order by quest_id limit 1'));
   await assert.rejects(db.query(`select sora_v2.admin_refine_quest(${questId},999,50,7,'Unrealistic target')`),/configured difficulty rules/);
-  console.log('PASS: no new tables/columns, fallback assignment, RLS, verified progress, atomic reward, duplicate prevention and refinement bounds.');
+  const draftId=Number(await scalar("select sora_v2.admin_create_quest_draft('Fantasy Steps','Easy','Read one verified Fantasy book.','BOOKS_READ',1,50,7,'Fantasy','AI','One available title','Prefer shorter easy quests')"));
+  assert.equal(await scalar(`select review_decision from sora_v2.quests where quest_id=${draftId}`),'PENDING');
+  await db.query(`select sora_v2.admin_review_quest(${draftId},'VERIFIED','Approved in test')`);
+  assert.equal(await scalar(`select review_decision from sora_v2.quests where quest_id=${draftId}`),'VERIFIED');
+  await db.exec('reset role');
+  await db.exec("insert into sora_v2.rewards(reward_name,points_cost,stock_quantity,is_available) values('Bookmark',40,1,true)");
+  await as(reader);
+  await assert.rejects(db.query(`select sora_v2.admin_review_quest(${draftId},'REJECTED','No')`),/Librarian access required/);
+  const redemption=Number(await scalar('select sora_v2.reader_redeem_reward(1)'));
+  assert.ok(redemption>0); assert.equal(Number(await scalar('select stock_quantity from sora_v2.rewards where reward_id=1')),0);
+  await assert.rejects(db.query('select sora_v2.reader_redeem_reward(1)'),/unavailable/);
+  console.log('PASS: approved pool review, librarian authorization, catalog feasibility, fallback assignment, verified progress, atomic reward, duplicate prevention, redemption and refinement bounds.');
 } finally { await db.close(); }

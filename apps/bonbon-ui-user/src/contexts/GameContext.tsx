@@ -15,8 +15,9 @@ interface LibraryState {
   volumes: Volume[]; commissions: Commission[]; profile: Profile | null; logs: ReadingLog[];
   rank: string; coins: number; streak: number; claimed: string[]; enrolled: string[];
   questUpdatedAt: string | null; nextRank: { name: string; pointsRequired: number } | null;
+  rewards: { reward_id:number; reward_name:string; points_cost:number; stock_quantity:number; is_available:boolean }[];
 }
-const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', coins: 0, streak: 0, claimed: [], enrolled: [], questUpdatedAt: null, nextRank: null };
+const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', coins: 0, streak: 0, claimed: [], enrolled: [], questUpdatedAt: null, nextRank: null, rewards: [] };
 
 function initialSection(): SectionId {
   if (new URLSearchParams(window.location.search).has('reading')) return 'shelf';
@@ -229,6 +230,7 @@ function useLibraryState() {
     logSession: (_id: string) => { message('Reading time is recorded automatically', 'Finish reading and return the book to complete your session.'); },
     claim: (q: Commission) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('claim_quest', { p_quest_id: Number(q.id) }), 'Quest points claimed'),
     joinQuest: (id: string) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('join_quest', { p_quest_id: Number(id) }), 'Quest joined'),
+    redeemReward: (rewardId: number) => usesReplacementSchema ? run(() => replacementApi().rpc('reader_redeem_reward', { p_reward_id: rewardId }), 'Reward redemption requested') : Promise.resolve(false),
     toggleEvent: (_id: string, _name: string, _xp: number) => message('Event registration unavailable', 'Ask library staff about current events.'),
     toggleClub: (_id: string, _name: string) => message('Club registration unavailable', 'Ask library staff about current clubs.'),
     dismissToast,

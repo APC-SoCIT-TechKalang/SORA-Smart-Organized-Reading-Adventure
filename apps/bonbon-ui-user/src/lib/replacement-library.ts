@@ -39,6 +39,7 @@ interface QuestDashboardItem {
   deadline_at: string | null; target_genre: string | null; source: 'AI' | 'TEMPLATE' | 'MANUAL';
 }
 interface QuestDashboard { rank: string; membership_tier: string | null; points: number; last_updated: string; next_rank: { name: string; points_required: number } | null; quests: QuestDashboardItem[]; }
+export interface ReaderReward { reward_id:number; reward_name:string; points_cost:number; stock_quantity:number; is_available:boolean; }
 
 export interface ReplacementLibraryData {
   volumes: Volume[];
@@ -52,6 +53,7 @@ export interface ReplacementLibraryData {
   commissions: Commission[];
   questUpdatedAt: string | null;
   nextRank: { name: string; pointsRequired: number } | null;
+  rewards: ReaderReward[];
 }
 
 const api = () => database().schema('sora_v2');
@@ -100,7 +102,7 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
     volumes: books.map(book => toVolume(book, !!session)),
     profile: null, logs: [], rank: 'F', coins: 0, streak: 0,
     claimed: [], enrolled: [], commissions: [],
-    questUpdatedAt: null, nextRank: null,
+    questUpdatedAt: null, nextRank: null, rewards: [],
   };
   if (!session) return base;
 
@@ -111,14 +113,16 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
   try {
     await fetch('/api/quest-cycle', { method: 'POST', headers: { Authorization: `Bearer ${session.access_token}` }, cache: 'no-store' });
   } catch { /* The database dashboard still assigns the safe template fallback. */ }
-  const [user, dashboard, activity] = await Promise.all([
+  const [user, dashboard, activity, rewards] = await Promise.all([
     api().from('users').select('id,first_name,last_name,birthdate,is_active,membership_rank').eq('id', userId).single(),
     api().rpc('reader_quest_dashboard'),
     api().rpc('reader_book_activity'),
+    api().from('rewards').select('reward_id,reward_name,points_cost,stock_quantity,is_available').eq('is_available',true).gt('stock_quantity',0).order('points_cost'),
   ]);
   if (user.error) throw user.error;
   if (dashboard.error) throw dashboard.error;
   if (activity.error) throw activity.error;
+  if (rewards.error) throw rewards.error;
   const profile = user.data as ReplacementUser;
   const questDashboard = dashboard.data as QuestDashboard;
   if (!profile.is_active) throw new Error('This reader account has been deactivated. Ask library staff for help.');
@@ -134,6 +138,7 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
     coins: Number(questDashboard.points ?? 0),
     questUpdatedAt: questDashboard.last_updated,
     nextRank: questDashboard.next_rank ? { name: questDashboard.next_rank.name, pointsRequired: questDashboard.next_rank.points_required } : null,
+    rewards: rewards.data as ReaderReward[],
     claimed: questDashboard.quests.filter(item => item.status === 'COMPLETED').map(item => String(item.quest_id)),
     enrolled: questDashboard.quests.map(item => String(item.quest_id)),
     commissions: questDashboard.quests.map(quest => ({

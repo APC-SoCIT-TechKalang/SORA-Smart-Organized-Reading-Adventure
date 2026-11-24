@@ -45,6 +45,7 @@ import { CatalogueEditor } from "./CatalogueEditor";
 import { ReaderCheckIn } from "./ReaderCheckIn";
 import { AnalyticsWorkspace } from "./AnalyticsWorkspace";
 import { CheckoutQueue } from "./CheckoutQueue";
+import { QuestManagement } from "./QuestManagement";
 
 type Page =
   "Overview" | "Analytics" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
@@ -111,7 +112,9 @@ export function AdminDashboard() {
   useEffect(() => {
     void refresh();
     const timer = window.setInterval(() => void refresh(), 30000);
-    return () => clearInterval(timer);
+    const changed = () => void refresh();
+    window.addEventListener("quest-data-changed", changed);
+    return () => { clearInterval(timer); window.removeEventListener("quest-data-changed", changed); };
   }, [refresh]);
   const notify = (message: string) => {
     setNotice(message);
@@ -170,7 +173,7 @@ export function AdminDashboard() {
         setEditingLocation={setEditingLocation}
       />
     ) : page === "Challenges" ? (
-      <Challenges data={data} name={name} run={run} />
+      <QuestManagement data={data} name={name} run={run} />
     ) : page === "Readers" ? (
       <Readers data={data} active={active} name={name} run={run} />
     ) : (

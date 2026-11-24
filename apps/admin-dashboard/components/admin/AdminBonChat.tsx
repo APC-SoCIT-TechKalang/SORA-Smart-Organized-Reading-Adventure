@@ -1,12 +1,13 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import { LoaderCircle, MessageCircle, Send, X } from "lucide-react";
+import { Check, Edit3, LoaderCircle, MessageCircle, RefreshCw, Send, Trash2, X } from "lucide-react";
 import { database, errorMessage } from "../../lib/supabase";
 import type { DashboardData } from "./dashboard-data";
 
 type ChatData = Pick<DashboardData, "books" | "copies" | "readers" | "memberAccounts" | "visits" | "logs" | "quests" | "enrollments">;
-type Message = { id: number; from: "bon" | "admin"; text: string };
+type QuestDraft = { title: string; description: string; requirement: string; difficulty: "Easy" | "Medium" | "Hard"; objectiveType: "BOOKS_READ"; targetValue: number; targetGenre: string; points: number; timeLimitDays: number; rationale: string; selected?: boolean; editing?: boolean; status?: "draft" | "approved" | "discarded" };
+type Message = { id: number; from: "bon" | "admin"; text: string; drafts?: QuestDraft[]; source?: "ai" | "template" };
 
 const BUTTON = 62;
 const MARGIN = 10;
@@ -53,11 +54,27 @@ export function AdminBonChat({ data }: { data: ChatData }) {
     setMessages(current => [...current, message]);
   }
 
+  const updateCard = (messageId: number, index: number, patch: Partial<QuestDraft>) => setMessages(current => current.map(message => message.id === messageId ? { ...message, drafts: message.drafts?.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item) } : message));
+  const latestDrafts = () => [...messages].reverse().find(message => message.drafts?.some(item => item.status !== "discarded"))?.drafts?.filter(item => item.status !== "discarded") ?? [];
+
+  async function saveQuest(item: QuestDraft, approve: boolean, source: "ai"|"template" = "ai") {
+    const created = await database().schema("sora_v2").rpc("admin_create_quest_draft", { p_name:item.title,p_difficulty:item.difficulty,p_description:item.description,p_objective_type:item.objectiveType,p_target_value:item.targetValue,p_points:item.points,p_days:item.timeLimitDays,p_target_genre:item.targetGenre||null,p_source:source.toUpperCase(),p_feasibility:item.rationale,p_feedback_context:"Approved or edited in BON conversation" });
+    if (created.error) throw created.error;
+    if (approve) { const reviewed = await database().schema("sora_v2").rpc("admin_review_quest", { p_quest_id:Number(created.data),p_decision:"VERIFIED",p_note:"Approved from BON quest review" }); if (reviewed.error) throw reviewed.error; }
+  }
+
+  async function approveCards(messageId: number, indexes: number[]) {
+    if (busy || !indexes.length) return; const message = messages.find(item => item.id === messageId); if (!message?.drafts) return;
+    setBusy(true);
+    try { for (const index of indexes) await saveQuest(message.drafts[index], true, message.source ?? "ai"); setMessages(current => current.map(item => item.id === messageId ? { ...item, drafts:item.drafts?.map((draft,index)=>indexes.includes(index)?{...draft,status:"approved",selected:false}:draft) } : item)); window.dispatchEvent(new Event("quest-data-changed")); append({ id:Date.now(),from:"bon",text:`Approved ${indexes.length} quest${indexes.length===1?"":"s"} into the level-based quest pool.` }); }
+    catch (cause) { append({ id:Date.now(),from:"bon",text:errorMessage(cause) }); } finally { setBusy(false); }
+  }
+
   useEffect(() => {
     requestAnimationFrame(() => { if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight; });
   }, [messages, busy]);
 
-  async function answer(question: string) {
+  async function answer(question: string, refinementDrafts?: QuestDraft[]) {
     if (busy) return;
     const prior = messages.slice(-4).map(message => ({ role: message.from === "admin" ? "user" : "assistant", content: message.text }));
     setMessages(current => [...current, { id: Date.now(), from: "admin", text: question }]);
@@ -67,14 +84,16 @@ export function AdminBonChat({ data }: { data: ChatData }) {
       const { data: sessionData } = await database().auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Librarian sign-in is required.");
-      const response = await fetch("/api/admin-bon-chat", {
+      const currentDrafts = refinementDrafts ?? latestDrafts();
+      const questRequest = /\b(generate|create|draft|regenerate|refine|increase|decrease|adjust)\b[^.]*\bquests?\b|\bquests?\b[^.]*\b(generate|create|draft|regenerate|refine|increase|decrease|adjust)\b/i.test(question) || Boolean(currentDrafts.length && /\b(refine|increase|decrease|adjust|change|make it)\b/i.test(question));
+      const response = await fetch(questRequest ? "/api/quest-suggestion" : "/api/admin-bon-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ message: question, history: prior, context }),
+        body: JSON.stringify(questRequest ? { prompt:question,existingDrafts:currentDrafts } : { message: question, history: prior, context }),
       });
-      const payload = await response.json() as { message?: string; error?: string };
+      const payload = await response.json() as { message?: string; drafts?: QuestDraft[]; source?: "ai"|"template"; error?: string };
       if (!response.ok || !payload.message) throw new Error(payload.error || "BON could not answer right now.");
-      append({ id: Date.now() + 1, from: "bon", text: payload.message });
+      append({ id: Date.now() + 1, from: "bon", text: payload.message, drafts:payload.drafts?.map(item=>({...item,selected:true,status:"draft"})), source:payload.source });
     } catch (cause) {
       append({ id: Date.now() + 1, from: "bon", text: errorMessage(cause) });
     } finally { setBusy(false); }
@@ -82,6 +101,8 @@ export function AdminBonChat({ data }: { data: ChatData }) {
 
   function submit(event: FormEvent) { event.preventDefault(); if (draft.trim() && !busy) void answer(draft.trim()); }
   const suggestions = ["Today's analytics summary", "Which genre is most read?", "Show the least-used books", "How is quest participation?"];
+
+  useEffect(() => { const openQuest = (event: Event) => { setOpen(true); const prompt=(event as CustomEvent<string>).detail||"Generate balanced quests from our available catalog."; window.setTimeout(()=>void answer(prompt),0); }; window.addEventListener("open-bon-quest",openQuest); return()=>window.removeEventListener("open-bon-quest",openQuest); });
 
   useEffect(() => {
     if (!dragging || pos === null) return;
@@ -127,9 +148,9 @@ export function AdminBonChat({ data }: { data: ChatData }) {
   const panelBelow = pos ? pos.y > window.innerHeight / 2 : true;
 
   return <div ref={wrapRef} onPointerDown={startDrag} style={pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto", width: BUTTON } : undefined} className={`assistive-wrap fixed bottom-5 right-5 z-50 ${dragging ? "is-dragging" : ""} ${panelBelow ? "" : "panel-below"}`}>
-    {open && <section className={`analytics-panel assistive-panel flex h-[min(500px,calc(100dvh-7rem))] w-[min(410px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-[#e4d4c3] bg-[#fffdf9] shadow-[0_24px_70px_rgba(57,36,20,.25)] ${anchoredLeft ? "assistive-panel-left" : ""}`} role="dialog" aria-label="Chat with BON">
+    {open && <section className={`analytics-panel assistive-panel flex h-[min(680px,calc(100dvh-5rem))] w-[min(560px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-[#e4d4c3] bg-[#fffdf9] shadow-[0_24px_70px_rgba(57,36,20,.25)] ${anchoredLeft ? "assistive-panel-left" : ""}`} role="dialog" aria-label="Chat with BON">
       <header className="flex items-center gap-3 bg-[#59351e] px-4 py-3.5 text-[#fff9ef]"><div className="insights-message-avatar h-10 w-10 rounded-xl border border-[#f5c822] bg-[#f8eddc]"><img src="/ai-mascot.png" alt="BON" /></div><div className="min-w-0"><b className="block text-sm">BON Analytics</b><small className="block truncate text-[11px] text-[#e8c9ad]">Library data assistant · online</small></div><button className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-lg transition hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close chat"><X size={18}/></button></header>
-      <div ref={logRef} className="flex-1 space-y-2.5 overflow-y-auto px-4 py-3.5 text-[13px]">{messages.map(message => <p key={message.id} className={`w-fit max-w-[86%] rounded-2xl px-3.5 py-2.5 leading-5 shadow-sm ${message.from === "bon" ? "border border-[#eadfd3] bg-[#fff7eb] text-[#59351e]" : "ml-auto bg-[#a83d12] text-white"}`}>{message.text}</p>)}{busy && <p role="status" className="flex w-fit items-center gap-2 rounded-2xl border border-[#eadfd3] bg-[#fff7eb] px-3.5 py-2.5 leading-5 text-[#59351e]"><LoaderCircle className="animate-spin" size={14}/>Analyzing Tankobonbon data...</p>}</div>
+      <div ref={logRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3.5 text-[13px]">{messages.map(message => <div key={message.id} className={message.from==="admin"?"ml-auto w-fit max-w-[86%]":"max-w-full"}><p className={`w-fit max-w-full rounded-2xl px-3.5 py-2.5 leading-5 shadow-sm ${message.from === "bon" ? "border border-[#eadfd3] bg-[#fff7eb] text-[#59351e]" : "ml-auto bg-[#a83d12] text-white"}`}>{message.text}</p>{message.drafts?.length ? <div className="mt-2 space-y-2">{message.drafts.map((item,index)=><article key={`${message.id}-${index}`} className={`rounded-xl border p-3 ${item.status==="approved"?"border-emerald-300 bg-emerald-50":item.status==="discarded"?"hidden":"border-[#dfc49d] bg-white"}`}><div className="flex items-start gap-2"><input type="checkbox" checked={Boolean(item.selected)} onChange={event=>updateCard(message.id,index,{selected:event.target.checked})} aria-label={`Select ${item.title}`}/><div className="min-w-0 flex-1">{item.editing?<><input value={item.title} onChange={event=>updateCard(message.id,index,{title:event.target.value})} className="w-full rounded border p-1.5 font-bold"/><textarea value={item.description} onChange={event=>updateCard(message.id,index,{description:event.target.value})} className="mt-1 w-full rounded border p-1.5"/><div className="mt-1 grid grid-cols-4 gap-1"><select value={item.difficulty} onChange={event=>updateCard(message.id,index,{difficulty:event.target.value as QuestDraft["difficulty"]})} className="rounded border p-1"><option>Easy</option><option>Medium</option><option>Hard</option></select><input value={item.targetValue} type="number" min="1" onChange={event=>updateCard(message.id,index,{targetValue:Number(event.target.value)})} className="min-w-0 rounded border p-1"/><input value={item.points} type="number" min="1" onChange={event=>updateCard(message.id,index,{points:Number(event.target.value)})} className="min-w-0 rounded border p-1"/><input value={item.timeLimitDays} type="number" min="1" onChange={event=>updateCard(message.id,index,{timeLimitDays:Number(event.target.value)})} className="min-w-0 rounded border p-1"/></div></>:<><b className="block text-[#59351e]">{item.title}</b><span className="text-[10px] font-bold uppercase text-[#a65b1e]">{item.difficulty} · {item.targetValue} books · {item.points} points · {item.timeLimitDays} days</span><p className="mt-1 text-xs leading-4 text-[#71543d]">{item.description}</p><p className="mt-1 text-[10px] text-emerald-700">{item.rationale}</p></>}</div></div><div className="mt-2 flex flex-wrap gap-1"><button onClick={()=>void approveCards(message.id,[index])} className="rounded bg-[#a83d12] px-2 py-1 text-[10px] font-bold text-white"><Check size={11} className="inline"/> Approve</button><button onClick={()=>{updateCard(message.id,index,{editing:!item.editing});}} className="rounded border px-2 py-1 text-[10px]"><Edit3 size={11} className="inline"/> Edit manually</button><button onClick={()=>{setDraft(`Refine \"${item.title}\": `);}} className="rounded border px-2 py-1 text-[10px]">Refine</button><button onClick={()=>void answer(`Regenerate an alternative to \"${item.title}\" with the same difficulty.`,[item])} className="rounded border px-2 py-1 text-[10px]"><RefreshCw size={11} className="inline"/> Regenerate</button><button onClick={()=>updateCard(message.id,index,{status:"discarded",selected:false})} className="rounded border px-2 py-1 text-[10px] text-rose-700"><Trash2 size={11} className="inline"/> Discard</button></div></article>)}{message.drafts.some(item=>item.status==="draft")&&<button onClick={()=>void approveCards(message.id,message.drafts!.map((item,index)=>item.selected&&item.status==="draft"?index:-1).filter(index=>index>=0))} className="w-full rounded-lg bg-[#59351e] px-3 py-2 text-xs font-bold text-white">Approve selected</button>}</div>:null}</div>)}{busy && <p role="status" className="flex w-fit items-center gap-2 rounded-2xl border border-[#eadfd3] bg-[#fff7eb] px-3.5 py-2.5 leading-5 text-[#59351e]"><LoaderCircle className="animate-spin" size={14}/>Analyzing Tankobonbon data...</p>}</div>
       <div className="flex gap-2 overflow-x-auto border-t border-[#eadfd3] bg-[#fffaf3] px-3 py-2.5">{suggestions.map(suggestion => <button key={suggestion} disabled={busy} onClick={() => void answer(suggestion)} className="max-w-[220px] shrink-0 whitespace-normal rounded-full border border-[#d6b58f] bg-white px-3 py-1.5 text-left text-[10px] font-semibold leading-4 text-[#804916] transition hover:bg-[#fff2df] disabled:opacity-50">{suggestion}</button>)}</div>
       <form onSubmit={submit} className="flex gap-2 border-t border-[#eadfd3] bg-white p-3"><input value={draft} onChange={event => setDraft(event.target.value)} maxLength={800} disabled={busy} placeholder="Ask BON about library analytics..." className="min-w-0 flex-1 rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-2.5 text-[13px] outline-none transition focus:border-[#a83d12] focus:ring-2 focus:ring-[#a83d12]/10 disabled:opacity-60"/><button disabled={busy || !draft.trim()} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#a83d12] text-white transition hover:bg-[#8f320d] disabled:opacity-50" aria-label="Send message"><Send size={16}/></button></form>
     </section>}
