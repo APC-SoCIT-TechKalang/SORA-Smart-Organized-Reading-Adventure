@@ -100,11 +100,11 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
 
           <div className="relative justify-self-end">
             <button type="button" onClick={() => setSortOpen((value) => !value)} aria-expanded={sortOpen} aria-haspopup="listbox" className="tb-input flex min-h-11 min-w-[9rem] items-center justify-between gap-3 rounded-full px-3 text-xs font-700 text-umber sm:min-w-40 sm:gap-5 sm:px-4">
-              {sort === 'popular' ? 'Best selling' : 'Newest first'}
+              {sort === 'popular' ? 'Most Read' : 'Newest first'}
               <ChevronDownIcon className={`h-3.5 w-3.5 text-gold transition ${sortOpen ? 'rotate-180' : ''}`} />
             </button>
             {sortOpen && <div role="listbox" aria-label="Sort books" className="absolute right-0 top-[calc(100%+.5rem)] z-30 w-48 overflow-hidden rounded-xl border border-gold/35 bg-cream p-1.5 shadow-[0_16px_36px_rgba(84,56,34,.22)]">
-              <SortOption label="Best selling" active={sort === 'popular'} onClick={() => { setSort('popular'); setSortOpen(false); }} />
+              <SortOption label="Most Read" active={sort === 'popular'} onClick={() => { setSort('popular'); setSortOpen(false); }} />
               <SortOption label="Newest first" active={sort === 'newest'} onClick={() => { setSort('newest'); setSortOpen(false); }} />
             </div>}
           </div>

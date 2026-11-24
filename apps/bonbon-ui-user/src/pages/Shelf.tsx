@@ -1,21 +1,19 @@
-import { ArrowRightIcon, BookOpenIcon, CalendarDaysIcon, CheckCircle2Icon, Clock3Icon, HistoryIcon, SparklesIcon, UserRoundIcon } from 'lucide-react';
+import { ArrowRightIcon, BookOpenIcon, CalendarDaysIcon, CheckCircle2Icon, Clock3Icon, HistoryIcon, SparklesIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useGame, type ReadingLog } from '../contexts/GameContext';
 import { GuestPrompt } from '../components/GuestPrompt';
-import { OrnatePanel, SectionHeading } from '../components/OrnatePanel';
+import { SectionHeading } from '../components/OrnatePanel';
 import { usesReplacementSchema } from '../lib/replacement-library';
 import { ReturnBookPrompt } from '../components/ReturnBookPrompt';
 
 export function Shelf() {
-  const { session, profile, logs, volumeById, giveBack, busy, saveProfile, setSection } = useGame();
+  const { session, profile, logs, volumeById, giveBack, busy, setSection } = useGame();
   const [returning, setReturning] = useState<ReadingLog | null>(null);
   if (!session) return <div className="space-y-6"><SectionHeading title="My shelf" meta="Reading activity" /><GuestPrompt title="Keep your reading adventure together" detail="Sign in to view active reading sessions, your history, membership details, and earned library points." /></div>;
 
   const active = logs.filter((log) => !log.returned_at);
   const history = logs.filter((log) => log.returned_at).slice().reverse();
-  const input = 'tb-input mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm font-600';
   const displayName = profile?.first_name?.trim() || 'Reader';
-  const initials = `${profile?.first_name?.[0] ?? 'R'}${profile?.last_name?.[0] ?? ''}`.toUpperCase();
 
   return (
     <div className="space-y-6 sm:space-y-8">
@@ -27,17 +25,16 @@ export function Shelf() {
           <div className="max-w-2xl">
             <p className="flex items-center gap-2 text-[10px] font-900 uppercase tracking-[.2em] text-sun"><SparklesIcon className="h-4 w-4" /> Your reading space</p>
             <h1 className="mt-3 font-display text-3xl font-900 leading-tight text-white sm:text-4xl">Welcome back, {displayName}.</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-sand/70">Everything you are reading, finishing, and keeping up to date—organized in one place.</p>
+            <p className="mt-3 max-w-xl text-sm leading-6 text-sand/70">Track your current books and revisit your reading history.</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:gap-3">
             <ShelfMetric value={active.length} label="Reading now" icon={<BookOpenIcon />} />
-            <ShelfMetric value={history.length} label="Completed" icon={<CheckCircle2Icon />} />
+            <ShelfMetric value={history.length} label="Books returned" icon={<CheckCircle2Icon />} />
           </div>
         </div>
       </section>
 
-      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,.65fr)]">
-        <div className="space-y-6">
+      <div className="space-y-6 sm:space-y-8">
           <section aria-labelledby="active-reading-title">
             <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
               <div><p className="tb-eyebrow">Current reading</p><h2 id="active-reading-title" className="mt-1 font-display text-2xl font-900 text-umber">{usesReplacementSchema ? 'Books in this session' : 'Active sessions'}</h2></div>
@@ -48,11 +45,13 @@ export function Shelf() {
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-parch/40"><BookOpenIcon aria-hidden="true" className="h-6 w-6 text-gold" /></span>
                 <h3 className="mt-4 font-display text-xl font-800 text-umber">Your shelf is ready for a story</h3>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-umber/60">{usesReplacementSchema ? 'If you have returned every book, use Check Out to stop your session timer. You can also browse for another book.' : 'Explore the catalog and begin an in-library reading session when you find your next book.'}</p>
-                <button type="button" onClick={() => setSection('catalog')} className="tb-button-primary tb-cut-sm mt-5 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Browse books <ArrowRightIcon className="h-4 w-4" /></button>
-                {usesReplacementSchema && <a href="/checkout" className="tb-button-secondary tb-cut-sm ml-3 mt-5 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Check Out</a>}
+                <div className="mt-5 flex flex-wrap justify-center gap-3">
+                  <button type="button" onClick={() => setSection('catalog')} className="tb-button-primary tb-cut-sm min-h-11 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Browse books <ArrowRightIcon className="h-4 w-4" /></button>
+                  {usesReplacementSchema && <a href="/checkout" className="tb-button-secondary tb-cut-sm min-h-11 px-5 py-3 font-display text-xs uppercase tracking-[.1em]">Check Out</a>}
+                </div>
               </div>
             ) : (
-              <div className="grid gap-4">{active.map((log) => {
+              <div className="grid gap-4 xl:grid-cols-2">{active.map((log) => {
                 const volume = volumeById(String(log.book_id));
                 return <article key={log.reading_log_id} className="group relative overflow-hidden rounded-2xl border border-gold/30 bg-cream/90 shadow-[0_16px_38px_rgba(84,56,34,.1)]">
                   <div className="grid gap-5 p-5 sm:grid-cols-[110px_minmax(0,1fr)] sm:p-6">
@@ -78,7 +77,7 @@ export function Shelf() {
           </section>
 
           <section aria-labelledby="reading-history-title">
-            <div className="mb-4 flex items-center justify-between gap-3"><div className="flex items-center gap-2"><HistoryIcon aria-hidden="true" className="h-5 w-5 text-gold" /><h2 id="reading-history-title" className="font-display text-xl font-900 text-umber">Reading history</h2></div>{history.length > 0 && <span className="text-xs font-700 text-umber/50">Most recent first</span>}</div>
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><HistoryIcon aria-hidden="true" className="h-5 w-5 text-gold" /><h2 id="reading-history-title" className="font-display text-xl font-900 text-umber">Reading history</h2></div>{history.length > 0 && <span className="text-xs font-700 text-umber/50">Most recent first</span>}</div>
             <div className="overflow-hidden rounded-2xl border border-gold/25 bg-cream/75 shadow-[0_12px_30px_rgba(84,56,34,.07)]">
               {history.length ? <div className="divide-y divide-gold/15">{history.map((log) => {
                 const volume = volumeById(String(log.book_id));
@@ -90,23 +89,6 @@ export function Shelf() {
               })}</div> : <div className="px-6 py-10 text-center"><HistoryIcon className="mx-auto h-7 w-7 text-gold/60" /><p className="mt-3 text-sm font-700 text-umber/60">Finished books will appear here.</p><p className="mt-1 text-xs text-umber/45">Scan a book again after reading to add it to your history.</p></div>}
             </div>
           </section>
-        </div>
-
-        <section aria-labelledby="profile-title" className="xl:sticky xl:top-6">
-          <div className="mb-4 flex items-center gap-2"><UserRoundIcon aria-hidden="true" className="h-5 w-5 text-gold" /><h2 id="profile-title" className="font-display text-xl font-900 text-umber">Your profile</h2></div>
-          {profile ? (
-            <div className="overflow-hidden rounded-2xl border border-gold/30 bg-cream/90 shadow-[0_16px_38px_rgba(84,56,34,.1)]">
-              <div className="flex items-center gap-3 border-b border-gold/20 bg-parch/20 p-5"><span className="grid h-12 w-12 shrink-0 place-items-center rounded-full bg-umber font-display text-sm font-900 text-sun">{initials}</span><div className="min-w-0"><p className="font-display text-lg font-900 text-umber">{profile.first_name} {profile.last_name}</p><p className="mt-0.5 text-[10px] font-800 uppercase tracking-[.12em] text-gold">Library member</p></div></div>
-              <form key={profile.user_id} onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void saveProfile({ first_name: String(form.get('first_name')).trim(), last_name: String(form.get('last_name')).trim(), birthday: String(form.get('birthday')) || null, bio: String(form.get('bio') ?? '').trim() || null }); }} className="p-5">
-                <p className="text-xs leading-5 text-umber/55">Keep your details current. Your birthday is used only when staff review age-restricted access.</p>
-                <div className="mt-5 grid gap-4"><Field label="First name"><input className={input} name="first_name" required defaultValue={profile.first_name} /></Field><Field label="Last name"><input className={input} name="last_name" required defaultValue={profile.last_name} /></Field><Field label="Birthday"><input className={input} type="date" name="birthday" required={usesReplacementSchema} max={new Date().toISOString().slice(0, 10)} defaultValue={profile.birthday ?? ''} /></Field>{!usesReplacementSchema && <Field label="About you"><textarea className={`${input} min-h-24 resize-y`} name="bio" maxLength={180} defaultValue={profile.bio ?? ''} /></Field>}</div>
-                <button disabled={busy} className="tb-button-primary tb-cut-sm mt-5 w-full justify-center px-4 py-3 font-display text-xs uppercase tracking-[.1em]">{busy ? 'Saving…' : 'Save profile'}</button>
-              </form>
-            </div>
-          ) : (
-            <OrnatePanel as="section" className="tb-cut-sm"><p className="p-5 text-sm leading-6 text-umber/60">Your member profile is still being prepared. Refresh in a moment or ask library staff for help.</p></OrnatePanel>
-          )}
-        </section>
       </div>
       {returning && <ReturnBookPrompt title={volumeById(String(returning.book_id))?.title ?? `Book #${returning.book_id}`} busy={busy} close={() => setReturning(null)} confirm={async barcode => {
         const ok = await giveBack(returning.reading_log_id, barcode);
@@ -125,8 +107,4 @@ function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return 'Date unavailable';
   return new Intl.DateTimeFormat('en-PH', { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label className="block text-xs font-800 text-umber/70">{label}{children}</label>;
 }
