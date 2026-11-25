@@ -48,14 +48,14 @@ function boundedNumber(value: unknown, max = 1_000_000_000) {
   return Number.isFinite(number) ? Math.max(0, Math.min(max, number)) : 0;
 }
 
-function detectIntent(message: string): Intent {
+export function detectIntent(message: string): Intent {
   const value = message.toLowerCase();
   if (/\b(who am i|what(?:'s| is) my name|do you know me)\b/.test(value)) return 'IDENTITY';
   if (/\b(rewards?|claim|prizes?|unlocks?)\b/.test(value)) return 'REWARD';
   if (/\b(quests?|commissions?|challenges?)\b/.test(value)) return 'QUEST';
   if (/\b(progress|reading|finished|completed|minutes?|history|streak)\b/.test(value)) return 'PROGRESS';
   if (/\b(xp|points?|ranks?|levels?|achievements?)\b/.test(value)) return 'ACCOUNT';
-  if (/\b(books?|mangas?|titles?|authors?|genres?|mood|read next|recommend|similar|available|catalog|funny|cozy|comfort|exciting|adventure|emotional)\b|\b(do you have|is there|in the library|in your library|something light|something dark|looking for)\b/.test(value)) return 'BOOK';
+  if (/\b(books?|mangas?|titles?|authors?|genres?|mood|read next|recomm?e?n?d?\w*|similar|available|catalog|action|comedy|romance|fantasy|horror|sports?|mystery|thriller|supernatural|isekai|funny|cozy|comfort|exciting|adventure|emotional|darker|lighter)\b|\b(do you have|is there|in the library|in your library|something light|something dark|looking for|more like)\b/.test(value)) return 'BOOK';
   if (/\b(app|website|feature|navigate|where|how do i|s\.o\.r\.a|sora|tankobonbon)\b/.test(value)) return 'PROJECT';
   return 'GENERAL';
 }
@@ -131,7 +131,7 @@ function parseReadingHistory(value: unknown): ReadingHistory | null {
   return title ? { title, genre: cleanText(item.genre, 100) || 'Uncategorized' } : null;
 }
 
-function parseBody(body: unknown) {
+export function parseBody(body: unknown) {
   if (!body || typeof body !== 'object') return null;
   const input = body as Record<string, unknown>;
   const message = cleanText(input.message, 2_000);
@@ -144,6 +144,7 @@ function parseBody(body: unknown) {
     const content = cleanText(candidate.content, 400);
     return role && content ? [{ role, content }] : [];
   }) : [];
+  if (intent === 'GENERAL' && history.slice(-4).some((item) => /\b(recomm?e?n?d?\w*|book|manga|novel|catalog|genre|read next|action|comedy|romance|fantasy|horror|sports?)\b/i.test(item.content))) intent = 'BOOK';
   const raw = input.context && typeof input.context === 'object' ? input.context as Record<string, unknown> : {};
   if (intent === 'GENERAL' && Array.isArray(raw.catalog)) {
     const lowerMessage = message.toLowerCase();
@@ -325,7 +326,7 @@ function directReply(input: ReturnType<typeof parseBody>) {
   return null;
 }
 
-function wantsRecommendation(input:NonNullable<ReturnType<typeof parseBody>>){return input.intent==='BOOK'&&/recommend|read next|suggest|similar|something|looking for|mood|like .+ because|enjoy|more like|darker|lighter|only available|manga|light novel/.test(input.message.toLowerCase());}
+export function wantsRecommendation(input:NonNullable<ReturnType<typeof parseBody>>){return input.intent==='BOOK'&&/recomm?e?n?d?\w*|read next|suggest|similar|something|looking for|mood|like .+ because|enjoy|more like|darker|lighter|only available|manga|light novel|\b(action|comedy|romance|fantasy|horror|sports?|mystery|thriller|supernatural|isekai)\b/.test(input.message.toLowerCase());}
 
 function cleanGeneratedText(value: unknown, max: number) {
   return cleanText(value, max).replace(/[\u2013\u2014]/g, ',').replace(/â€[“”]/g, ',').replace(/\s+,/g, ',');
@@ -359,7 +360,8 @@ export default async function handler(request: RequestLike, response: ResponseLi
   const input = parseBody(request.body);
   if (!input) return response.status(400).json({ error: 'Enter a message for BON.' });
   const localRejection = guardMessage(input.message, input.intent);
-  const audit = await recordAiRequest(request, input.message, input.intent);
+  const auditedPrompt = input.intent === 'BOOK' ? `Book recommendation request: ${input.message}` : input.message;
+  const audit = await recordAiRequest(request, auditedPrompt, input.intent);
   const rejection = localRejection || (audit?.status === 'REJECTED' ? audit.reason : null);
   if (rejection) return response.status(400).json({ error: rejection });
   const recommendationRequest=wantsRecommendation(input);

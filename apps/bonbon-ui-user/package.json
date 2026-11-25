@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "npx vite",
     "build": "tsc --noEmit && vite build",
+    "test": "node --experimental-strip-types --test tests/*.test.mts",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "preview": "npx vite preview"
   },
