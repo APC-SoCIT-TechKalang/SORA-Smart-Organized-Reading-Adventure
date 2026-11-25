@@ -7,7 +7,6 @@ import {
   LoaderCircleIcon,
   NfcIcon,
   QrCodeIcon,
-  ScanLineIcon,
   ShieldCheckIcon,
   SparklesIcon,
   TimerIcon,
@@ -150,7 +149,6 @@ export function KioskApp() {
     <div className="relative mx-auto grid min-h-[calc(100dvh-76px)] max-w-[1480px] place-items-center px-4 py-7 sm:px-6 sm:py-10 lg:px-10">
       <div aria-hidden="true" className="pointer-events-none absolute -left-28 top-12 h-72 w-72 rounded-full border border-gold/15 bg-sun/15 blur-3xl" />
       <div aria-hidden="true" className="pointer-events-none absolute -right-32 bottom-4 h-96 w-96 rounded-full border border-rust/10 bg-rust/10 blur-3xl" />
-      <div aria-hidden="true" className="pointer-events-none absolute left-[8%] top-[16%] hidden font-display text-[9rem] font-900 leading-none text-gold/[.035] xl:block">01</div>
       <WelcomeView status={status} message={message} startPhysicalScan={startPhysicalScan} startQrScan={startQrScan} qrScanning={qrScanning} stopQrScan={() => { setQrScanning(false); setStatus('ready'); setMessage(''); }} videoRef={videoRef} />
     </div>
   </main>;
@@ -197,7 +195,6 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
         <div aria-hidden="true" className="absolute -right-24 -top-28 h-80 w-80 rounded-full border border-sun/20" />
         <div aria-hidden="true" className="absolute -right-9 -top-12 h-52 w-52 rounded-full border border-sun/15" />
         <div aria-hidden="true" className="absolute bottom-0 left-0 h-1.5 w-full bg-gradient-to-r from-rust via-sun to-gold" />
-        <span aria-hidden="true" className="absolute right-5 top-1/2 hidden -translate-y-1/2 rotate-90 font-display text-[9px] font-900 uppercase tracking-[.5em] text-sand/20 sm:block">Tankobonbon · Entry chapter</span>
         <div className="relative">
           <div className="flex items-center gap-3"><span className="border border-sun/30 bg-sun/10 px-2.5 py-1.5 font-display text-[9px] font-900 tracking-[.18em] text-sun">CH. 01</span><p className="flex items-center gap-2 text-[10px] font-800 uppercase tracking-[.24em] text-sun"><SparklesIcon aria-hidden="true" className="h-4 w-4" /> Welcome, reader</p></div>
           <h1 id="kiosk-welcome-title" className="mt-7 max-w-lg font-display text-[2.5rem] font-900 uppercase leading-[.94] tracking-[.01em] sm:text-5xl lg:text-[3.7rem]">Your next <span className="text-sun">chapter</span><br />starts here.</h1>
@@ -213,25 +210,25 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
 
       <div className="relative flex flex-col justify-center overflow-hidden bg-[linear-gradient(145deg,rgba(255,253,248,.99),rgba(255,247,226,.98))] p-7 sm:p-10 lg:p-14">
         <div aria-hidden="true" className="absolute -right-24 -top-24 h-52 w-52 rotate-12 border border-gold/10 bg-parch/10" />
-        <div aria-hidden="true" className="absolute right-9 top-10 font-display text-7xl font-900 text-gold/[.045]">入</div>
         <div className="relative flex items-center justify-between gap-4">
-          <div><p className="tb-eyebrow">Quick sign in</p><h2 className="mt-2 font-display text-2xl font-900 uppercase tracking-[.025em] sm:text-3xl">Choose your card</h2></div>
-          <span className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-gold/30 bg-parch/45 text-rust shadow-[0_10px_28px_rgba(84,56,34,.1)]"><span className="absolute inset-1.5 rounded-xl border border-dashed border-gold/25" /><ScanLineIcon aria-hidden="true" className="relative h-7 w-7" /></span>
+          <div><p className="tb-eyebrow">Reader sign in</p><h2 className="mt-2 font-display text-2xl font-900 uppercase tracking-[.025em] sm:text-3xl">Tap to begin</h2></div>
+          <span className="relative grid h-16 w-16 shrink-0 place-items-center rounded-2xl border border-gold/30 bg-parch/45 text-rust shadow-[0_10px_28px_rgba(84,56,34,.1)]"><span className="absolute inset-1.5 animate-pulse rounded-xl border border-dashed border-gold/35" /><NfcIcon aria-hidden="true" className="relative h-7 w-7" /></span>
         </div>
-        <p aria-live="polite" className="relative mt-4 text-sm leading-6 text-umber/60">Choose the card you have with you. Both options open the same secure reader experience.</p>
+        <p aria-live="polite" className="relative mt-4 text-sm leading-6 text-umber/60">For the fastest sign-in, hold your physical reader card near the scanner beside this screen.</p>
         {message && <p role={status === 'error' ? 'alert' : 'status'} className={`relative mt-5 rounded-xl border p-3.5 text-sm leading-5 ${status === 'error' ? 'border-rust/30 bg-rust/10 text-rust' : 'border-gold/30 bg-parch/30 text-umber/70'}`}>{message}</p>}
 
         <div className="relative mt-7 space-y-3">
-          <button type="button" onClick={startQrScan} disabled={isAuthorizing} className="group relative flex min-h-[82px] w-full items-center gap-4 overflow-hidden bg-rust px-5 text-left text-cream shadow-[0_12px_30px_rgba(169,58,24,.24)] transition duration-200 hover:-translate-y-1 hover:bg-[#923116] hover:shadow-[0_18px_38px_rgba(169,58,24,.3)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rust disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60 sm:px-6">
+          <button type="button" onClick={() => void startPhysicalScan()} disabled={isAuthorizing} className="group relative flex min-h-[88px] w-full items-center gap-4 overflow-hidden bg-rust px-5 text-left text-cream shadow-[0_14px_34px_rgba(169,58,24,.28)] transition duration-200 hover:-translate-y-1 hover:bg-[#923116] hover:shadow-[0_20px_42px_rgba(169,58,24,.34)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rust disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60 sm:px-6">
             <span aria-hidden="true" className="absolute -right-8 -top-12 h-32 w-32 rounded-full border border-cream/10" />
-            <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full border border-cream/15 bg-cream/10">{isAuthorizing ? <LoaderCircleIcon aria-hidden="true" className="h-5 w-5 animate-spin" /> : <QrCodeIcon aria-hidden="true" className="h-5 w-5" />}</span>
-            <span className="relative min-w-0 flex-1"><span className="mb-1 inline-flex rounded-full bg-sun px-2 py-0.5 text-[8px] font-900 uppercase tracking-[.12em] text-umber">Recommended</span><strong className="block text-sm font-900 uppercase tracking-[.09em] sm:text-base">{isAuthorizing ? 'Verifying your card…' : 'Scan digital card'}</strong><small className="mt-1 block text-[11px] text-cream/70">Use the QR code on your phone</small></span>
+            <span aria-hidden="true" className="absolute right-8 top-1/2 h-20 w-20 -translate-y-1/2 rounded-full border border-cream/10 transition-transform duration-500 group-hover:scale-125" />
+            <span className="relative grid h-12 w-12 shrink-0 place-items-center rounded-full border border-cream/20 bg-cream/10 shadow-[inset_0_0_0_5px_rgba(255,255,255,.03)]">{isAuthorizing ? <LoaderCircleIcon aria-hidden="true" className="h-5 w-5 animate-spin" /> : <NfcIcon aria-hidden="true" className="h-6 w-6" />}</span>
+            <span className="relative min-w-0 flex-1"><span className="mb-1 inline-flex rounded-full bg-sun px-2 py-0.5 text-[8px] font-900 uppercase tracking-[.12em] text-umber">Recommended</span><strong className="block text-sm font-900 uppercase tracking-[.09em] sm:text-base">{isAuthorizing ? 'Verifying your card…' : 'Tap physical card'}</strong><small className="mt-1 block text-[11px] text-cream/75">Hold your card near the reader beside this screen</small></span>
             <ArrowRightIcon aria-hidden="true" className="relative h-5 w-5 shrink-0 transition-transform group-hover:translate-x-1" />
           </button>
 
-          <button type="button" onClick={() => void startPhysicalScan()} disabled={isAuthorizing} className="group flex min-h-[74px] w-full items-center gap-4 border border-gold/45 bg-white/65 px-5 text-left text-umber transition duration-200 hover:-translate-y-1 hover:border-gold hover:bg-white hover:shadow-[0_14px_30px_rgba(84,56,34,.11)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60 sm:px-6">
-            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/20 bg-parch/45 text-gold"><NfcIcon aria-hidden="true" className="h-5 w-5" /></span>
-            <span className="min-w-0 flex-1"><strong className="block text-sm font-900 uppercase tracking-[.07em] sm:text-base">Tap physical card</strong><small className="mt-1 block text-[11px] text-umber/55">Use the card reader beside this screen</small></span>
+          <button type="button" onClick={startQrScan} disabled={isAuthorizing} className="group flex min-h-[74px] w-full items-center gap-4 border border-gold/45 bg-white/65 px-5 text-left text-umber transition duration-200 hover:-translate-y-1 hover:border-gold hover:bg-white hover:shadow-[0_14px_30px_rgba(84,56,34,.11)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-gold disabled:translate-y-0 disabled:cursor-wait disabled:opacity-60 sm:px-6">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-gold/20 bg-parch/45 text-gold"><QrCodeIcon aria-hidden="true" className="h-5 w-5" /></span>
+            <span className="min-w-0 flex-1"><strong className="block text-sm font-900 uppercase tracking-[.07em] sm:text-base">Scan digital card</strong><small className="mt-1 block text-[11px] text-umber/55">Use the QR code on your phone</small></span>
             <ArrowRightIcon aria-hidden="true" className="h-5 w-5 shrink-0 text-gold transition-transform group-hover:translate-x-1" />
           </button>
         </div>

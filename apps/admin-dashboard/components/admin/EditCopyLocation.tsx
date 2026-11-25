@@ -1,73 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { CheckSquare, Filter, Search, SlidersHorizontal, X } from "lucide-react";
 import { database } from "../../lib/supabase";
 import type { Book, Copy } from "./dashboard-data";
+import { statusLabel, statusStyle } from "./CatalogueEditor";
 
-const statuses = [["In-Shelf", "In Shelf"], ["With Reader", "With Reader"], ["On Hold", "On Hold (Reserved)"], ["In Return Cart", "Return Cart"], ["Damaged", "Damaged"]];
-const storedStatus = (status: string) => ({ IN_SHELF: "In-Shelf", WITH_READER: "With Reader", RETURN_CART: "In Return Cart" })[status] ?? status;
+const statuses = [["In-Shelf", "In Shelf"], ["On Hold", "On Hold (Reserved)"], ["In Return Cart", "Return Cart"], ["Damaged", "Damaged"]];
+type Scope = "selected" | "filtered" | "quantity" | "range";
+const field = "mt-1.5 min-h-11 w-full rounded-lg border border-[#d9c8b7] bg-white px-3 text-sm outline-none focus:border-[#c4800c] focus:ring-2 focus:ring-[#f3d793]/50";
 
-export function EditCopyLocation({ book, copies, close, run }: {
-  book: Book; copies: Copy[]; close: () => void;
-  run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean>;
-}) {
-  const [selected, setSelected] = useState(copies[0]?.copy_id ?? 0);
-  const copy = copies.find(item => item.copy_id === selected);
-  const [shelf, setShelf] = useState(copy?.shelf_location ?? "");
-  const [status, setStatus] = useState(storedStatus(copy?.status ?? "In-Shelf"));
-  const [notes, setNotes] = useState(copy?.condition_notes ?? "");
-  const [charge, setCharge] = useState("0");
-  const [barcode, setBarcode] = useState("");
-  const [barcodeError, setBarcodeError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const input = "mt-2 w-full rounded-lg border border-[#B59A6A]/50 bg-[#FAF6EE] p-3 text-sm";
-  return <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#2d190c]/40 p-4 backdrop-blur-sm">
-    <form role="dialog" aria-modal="true" aria-labelledby="copy-location-title" className="max-h-[90dvh] w-full max-w-lg space-y-4 overflow-y-auto rounded-2xl border border-[#B59A6A] bg-[#FAF6EE] p-6 text-[#4A321F] shadow-2xl" onSubmit={async event => {
-      event.preventDefault(); if (busy) return;
-      if (!copies.length && !barcode.trim()) {
-        setBarcodeError("Scan or enter a physical-copy barcode.");
-        return;
-      }
-      setBarcodeError(""); setBusy(true);
-      try {
-        const ok = await run(() => copies.length
-          ? database().schema("sora_v2").rpc("admin_update_copy_location", {
-              p_copy_id: selected, p_shelf_location: shelf, p_status: status,
-              p_condition_notes: notes, p_damage_charge: status === "Damaged" ? Number(charge) : 0,
-            })
-          : database().schema("sora_v2").rpc("admin_add_located_copy", {
-              p_book_id: book.book_id, p_shelf_location: shelf,
-              p_barcode: barcode.trim(), p_condition_notes: notes.trim() || null,
-            }), copies.length ? "Copy status and shelf location saved" : "Physical copy added to the catalogue");
-        if (ok) close();
-      } finally { setBusy(false); }
-    }}>
-      <h2 id="copy-location-title" className="font-serif text-2xl">Shelf location &amp; status</h2>
-      <p className="text-sm">{book.title}</p>
-      {!copies.length ? <fieldset disabled={busy} className="space-y-4">
-        <p className="text-sm">This title has no physical copy on record. Register a copy only after checking that it exists and confirming its barcode and home shelf.</p>
-        <label className="block text-xs font-bold">Physical-copy barcode<input required maxLength={50} value={barcode} onChange={event => { setBarcode(event.target.value); setBarcodeError(""); }} className={input} placeholder="Scan or enter the unique barcode" /></label>
-        {barcodeError && <p role="alert" className="text-sm text-red-700">{barcodeError}</p>}
-        <label className="block text-xs font-bold">Home shelf<select required value={shelf} onChange={event => setShelf(event.target.value)} className={input}>
-          <option value="">Select a shelf</option>{[1,2,3,4,5].map(number => <option key={number} value={`Shelf A${number}`}>Main Reading Hall — Shelf A{number}</option>)}
-        </select></label>
-        <label className="block text-xs font-bold">Condition notes<textarea value={notes} onChange={event => setNotes(event.target.value)} className={input}/></label>
-        <button className="rounded-lg bg-[#4A321F] px-4 py-3 text-sm font-bold text-[#FAF6EE]" type="submit">{busy ? "Saving…" : "Register physical copy"}</button>
-      </fieldset> : <fieldset disabled={busy} className="space-y-4">
-        <label className="block text-xs font-bold">Physical copy<select className={input} value={selected} onChange={event => {
-          const next = copies.find(item => item.copy_id === Number(event.target.value))!;
-          setSelected(next.copy_id); setShelf(next.shelf_location ?? ""); setStatus(storedStatus(next.status)); setNotes(next.condition_notes ?? ""); setCharge("0");
-        }}>{copies.map(item => <option key={item.copy_id} value={item.copy_id}>{item.identifier_value} · Copy {item.copy_id}</option>)}</select></label>
-        <label className="block text-xs font-bold">Home shelf<select required value={shelf} onChange={event => setShelf(event.target.value)} className={input}>
-          <option value="">Select a shelf</option>{[1,2,3,4,5].map(number => <option key={number} value={`Shelf A${number}`}>Main Reading Hall — Shelf A{number}</option>)}
-        </select></label>
-        <p className="text-xs opacity-70">A1–A5 run left to right below Center Seating, above Reception. Home shelf is retained while a copy is away.</p>
-        <label className="block text-xs font-bold">Status<select required value={status} onChange={event => setStatus(event.target.value)} className={input}>{statuses.map(([value,label]) => <option key={value} value={value} disabled={value === "With Reader" && storedStatus(copy?.status ?? "") !== value}>{label}</option>)}</select></label>
-        <label className="block text-xs font-bold">Condition notes<textarea value={notes} onChange={event => setNotes(event.target.value)} className={input}/></label>
-        {status === "Damaged" && <label className="block text-xs font-bold">Damage charge (₱)<input type="number" min="0" step="0.01" required value={charge} onChange={event => setCharge(event.target.value)} className={input}/><span className="mt-2 block font-normal">Applied to the associated unsettled reader session. Damaged copies are removed from circulation.</span></label>}
-        <button className="rounded-lg bg-[#4A321F] px-4 py-3 text-sm font-bold text-[#FAF6EE]" type="submit">{busy ? "Saving…" : "Save copy"}</button>
-      </fieldset>}
-      <button type="button" disabled={busy} onClick={close} className="rounded-lg border border-[#B59A6A] px-4 py-2 text-sm">Close</button>
-    </form>
-  </div>;
+export function EditCopyLocation({ book, copies, close, run }: { book: Book; copies: Copy[]; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean> }) {
+  if (!copies.length) return <RegisterCopy book={book} close={close} run={run} />;
+  return <BulkInventoryManager book={book} copies={copies} close={close} run={run} />;
 }
+
+function RegisterCopy({ book, close, run }: { book: Book; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean> }) {
+  const [shelf, setShelf] = useState(""); const [notes, setNotes] = useState(""); const [barcode, setBarcode] = useState(""); const [busy, setBusy] = useState(false);
+  return <div className="fixed inset-0 z-[70] grid place-items-center bg-[#2d190c]/45 p-3 backdrop-blur-sm"><form role="dialog" aria-modal="true" aria-labelledby="copy-location-title" className="w-full max-w-lg rounded-2xl border border-[#B59A6A] bg-[#FAF6EE] p-5 text-[#4A321F] shadow-2xl sm:p-7" onSubmit={async event => { event.preventDefault(); if (busy || !barcode.trim()) return; setBusy(true); try { const ok = await run(() => database().schema("sora_v2").rpc("admin_add_located_copy", { p_book_id: book.book_id, p_shelf_location: shelf, p_barcode: barcode.trim(), p_condition_notes: notes.trim() || null }), "Physical copy added to the catalogue"); if (ok) close(); } finally { setBusy(false); } }}>
+    <div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">New physical copy</p><h2 id="copy-location-title" className="mt-2 font-serif text-2xl">Register inventory</h2><p className="mt-1 text-sm text-[#80654f]">{book.title}</p></div><button type="button" onClick={close} aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full border bg-white"><X size={18} /></button></div>
+    <div className="mt-6 space-y-4"><label className="block text-xs font-bold">Physical-copy barcode<input required maxLength={50} value={barcode} onChange={event => setBarcode(event.target.value)} className={field} placeholder="Scan or enter the unique barcode" /></label><ShelfField value={shelf} setValue={setShelf} /><label className="block text-xs font-bold">Condition notes<textarea value={notes} onChange={event => setNotes(event.target.value)} className={`${field} min-h-24 py-3`} /></label></div>
+    <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" disabled={busy} onClick={close} className="min-h-11 rounded-lg border border-[#B59A6A] px-4 text-sm">Cancel</button><button disabled={busy} className="min-h-11 rounded-lg bg-[#4A321F] px-5 text-sm font-bold text-[#FAF6EE]">{busy ? "Saving…" : "Register physical copy"}</button></div>
+  </form></div>;
+}
+
+function BulkInventoryManager({ book, copies, close, run }: { book: Book; copies: Copy[]; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean> }) {
+  const [shelf, setShelf] = useState(copies[0]?.shelf_location ?? ""); const [status, setStatus] = useState("In-Shelf"); const [notes, setNotes] = useState("");
+  const [query, setQuery] = useState(""); const [statusFilter, setStatusFilter] = useState("All statuses"); const [shelfFilter, setShelfFilter] = useState("All shelves");
+  const [scope, setScope] = useState<Scope>("selected"); const [selected, setSelected] = useState<Set<number>>(() => new Set(copies[0] ? [copies[0].copy_id] : []));
+  const [quantity, setQuantity] = useState("50"); const [rangeStart, setRangeStart] = useState(""); const [rangeEnd, setRangeEnd] = useState(""); const [busy, setBusy] = useState(false);
+  const shelves = useMemo(() => [...new Set(copies.map(copy => copy.shelf_location).filter((value): value is string => Boolean(value)))].sort(), [copies]);
+  const filterStatuses = useMemo(() => [...new Set(copies.map(copy => statusLabel(copy.status)))].sort(), [copies]);
+  const filtered = useMemo(() => copies.filter(copy => { const needle = query.trim().toLowerCase(); return (!needle || copy.identifier_value.toLowerCase().includes(needle) || String(copy.copy_number).includes(needle) || String(copy.copy_id).includes(needle)) && (statusFilter === "All statuses" || statusLabel(copy.status) === statusFilter) && (shelfFilter === "All shelves" || (copy.shelf_location ?? "Unassigned") === shelfFilter); }).sort((a, b) => a.copy_number - b.copy_number), [copies, query, shelfFilter, statusFilter]);
+  const targets = useMemo(() => { if (scope === "selected") return filtered.filter(copy => selected.has(copy.copy_id)); if (scope === "filtered") return filtered; if (scope === "quantity") return filtered.slice(0, Math.max(0, Number(quantity) || 0)); const start = Number(rangeStart); const end = Number(rangeEnd); if (!Number.isFinite(start) || !Number.isFinite(end)) return []; return filtered.filter(copy => copy.copy_number >= Math.min(start, end) && copy.copy_number <= Math.max(start, end)); }, [filtered, quantity, rangeEnd, rangeStart, scope, selected]);
+  const toggle = (id: number) => setSelected(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+
+  return <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#2d190c]/45 p-2 backdrop-blur-sm sm:p-5"><form role="dialog" aria-modal="true" aria-labelledby="copy-location-title" className="flex max-h-[calc(100dvh-1rem)] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#B59A6A] bg-[#fffdf9] text-[#4A321F] shadow-2xl sm:max-h-[94dvh]" onSubmit={async event => { event.preventDefault(); if (busy || !targets.length || !shelf) return; setBusy(true); try { const ok = await run(() => database().schema("sora_v2").rpc("admin_bulk_update_copy_locations", { p_copy_ids: targets.map(copy => copy.copy_id), p_shelf_location: shelf, p_status: status, p_condition_notes: notes.trim() || null }), `${targets.length.toLocaleString()} ${targets.length === 1 ? "copy" : "copies"} updated`); if (ok) close(); } finally { setBusy(false); } }}>
+    <header className="shrink-0 border-b border-[#e8dbce] bg-[#fcf7ef] px-4 py-4 sm:px-7"><div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">High-volume inventory</p><h2 id="copy-location-title" className="mt-1 font-serif text-xl sm:text-2xl">Shelf &amp; status manager</h2><p className="mt-1 line-clamp-1 text-xs text-[#80654f]">{book.title} · {copies.length.toLocaleString()} copies</p></div><button type="button" onClick={close} aria-label="Close inventory manager" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#dfd0c2] bg-white"><X size={18} /></button></div></header>
+    <div className="grid min-h-0 flex-1 lg:grid-cols-[1.2fr_.8fr]"><section className="min-h-0 overflow-y-auto border-b border-[#e8dbce] p-4 lg:border-b-0 lg:border-r sm:p-6">
+      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px_170px]"><label className="flex min-h-11 items-center gap-2 rounded-lg border border-[#d9c8b7] bg-white px-3"><Search size={15} /><input aria-label="Search copies" value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 text-xs outline-none" placeholder="Search barcode, copy number, or ID" /></label><select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="min-h-11 rounded-lg border bg-white px-3 text-xs"><option>All statuses</option>{filterStatuses.map(value => <option key={value}>{value}</option>)}</select><select aria-label="Filter by shelf" value={shelfFilter} onChange={event => setShelfFilter(event.target.value)} className="min-h-11 rounded-lg border bg-white px-3 text-xs"><option>All shelves</option>{shelves.map(value => <option key={value}>{value}</option>)}{copies.some(copy => !copy.shelf_location) && <option>Unassigned</option>}</select></div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-[#80654f]"><strong>{filtered.length.toLocaleString()}</strong> filtered</p><button type="button" onClick={() => { setScope("selected"); setSelected(new Set(filtered.map(copy => copy.copy_id))); }} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[#cdb18c] bg-white px-3 text-[10px] font-bold"><CheckSquare size={14} />Select all filtered</button></div>
+      <div className="mt-3 overflow-hidden rounded-xl border border-[#e5d8cb] bg-white"><div className="grid grid-cols-[36px_64px_minmax(120px,1fr)_90px] gap-2 bg-[#faf5ef] px-3 py-2 text-[9px] font-bold uppercase tracking-[.1em] text-[#9a806b]"><span /><span>Copy</span><span>Barcode / shelf</span><span>Status</span></div>{filtered.slice(0, 100).map(copy => { const checked = selected.has(copy.copy_id); const label = statusLabel(copy.status); return <label key={copy.copy_id} className="grid cursor-pointer grid-cols-[36px_64px_minmax(120px,1fr)_90px] items-center gap-2 border-t border-[#f0e7de] px-3 py-2.5 text-xs hover:bg-[#fffaf3]"><input type="checkbox" checked={checked} onChange={() => { setScope("selected"); toggle(copy.copy_id); }} className="h-4 w-4 accent-[#a83d12]" /><strong>#{copy.copy_number}</strong><span className="min-w-0"><span className="block truncate font-mono text-[10px]">{copy.identifier_value}</span><small className="block truncate text-[#9a806b]">{copy.shelf_location ?? "Unassigned"}</small></span><span className={`truncate rounded-full border px-2 py-1 text-center text-[9px] font-bold ${statusStyle(label)}`}>{label}</span></label>; })}</div>{filtered.length > 100 && <p className="mt-3 rounded-lg bg-[#f8f1e8] p-3 text-[10px] leading-4 text-[#80654f]">Showing the first 100 rows. Select all filtered, quantity, and range actions still include copies beyond this preview.</p>}
+    </section><aside className="min-h-0 overflow-y-auto bg-[#fcf8f2] p-4 sm:p-6"><div className="flex items-center gap-2"><SlidersHorizontal size={17} className="text-[#a83d12]" /><h3 className="font-serif text-lg font-semibold">Bulk update</h3></div><p className="mt-1 text-xs leading-5 text-[#80654f]">Choose which filtered copies to update, then assign their destination.</p>
+      <div className="mt-5 grid grid-cols-2 gap-2">{([['selected','Selected'],['filtered','All filtered'],['quantity','By quantity'],['range','Copy range']] as [Scope,string][]).map(([value,label]) => <button key={value} type="button" onClick={() => setScope(value)} className={`min-h-10 rounded-lg border px-3 text-xs font-bold ${scope === value ? "border-[#a83d12] bg-[#fff0dd] text-[#8f320d]" : "border-[#dfd0c2] bg-white"}`}>{label}</button>)}</div>
+      {scope === "quantity" && <label className="mt-4 block text-xs font-bold">Number of filtered copies<input type="number" min="1" max={filtered.length} value={quantity} onChange={event => setQuantity(event.target.value)} className={field} /></label>}{scope === "range" && <div className="mt-4 grid grid-cols-2 gap-3"><label className="block text-xs font-bold">Copy # from<input type="number" min="1" value={rangeStart} onChange={event => setRangeStart(event.target.value)} className={field} /></label><label className="block text-xs font-bold">Copy # to<input type="number" min="1" value={rangeEnd} onChange={event => setRangeEnd(event.target.value)} className={field} /></label></div>}
+      <div className="mt-5 rounded-xl border border-[#dfd0c2] bg-white p-4"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">Update preview</p><strong className="mt-2 block font-serif text-3xl text-[#a83d12]">{targets.length.toLocaleString()}</strong><p className="text-xs text-[#80654f]">{targets.length === 1 ? "copy will be updated" : "copies will be updated"}</p></div>
+      <div className="mt-5 space-y-4"><ShelfField value={shelf} setValue={setShelf} /><label className="block text-xs font-bold">New status<select required value={status} onChange={event => setStatus(event.target.value)} className={field}>{statuses.map(([value,label]) => <option key={value} value={value}>{label}</option>)}</select></label><label className="block text-xs font-bold">Condition notes <span className="font-normal text-[#9a806b]">(applies to all)</span><textarea value={notes} onChange={event => setNotes(event.target.value)} className={`${field} min-h-20 py-3`} /></label></div>
+      <div className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-3 text-[10px] leading-4 text-amber-900"><Filter size={13} className="mr-1 inline" />Active reader loans remain protected and cannot be reassigned.</div>
+    </aside></div>
+    <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#e8dbce] bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-7"><p className="text-[10px] text-[#8d735e]">Updates run as one transaction. Protected copies prevent partial changes.</p><div className="flex gap-2"><button type="button" disabled={busy} onClick={close} className="min-h-11 flex-1 rounded-lg border px-4 text-xs font-bold sm:flex-none">Cancel</button><button type="submit" disabled={busy || !targets.length || !shelf} className="min-h-11 flex-1 rounded-lg bg-[#a83d12] px-5 text-xs font-bold text-white disabled:opacity-50 sm:flex-none">{busy ? "Updating…" : `Update ${targets.length.toLocaleString()} ${targets.length === 1 ? "copy" : "copies"}`}</button></div></footer>
+  </form></div>;
+}
+
+function ShelfField({ value, setValue }: { value: string; setValue: (value: string) => void }) { return <label className="block text-xs font-bold">Destination shelf<select required value={value} onChange={event => setValue(event.target.value)} className={field}><option value="">Select a shelf</option>{[1,2,3,4,5].map(number => <option key={number} value={`Shelf A${number}`}>Main Reading Hall · Shelf A{number}</option>)}</select></label>; }

@@ -55,7 +55,7 @@ const nav: { icon: typeof LayoutDashboard; page: Page; label: string }[] = [
   { icon: LayoutDashboard, page: "Overview", label: "Overview" },
   { icon: ChartNoAxesCombined, page: "Analytics", label: "Analytics" },
   { icon: BookOpen, page: "Catalogue", label: "Book Management" },
-  { icon: Trophy, page: "Challenges", label: "Challenges" },
+  { icon: Trophy, page: "Challenges", label: "Quest" },
   { icon: Users, page: "Readers", label: "Readers" },
   { icon: Wallet, page: "Top-up terminal", label: "Top-up terminal" },
 ];
@@ -252,10 +252,10 @@ export function AdminDashboard() {
               <div>
                 <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.24em] text-[#953410]">
                   <span className="h-px w-6 bg-[#c4800c]" />
-                  {page === "Catalogue" ? "Book Management" : page}
+                  {page === "Catalogue" ? "Book Management" : page === "Challenges" ? "Quest" : page}
                 </p>
                 <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#543822] sm:text-4xl">
-                  {page === "Overview" ? "Reading Room Today" : page}
+                  {page === "Overview" ? "Reading Room Today" : page === "Challenges" ? "Quest" : page}
                 </h1>
               </div>
             </div>
@@ -1317,7 +1317,13 @@ function Readers({
             {readerFilters.map(([value, label, count]) => <button key={value} type="button" aria-pressed={readerFilter === value} onClick={() => setReaderFilter(value)} className={`inline-flex min-h-9 shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-[10px] font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4800c] ${readerFilter === value ? "border-[#543822] bg-[#543822] text-white shadow-sm" : "border-[#ddcdbd] bg-white/80 text-[#765943] hover:border-[#c49a70] hover:bg-white"}`}><span>{label}</span><span className={`grid min-w-5 place-items-center rounded-full px-1.5 py-0.5 text-[9px] ${readerFilter === value ? "bg-white/15 text-[#f7df9c]" : "bg-[#f3e9dc] text-[#8a684e]"}`}>{count}</span></button>)}
           </div>
         </div>
-        <div className="overflow-x-auto">
+        <div className="grid gap-3 p-4 md:hidden">
+          {pagedReaders.map(({ reader, member, status }) => <article key={reader.user_id} className="rounded-xl border border-[#eadfd3] bg-white p-4 shadow-[0_4px_14px_rgba(84,56,34,.05)]">
+            <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-sm font-bold text-[#543822]">{reader.first_name} {reader.last_name}</h3><p className="mt-1 truncate text-[11px] text-[#80634c]">{member?.membership_label ?? "Awaiting activation"}</p></div><span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-bold ${status === "READING" ? "border-amber-200 bg-amber-50 text-amber-800" : status === "AVAILABLE" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : status === "DEACTIVATED" ? "border-stone-200 bg-stone-100 text-stone-600" : "border-orange-200 bg-orange-50 text-orange-800"}`}><span className={`h-1.5 w-1.5 rounded-full ${status === "READING" ? "animate-pulse bg-amber-500" : status === "AVAILABLE" ? "bg-emerald-500" : status === "DEACTIVATED" ? "bg-stone-400" : "bg-orange-400"}`} />{status === "READING" ? "Reading" : status === "AVAILABLE" ? "Available" : status === "DEACTIVATED" ? "Deactivated" : "Pending"}</span></div>
+            <div className="mt-4 flex items-center justify-between border-t border-[#f0e9e1] pt-3"><div><p className="text-[9px] font-bold uppercase tracking-[.12em] text-[#9a806b]">Time balance</p><strong className="mt-1 block text-xs">{member?.remaining_minutes == null ? "—" : `${member.remaining_minutes} min`}</strong></div><button type="button" onClick={() => setSelectedReaderId(reader.user_id)} className="group inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#d8c3ad] bg-white px-3 py-2 text-[10px] font-bold text-[#704d34]">View details<ChevronRight size={14} /></button></div>
+          </article>)}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[680px] text-left text-xs">
             <thead className="bg-[#fcf8f2] text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]">
               <tr>
@@ -1405,21 +1411,22 @@ function ReaderDetailsDrawer({ entry, close, run }: {
     if (ok) close();
   };
 
-  return <div className="fixed inset-0 z-[65] bg-[#2d190c]/35 backdrop-blur-[2px]" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
-    <aside role="dialog" aria-modal="true" aria-labelledby="reader-details-title" className="ml-auto flex h-full w-full max-w-lg flex-col border-l border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[-24px_0_70px_rgba(50,27,13,.22)]">
-      <header className="relative overflow-hidden border-b border-[#eadfd3] bg-[#543822] px-6 py-7 text-white sm:px-8"><div aria-hidden="true" className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-[#f3d793]/15" /><div className="relative flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#f3d793]">Reader profile</p><h2 id="reader-details-title" className="mt-2 font-serif text-2xl font-semibold">{reader.first_name} {reader.last_name}</h2><span className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}>{statusText}</span></div><button type="button" onClick={close} aria-label="Close reader details" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20"><X size={18} aria-hidden="true" /></button></div></header>
-      <div className="flex-1 overflow-y-auto px-6 py-6 sm:px-8">
+  const initials = `${reader.first_name.charAt(0)}${reader.last_name.charAt(0)}`.toUpperCase();
+  return <div className="fixed inset-0 z-[65] grid place-items-center bg-[#2d190c]/45 p-2 backdrop-blur-[3px] sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
+    <section role="dialog" aria-modal="true" aria-labelledby="reader-details-title" className="flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.32)] sm:max-h-[90dvh]">
+      <header className="relative shrink-0 overflow-hidden border-b border-[#eadfd3] bg-[#543822] px-5 py-5 text-white sm:px-8 sm:py-7"><div aria-hidden="true" className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-[#f3d793]/15" /><div aria-hidden="true" className="absolute -right-7 -top-7 h-28 w-28 rounded-full border border-[#f3d793]/10" /><div className="relative flex items-start justify-between gap-4"><div className="flex min-w-0 items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-[#f3d793]/25 bg-white/10 font-serif text-lg font-semibold text-[#f3d793] sm:h-16 sm:w-16">{initials}</span><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#f3d793]">Reader profile</p><h2 id="reader-details-title" className="mt-1 truncate font-serif text-xl font-semibold sm:text-2xl">{reader.first_name} {reader.last_name}</h2><span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}>{statusText}</span></div></div><button type="button" onClick={close} aria-label="Close reader details" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d793]"><X size={18} aria-hidden="true" /></button></div></header>
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-7">
         <div className="grid gap-3 sm:grid-cols-2">
           <ReaderDetail label="Membership" value={member?.membership_label ?? "Not activated"} />
           <ReaderDetail label="Time balance" value={member?.remaining_minutes == null ? "—" : `${member.remaining_minutes} minutes`} />
           <ReaderDetail label="Visit state" value={visit ? "Active reading session" : "Not checked in"} />
           <ReaderDetail label="Birthday" value={reader.birthday ? new Date(reader.birthday).toLocaleDateString() : "Not provided"} />
         </div>
-        <div className="mt-5 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#9a806b]">Reader ID</p><p className="mt-2 break-all font-mono text-xs text-[#654a36]">{reader.user_id}</p></div>
+        <div className="mt-5 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#9a806b]">Reader ID</p><p className="mt-2 break-all font-mono text-xs leading-5 text-[#654a36]">{reader.user_id}</p></div>
         {visit && usesReplacementSchema && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">This reader has an active session. Finish the session before deactivating the account.</p>}
       </div>
-      <footer className="border-t border-[#eadfd3] bg-[#fcf8f2] px-6 py-5 sm:px-8"><button type="button" disabled={usesReplacementSchema ? Boolean(visit) : !visit && !member} onClick={() => void performPrimaryAction()} className={`min-h-11 w-full rounded-xl border px-4 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45 ${usesReplacementSchema && !reader.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-[#e3c1ad] bg-white text-[#a83d12] hover:bg-[#fff1e7]"}`}>{usesReplacementSchema ? visit ? "Reading session in progress" : reader.is_active ? "Deactivate reader" : "Reactivate reader" : visit ? "Check out reader" : "Check in reader"}</button></footer>
-    </aside>
+      <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-8"><button type="button" onClick={close} className="min-h-11 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold text-[#704d34]">Close</button><button type="button" disabled={usesReplacementSchema ? Boolean(visit) : !visit && !member} onClick={() => void performPrimaryAction()} className={`min-h-11 rounded-xl border px-5 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45 ${usesReplacementSchema && !reader.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-[#e3c1ad] bg-white text-[#a83d12] hover:bg-[#fff1e7]"}`}>{usesReplacementSchema ? visit ? "Reading session in progress" : reader.is_active ? "Deactivate reader" : "Reactivate reader" : visit ? "Check out reader" : "Check in reader"}</button></footer>
+    </section>
   </div>;
 }
 
