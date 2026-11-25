@@ -1050,14 +1050,16 @@ function Readers({
     .filter((reader) => reader.roles?.name === "reader")
     .map((reader) => {
       const member = data.memberAccounts.find((item) => item.user_id === reader.user_id && item.status === "ACTIVE");
+      const readerCards = data.libraryCards.filter((item) => item.user_id === reader.user_id);
+      const libraryCard = readerCards.find((item) => item.is_active && !item.deactivated_at) ?? readerCards[readerCards.length - 1];
       const visit = active.find((item) => item.user_id === reader.user_id);
       const status = !reader.is_active ? "DEACTIVATED" : visit ? "READING" : member ? "AVAILABLE" : "AWAITING";
-      return { reader, member, visit, status } as const;
+      return { reader, member, libraryCard, visit, status } as const;
     });
   const normalizedSearch = search.trim().toLowerCase();
-  const visibleReaders = readerDirectory.filter(({ reader, member, status }) =>
+  const visibleReaders = readerDirectory.filter(({ reader, member, libraryCard, status }) =>
     (readerFilter === "ALL" || readerFilter === status) &&
-    (!normalizedSearch || `${reader.first_name} ${reader.last_name} ${member?.membership_label ?? ""} ${reader.user_id}`.toLowerCase().includes(normalizedSearch)),
+    (!normalizedSearch || `${reader.first_name} ${reader.last_name} ${member?.membership_label ?? ""} ${libraryCard?.librarycard_rfid ?? ""}`.toLowerCase().includes(normalizedSearch)),
   );
   const readerFilters = [
     ["ALL", "All readers", readerDirectory.length],
@@ -1380,6 +1382,7 @@ function Readers({
 type ReaderDirectoryEntry = {
   reader: Data["readers"][number];
   member: Data["memberAccounts"][number] | undefined;
+  libraryCard: Data["libraryCards"][number] | undefined;
   visit: Visit | undefined;
   status: "DEACTIVATED" | "READING" | "AVAILABLE" | "AWAITING";
 };
@@ -1389,7 +1392,7 @@ function ReaderDetailsDrawer({ entry, close, run }: {
   close: () => void;
   run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean>;
 }) {
-  const { reader, member, visit, status } = entry;
+  const { reader, member, libraryCard, visit, status } = entry;
   const [firstName, setFirstName] = useState(reader.first_name);
   const [lastName, setLastName] = useState(reader.last_name);
   const [birthday, setBirthday] = useState(reader.birthday ?? "");
@@ -1428,7 +1431,16 @@ function ReaderDetailsDrawer({ entry, close, run }: {
           <ReaderDetail label="Birthday" value={reader.birthday ? new Date(reader.birthday).toLocaleDateString() : "Not provided"} />
         </div>
         {usesReplacementSchema && <fieldset disabled={saving} className="mt-6 grid gap-4 rounded-xl border border-[#eadfd3] bg-white p-4 sm:grid-cols-2 sm:p-5"><legend className="px-2 font-serif text-lg font-semibold">Edit reader information</legend><label className="text-xs font-bold">First name<input required maxLength={255} value={firstName} onChange={event => setFirstName(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#d8c3ad] px-3 text-sm font-normal" /></label><label className="text-xs font-bold">Last name<input required maxLength={255} value={lastName} onChange={event => setLastName(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#d8c3ad] px-3 text-sm font-normal" /></label><label className="text-xs font-bold sm:col-span-2">Birthday<input required type="date" max={new Date().toISOString().slice(0, 10)} value={birthday} onChange={event => setBirthday(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#d8c3ad] px-3 text-sm font-normal" /></label></fieldset>}
-        <div className="mt-5 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#9a806b]">Reader ID</p><p className="mt-2 break-all font-mono text-xs leading-5 text-[#654a36]">{reader.user_id}</p></div>
+        <section className="mt-5 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 sm:p-5" aria-labelledby="library-card-information-title">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 id="library-card-information-title" className="font-serif text-lg font-semibold text-[#543822]">Library Card Information</h3>
+            {libraryCard && <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${libraryCard.is_active && !libraryCard.deactivated_at ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-stone-200 bg-stone-100 text-stone-600"}`}>{libraryCard.is_active && !libraryCard.deactivated_at ? "Active card" : "Inactive card"}</span>}
+          </div>
+          {libraryCard?.librarycard_rfid ? <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="min-w-0 rounded-lg border border-[#eadfd3] bg-white p-3"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">Assigned card UID</p><p className="mt-2 break-all font-mono text-sm font-semibold text-[#543822]">{libraryCard.librarycard_rfid}</p></div>
+            <div className="rounded-lg border border-[#eadfd3] bg-white p-3"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">Assigned on</p><p className="mt-2 text-sm font-semibold text-[#543822]">{new Date(libraryCard.created_at).toLocaleDateString()}</p></div>
+          </div> : <p className="mt-3 text-sm text-[#806b59]">No library card has been assigned to this reader.</p>}
+        </section>
         {visit && usesReplacementSchema && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">This reader has an active session. Finish the session before deactivating the account.</p>}
       </div>
       <footer className="flex shrink-0 flex-wrap gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] px-4 py-4 sm:items-center sm:justify-end sm:px-8"><button type="button" onClick={close} className="min-h-11 flex-1 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold text-[#704d34] sm:flex-none">Close</button><button type="button" disabled={saving || (usesReplacementSchema ? Boolean(visit) : !visit && !member)} onClick={() => void performPrimaryAction()} className={`min-h-11 flex-1 rounded-xl border px-5 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none ${usesReplacementSchema && !reader.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-[#e3c1ad] bg-white text-[#a83d12] hover:bg-[#fff1e7]"}`}>{usesReplacementSchema ? visit ? "Reading session in progress" : reader.is_active ? "Deactivate reader" : "Reactivate reader" : visit ? "Check out reader" : "Check in reader"}</button>{usesReplacementSchema && <button type="submit" disabled={saving || !firstName.trim() || !lastName.trim() || !birthday} className="min-h-11 w-full rounded-xl bg-[#a83d12] px-5 text-xs font-bold text-white disabled:opacity-50 sm:w-auto">{saving ? "Saving…" : "Save changes"}</button>}</footer>
