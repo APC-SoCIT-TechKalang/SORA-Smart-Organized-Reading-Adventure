@@ -72,7 +72,15 @@ export interface BonMessage {
   from: 'bon' | 'user';
   text: string;
   recommendations?: Array<{ volumeId: string; reason: string }>;
+  widgets?: BonWidget[];
 }
+
+export type BonWidget =
+  | { type: 'progress'; completed: number; streak: number; reading: number; quests: number }
+  | { type: 'rank'; rank: string; points: number; nextRank?: string; pointsToNext?: number }
+  | { type: 'reading'; items: Array<{ volumeId: string; title: string; minutes: number; status: string }> }
+  | { type: 'quests'; items: Array<{ id: string; name: string; detail: string; points: number; status: string; progress?: number }> }
+  | { type: 'rewards'; items: Array<{ id: string; name: string; points: number; status: string; eligible: boolean }> };
 
 export interface Toast {
   id: string;

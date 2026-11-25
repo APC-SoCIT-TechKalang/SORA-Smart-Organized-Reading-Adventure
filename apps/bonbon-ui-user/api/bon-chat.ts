@@ -3,11 +3,12 @@ type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unkno
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 type Intent = 'BOOK' | 'PROGRESS' | 'QUEST' | 'REWARD' | 'ACCOUNT' | 'IDENTITY' | 'PROJECT' | 'GENERAL';
 type CatalogBook = { id: string; title: string; author: string; genre: string; synopsis: string; availableCopies: number };
-type Quest = { id: string; name: string; detail: string; points: number; status: string };
-type Reading = { title: string; minutes: number; status: string };
+type Quest = { id: string; name: string; detail: string; points: number; status: string; currentValue?: number; targetValue?: number };
+type Reading = { id?: string; title: string; minutes: number; status: string };
 type ReadingHistory = { title: string; genre: string };
 type CatalogSummary = { totalTitles: number; availableTitles: number; availabilityPending: number };
-type ChatContext = { section: string; signedIn?: boolean; userName?: string; rank?: string; points?: number; streak?: number; booksCompleted?: number; activeReading?: Reading[]; readingHistory?: ReadingHistory[]; quests?: Quest[]; availableRewards?: Quest[]; catalog?: CatalogBook[]; catalogSummary?: CatalogSummary };
+type Reward = { id: string; name: string; points: number; available: boolean };
+type ChatContext = { section: string; signedIn?: boolean; userName?: string; rank?: string; points?: number; nextRank?: string; pointsToNext?: number; streak?: number; booksCompleted?: number; activeReading?: Reading[]; readingHistory?: ReadingHistory[]; quests?: Quest[]; availableRewards?: Quest[]; rewards?: Reward[]; catalog?: CatalogBook[]; catalogSummary?: CatalogSummary };
 type AiAudit = { request_id?: string; status?: 'ALLOWED' | 'REJECTED'; reason?: string | null };
 type Recommendation = { id: string; reason: string };
 
@@ -114,14 +115,14 @@ function parseQuest(value: unknown): Quest | null {
   const id = cleanText(item.id, 40);
   const name = cleanText(item.name, 120);
   if (!id || !name) return null;
-  return { id, name, detail: cleanText(item.detail, 240), points: boundedNumber(item.points, 1_000_000), status: cleanText(item.status, 24) || 'unknown' };
+  return { id, name, detail: cleanText(item.detail, 240), points: boundedNumber(item.points, 1_000_000), status: cleanText(item.status, 24) || 'unknown', currentValue: boundedNumber(item.currentValue, 1_000_000), targetValue: boundedNumber(item.targetValue, 1_000_000) };
 }
 
 function parseReading(value: unknown): Reading | null {
   if (!value || typeof value !== 'object') return null;
   const item = value as Record<string, unknown>;
   const title = cleanText(item.title, 160);
-  return title ? { title, minutes: boundedNumber(item.minutes, 1_000_000), status: cleanText(item.status, 24) } : null;
+  return title ? { id: cleanText(item.id, 40) || undefined, title, minutes: boundedNumber(item.minutes, 1_000_000), status: cleanText(item.status, 24) } : null;
 }
 
 function parseReadingHistory(value: unknown): ReadingHistory | null {
@@ -166,6 +167,8 @@ export function parseBody(body: unknown) {
     context.rank = cleanText(raw.rank, 20) || 'F';
     context.points = boundedNumber(raw.points);
     context.streak = boundedNumber(raw.streak, 100_000);
+    context.nextRank = cleanText(raw.nextRank, 40);
+    context.pointsToNext = boundedNumber(raw.pointsToNext, 1_000_000);
   }
   if (intent === 'PROGRESS') {
     context.booksCompleted = boundedNumber(raw.booksCompleted, 100_000);
@@ -176,6 +179,12 @@ export function parseBody(body: unknown) {
   }
   if (intent === 'REWARD') {
     context.availableRewards = Array.isArray(raw.availableRewards) ? raw.availableRewards.slice(0, 5).map(parseQuest).filter((item): item is Quest => Boolean(item)) : [];
+    context.rewards = Array.isArray(raw.rewards) ? raw.rewards.slice(0, 8).flatMap((item): Reward[] => {
+      if (!item || typeof item !== 'object') return [];
+      const value = item as Record<string, unknown>;
+      const id = cleanText(value.id, 40); const name = cleanText(value.name, 120);
+      return id && name ? [{ id, name, points: boundedNumber(value.points, 1_000_000), available: value.available === true }] : [];
+    }) : [];
   }
   if (intent === 'BOOK') {
     context.catalog = Array.isArray(raw.catalog) ? raw.catalog.slice(0, 30).flatMap((value): CatalogBook[] => {
@@ -257,7 +266,7 @@ function directReply(input: ReturnType<typeof parseBody>) {
     }
     const { rank, points } = input.context;
     if (rank !== undefined && points !== undefined) {
-      return { message: `You are Rank ${rank} with ${points.toLocaleString()} library points.`, navigateTo: null, recommendationIds: [], suggestions: ['Show my progress', 'What is my current quest?'] };
+      return { message: `You are making steady progress as a ${rank}.`, navigateTo: null, recommendationIds: [], widgets: [{ type: 'rank', rank, points, nextRank: input.context.nextRank, pointsToNext: input.context.pointsToNext }], suggestions: ['How do I earn points?', 'Explore quests'] };
     }
   }
   if (input.intent === 'IDENTITY') {
@@ -268,21 +277,16 @@ function directReply(input: ReturnType<typeof parseBody>) {
   if (input.intent === 'PROGRESS') {
     const reading = input.context.activeReading ?? [];
     const quests = input.context.quests ?? [];
-    const summary = [
-      `${input.context.booksCompleted ?? 0} books completed`,
-      `${input.context.streak ?? 0} day reading streak`,
-      reading.length ? `currently reading ${reading.map((book) => book.title).join(', ')}` : 'no books currently marked as reading',
-      quests.length ? `${quests.length} quest${quests.length === 1 ? '' : 's'} in your list` : 'no quests in your list right now',
-    ];
-    return { message: `Here is the progress I can see: ${summary.join('; ')}.`, navigateTo: 'archive', recommendationIds: [], suggestions: ['What is my current quest?', 'How many points do I have?'] };
+    return { message: reading.length ? 'You have a few reading threads going. Keep enjoying them at your own pace!' : 'Your reading journey is ready for its next chapter.', navigateTo: 'archive', recommendationIds: [], widgets: [{ type: 'progress', completed: input.context.booksCompleted ?? 0, streak: input.context.streak ?? 0, reading: reading.length, quests: quests.length }, ...(reading.length ? [{ type: 'reading' as const, items: reading.map((book, index) => ({ volumeId: String(index), title: book.title, minutes: book.minutes, status: book.status })) }] : [])], suggestions: ['What is my current quest?', 'How many points do I have?'] };
   }
   if (input.intent === 'QUEST') {
     const quests = input.context.quests ?? [];
-    return { message: quests.length ? `Your quests: ${quests.map((quest) => `${quest.name} (${quest.status})`).join(', ')}.` : 'I cannot see any quests on your account right now. You can browse available quests in the Quests section.', navigateTo: 'commissions', recommendationIds: [], suggestions: ['Show my progress', 'Any rewards ready?'] };
+    return { message: quests.length ? 'Here are the quests on your list. You are closer than you think!' : 'I cannot see any quests on your account right now. You can browse the Quests section.', navigateTo: 'commissions', recommendationIds: [], widgets: quests.length ? [{ type: 'quests', items: quests.map((quest) => ({ id: quest.id, name: quest.name, detail: quest.detail, points: quest.points, status: quest.status, progress: quest.targetValue ? Math.round(((quest.currentValue ?? 0) / quest.targetValue) * 100) : undefined })) }] : [], suggestions: ['Show my progress', 'Any rewards ready?'] };
   }
   if (input.intent === 'REWARD') {
     const rewards = input.context.availableRewards ?? [];
-    return { message: rewards.length ? `These quest rewards look ready to claim: ${rewards.map((reward) => `${reward.name} (${reward.points} points)`).join(', ')}. Open Quests to claim one.` : 'I cannot see any unclaimed quest rewards for you right now. Check Quests again after completing one.', navigateTo: 'commissions', recommendationIds: [], suggestions: ['Show my progress', 'What is my current quest?'] };
+    const allRewards = input.context.rewards ?? rewards.map((reward) => ({ id: reward.id, name: reward.name, points: reward.points, available: true }));
+    return { message: allRewards.length ? 'Here are the rewards available in the library. Complete quests to unlock more.' : 'There are no rewards to show right now. Complete a quest and check again.', navigateTo: 'commissions', recommendationIds: [], widgets: allRewards.length ? [{ type: 'rewards', items: allRewards.map((reward) => ({ id: reward.id, name: reward.name, points: reward.points, status: reward.available ? 'Ready to redeem' : 'Keep earning', eligible: reward.available })) }] : [], suggestions: ['How do I earn points?', 'Show my quests'] };
   }
   if (input.intent === 'BOOK') {
     const candidates = input.context.catalog ?? [];

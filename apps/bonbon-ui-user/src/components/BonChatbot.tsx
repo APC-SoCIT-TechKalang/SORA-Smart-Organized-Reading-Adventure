@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircleIcon, SendIcon, XIcon } from 'lucide-react';
-import type { BonMessage, SectionId } from '../types/library';
+import type { BonMessage, BonWidget, SectionId } from '../types/library';
 import { useGame } from '../contexts/GameContext';
 
 
@@ -32,7 +32,7 @@ interface BonChatbotProps {
 }
 
 export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
-  const { section, setSection, session, profile, borrowed, rank, coins, streak, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
+  const { section, setSection, session, profile, borrowed, rank, coins, streak, nextRank, rewards, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -139,10 +139,10 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     }
   }, [messages, open]);
 
-  function addBonReply(response: string, go?: SectionId, recommendations?: BonMessage['recommendations']) {
+  function addBonReply(response: string, go?: SectionId, recommendations?: BonMessage['recommendations'], widgets?: BonWidget[]) {
     setMessages((current) => [
       ...current,
-      { id: `b-${crypto.randomUUID()}`, from: 'bon', text: response, recommendations },
+      { id: `b-${crypto.randomUUID()}`, from: 'bon', text: response, recommendations, widgets },
     ]);
     if (go) {
       window.setTimeout(() => setSection(go), 320);
@@ -191,11 +191,13 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             rank,
             points: coins,
             streak,
+            nextRank: nextRank?.name,
+            pointsToNext: nextRank ? Math.max(0, nextRank.pointsRequired - coins) : 0,
             booksCompleted: logs.filter((log) => Boolean(log.returned_at)).length,
             activeReading: borrowed.flatMap((item) => {
               const volume = volumeById(item.volumeId);
               const log = logs.find((entry) => String(entry.book_id) === item.volumeId && !entry.returned_at);
-              return volume ? [{ title: volume.title, minutes: log?.total_reading_minutes ?? 0, status: 'reading' }] : [];
+              return volume ? [{ id: volume.id, title: volume.title, minutes: log?.total_reading_minutes ?? 0, status: 'reading' }] : [];
             }),
             readingHistory: logs.filter((log) => Boolean(log.returned_at)).slice(-12).flatMap((log) => {
               const volume = volumeById(String(log.book_id));
@@ -207,6 +209,8 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               detail: quest.detail,
               points: quest.coins,
               status: quest.progress === 100 ? 'completed' : 'active',
+              currentValue: quest.currentValue,
+              targetValue: quest.targetValue,
             })),
             availableRewards: commissions.filter((quest) => quest.progress === 100 && !claimed.includes(quest.id)).map((quest) => ({
               id: quest.id,
@@ -215,6 +219,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               points: quest.coins,
               status: 'ready to claim',
             })),
+            rewards: rewards.map((reward) => ({ id: String(reward.reward_id), name: reward.reward_name, points: reward.points_cost, available: reward.is_available && coins >= reward.points_cost })),
             catalogSummary: {
               totalTitles: volumes.length,
               availableTitles: volumes.filter((volume) => volume.copies > 0).length,
@@ -231,7 +236,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
           },
         }),
       });
-      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; recommendations?: unknown; error?: unknown };
+      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; recommendations?: unknown; widgets?: unknown; error?: unknown };
       if (!response.ok || typeof payload.message !== 'string' || !payload.message.trim()) {
         throw new Error(typeof payload.error === 'string' ? payload.error : 'BON request failed');
       }
@@ -245,7 +250,8 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
         const reason = typeof value.reason === 'string' ? value.reason.trim().slice(0, 180) : '';
         return volumeId && reason && volumes.some((volume) => volume.id === volumeId) ? [{ volumeId, reason }] : [];
       }).slice(0, 5) : [];
-      addBonReply(payload.message, destination, recommendations);
+      const widgets = Array.isArray(payload.widgets) ? payload.widgets.filter((widget): widget is BonWidget => Boolean(widget && typeof widget === 'object' && typeof (widget as Record<string, unknown>).type === 'string')).slice(0, 4) : [];
+      addBonReply(payload.message, destination, recommendations, widgets);
       if (Array.isArray(payload.suggestions)) {
         const next = payload.suggestions
           .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
@@ -345,6 +351,10 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
                     </button>;
                   })}
                 </div> : null}
+                {message.widgets?.length ? <BonWidgets widgets={message.widgets} volumes={volumes} onOpenVolume={(volumeId) => {
+                  setSection('catalog');
+                  window.setTimeout(() => window.dispatchEvent(new CustomEvent('tankobonbon:open-volume', { detail: { volumeId } })), 350);
+                }} /> : null}
             </div>
             )}
 
@@ -508,4 +518,17 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
       </div>
     </div>);
 
+}
+
+function BonWidgets({ widgets, volumes, onOpenVolume }: { widgets: BonWidget[]; volumes: ReturnType<typeof useGame>['volumes']; onOpenVolume: (volumeId: string) => void }) {
+  return <div className="grid w-full gap-2" aria-label="BON library details">
+    {widgets.map((widget, index) => {
+      if (widget.type === 'progress') return <section key={`progress-${index}`} className="rounded-xl border border-gold/45 bg-cream/90 p-3"><h3 className="font-display text-[13px] font-800 text-umber">Your reading progress</h3><div className="mt-2 grid grid-cols-2 gap-2">{[['Books completed', widget.completed], ['Reading streak', `${widget.streak} days`], ['Currently reading', widget.reading], ['Quests in your list', widget.quests]].map(([label, value]) => <div key={String(label)} className="rounded-lg bg-parch/45 p-2"><strong className="block font-display text-lg text-umber">{value}</strong><span className="text-[10px] font-700 text-umber/60">{label}</span></div>)}</div></section>;
+      if (widget.type === 'rank') return <section key={`rank-${index}`} className="rounded-xl border border-gold/45 bg-cream/90 p-3"><div className="flex items-center justify-between"><div><span className="block text-[10px] font-700 uppercase tracking-[.12em] text-umber/55">Current rank</span><strong className="font-display text-lg text-umber">{widget.rank}</strong></div><strong className="font-display text-lg text-umber">{widget.points.toLocaleString()} pts</strong></div>{widget.nextRank ? <div className="mt-2"><div className="flex justify-between text-[10px] font-700 text-umber/60"><span>Next: {widget.nextRank}</span><span>{widget.pointsToNext?.toLocaleString() ?? 0} pts to go</span></div><div className="mt-1 h-2 overflow-hidden rounded-full bg-parch"><span className="block h-full rounded-full bg-rust" style={{ width: `${Math.max(4, Math.min(96, 100 - ((widget.pointsToNext ?? 0) / Math.max(1, widget.points + (widget.pointsToNext ?? 0))) * 100))}%` }} /></div></div> : null}</section>;
+      if (widget.type === 'reading') return <section key={`reading-${index}`} className="grid gap-2">{widget.items.map((item) => { const volume = volumes.find((book) => book.id === item.volumeId); return <button key={item.volumeId || item.title} type="button" onClick={() => item.volumeId && onOpenVolume(item.volumeId)} className="grid grid-cols-[42px_minmax(0,1fr)] gap-2 rounded-xl border border-gold/40 bg-cream/90 p-2 text-left"><img src={volume?.coverImage || '/book-placeholder.svg'} alt="" className="h-14 w-10 rounded object-contain" /><span><strong className="line-clamp-1 block text-[12px] text-umber">{item.title}</strong><span className="text-[10px] text-umber/60">{item.minutes} minutes · {item.status}</span></span></button>; })}</section>;
+      if (widget.type === 'quests') return <section key={`quests-${index}`} className="grid gap-2">{widget.items.map((item) => <div key={item.id} className="rounded-xl border border-gold/40 bg-cream/90 p-3"><div className="flex justify-between gap-2"><strong className="text-[12px] text-umber">{item.name}</strong><span className="shrink-0 text-[10px] font-800 text-gold">{item.points} pts</span></div><p className="mt-1 text-[10px] leading-4 text-umber/65">{item.detail}</p>{item.progress !== undefined ? <div className="mt-2 h-2 overflow-hidden rounded-full bg-parch"><span className="block h-full rounded-full bg-rust" style={{ width: `${Math.max(0, Math.min(100, item.progress))}%` }} /></div> : null}<span className="mt-1 block text-[10px] font-800 uppercase tracking-[.08em] text-umber/55">{item.status}{item.progress !== undefined ? ` · ${item.progress}%` : ''}</span></div>)}</section>;
+      if (widget.type === 'rewards') return <section key={`rewards-${index}`} className="grid gap-2">{widget.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-2 rounded-xl border border-gold/40 bg-cream/90 p-3"><div><strong className="block text-[12px] text-umber">{item.name}</strong><span className="text-[10px] text-umber/60">{item.points} points required</span></div><span className={`shrink-0 text-[10px] font-800 uppercase ${item.eligible ? 'text-emerald-700' : 'text-umber/50'}`}>{item.eligible ? 'Ready' : 'Keep earning'}</span></div>)}</section>;
+      return null;
+    })}
+  </div>;
 }
