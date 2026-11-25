@@ -300,7 +300,7 @@ export function AdminDashboard() {
           />
         )}
         {editingLocation && <EditCopyLocation book={editingLocation} copies={data.copies.filter(copy => copy.book_id === editingLocation.book_id)} close={() => setEditingLocation(null)} run={run} />}
-        <AdminBonChat data={data} />
+        <AdminBonChat data={data} onOpenAnalytics={() => setPage("Analytics")} />
       </div>
     </main>
   );

@@ -8,6 +8,8 @@ import type { DashboardData } from "./dashboard-data";
 type ChatData = Pick<DashboardData, "books" | "copies" | "readers" | "memberAccounts" | "visits" | "logs" | "quests" | "enrollments">;
 type QuestDraft = { title: string; description: string; requirement: string; difficulty: "Easy" | "Medium" | "Hard"; objectiveType: "BOOKS_READ"; targetValue: number; targetGenre: string; points: number; timeLimitDays: number; rationale: string; selected?: boolean; editing?: boolean; status?: "draft" | "approved" | "discarded" };
 type Message = { id: number; from: "bon" | "admin"; text: string; drafts?: QuestDraft[]; source?: "ai" | "template" };
+type RankingMode = "most" | "least";
+type RankedBook = { id: number; title: string; sessions: number; hasCopies: boolean };
 
 const BUTTON = 62;
 const MARGIN = 10;
@@ -22,13 +24,15 @@ const regenerationPrompts = [
   "Replace this with a clearly distinct quest. Do not reuse its title, description, or genre unless the catalog offers no alternative.",
 ];
 
-export function AdminBonChat({ data }: { data: ChatData }) {
+export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpenAnalytics?: () => void }) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState("");
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([{ id: 1, from: "bon", text: "Hi, librarian! Ask me about Tankobonbon analytics, catalog activity, readers, memberships, sessions, or quests." }]);
+  const [rankingMode, setRankingMode] = useState<RankingMode | null>(null);
+  const [rankingShown, setRankingShown] = useState(5);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -41,6 +45,17 @@ export function AdminBonChat({ data }: { data: ChatData }) {
     data.logs.forEach(log => counts.set(log.book_id, (counts.get(log.book_id) || 0) + 1));
     const completed = data.logs.filter(log => Boolean(log.returned_at));
     const totalMinutes = completed.reduce((sum, log) => sum + (log.total_reading_minutes ?? 0), 0);
+    const titleFor = (bookId: number) => data.books.find(item => item.book_id === bookId);
+    const leastUsedBooks = data.books.map(book => ({ title: book.title, sessions: counts.get(book.book_id) ?? 0 })).sort((a, b) => a.sessions - b.sessions || a.title.localeCompare(b.title)).slice(0, 5);
+    const genreCounts = new Map<string, number>();
+    data.logs.forEach(log => {
+      const book = titleFor(log.book_id);
+      const genres = book?.book_genres.map(item => item.genre).filter(Boolean) ?? [];
+      (genres.length ? genres : ['Uncategorized']).forEach(genre => genreCounts.set(genre, (genreCounts.get(genre) ?? 0) + 1));
+    });
+    const genreStats = [...genreCounts].map(([genre, sessions]) => ({ genre, sessions })).sort((a, b) => b.sessions - a.sessions || a.genre.localeCompare(b.genre)).slice(0, 10);
+    const dailyCounts = new Map<string, { sessions: number; minutes: number }>();
+    data.logs.forEach(log => { const day = log.started_at.slice(0, 10); const item = dailyCounts.get(day) ?? { sessions: 0, minutes: 0 }; item.sessions += 1; item.minutes += log.total_reading_minutes ?? 0; dailyCounts.set(day, item); });
     return {
       totalTitles: data.books.length,
       totalCopies: data.copies.length,
@@ -60,8 +75,19 @@ export function AdminBonChat({ data }: { data: ChatData }) {
         const book = data.books.find(item => item.book_id === bookId);
         return book ? [{ title: book.title, sessions }] : [];
       }),
+      leastUsedBooks,
+      genreStats,
+      dailyActivity: [...dailyCounts].sort(([a], [b]) => a.localeCompare(b)).slice(-31).map(([day, values]) => ({ day, ...values })),
+      reportingPeriod: 'current dashboard data',
+      questCompletionRate: data.enrollments.length ? Math.round(data.enrollments.filter(item => item.status === 'COMPLETED').length / data.enrollments.length * 100) : 0,
     };
   }, [data]);
+
+  const rankedBooks = useMemo<RankedBook[]>(() => {
+    const counts = new Map<number, number>();
+    data.logs.forEach(log => counts.set(log.book_id, (counts.get(log.book_id) ?? 0) + 1));
+    return data.books.map(book => ({ id: book.book_id, title: book.title, sessions: counts.get(book.book_id) ?? 0, hasCopies: book.book_copies.length > 0 })).sort((a, b) => rankingMode === "most" ? b.sessions - a.sessions || a.title.localeCompare(b.title) : a.sessions - b.sessions || a.title.localeCompare(b.title));
+  }, [data, rankingMode]);
 
   function append(message: Message) {
     setMessages(current => [...current, message]);
@@ -91,6 +117,9 @@ export function AdminBonChat({ data }: { data: ChatData }) {
     if (busy) return;
     const isRegeneration = Boolean(refinementDrafts?.length) && /\b(?:regenerate|alternative)\b/i.test(question);
     const effectiveQuestion = isRegeneration ? regenerationPrompts[regenerationIndex.current++ % regenerationPrompts.length] : question;
+    if (/least[- ]used|least read|underused/.test(effectiveQuestion.toLowerCase())) { setRankingMode("least"); setRankingShown(5); }
+    else if (/most[- ]read|most popular|top books?|popular books?/.test(effectiveQuestion.toLowerCase())) { setRankingMode("most"); setRankingShown(5); }
+    else if (!refinementDrafts?.length) setRankingMode(null);
     const prior = messages.slice(-4).map(message => ({ role: message.from === "admin" ? "user" : "assistant", content: message.text }));
     setMessages(current => [...current, { id: Date.now(), from: "admin", text: effectiveQuestion }]);
     setDraft("");
@@ -168,10 +197,23 @@ export function AdminBonChat({ data }: { data: ChatData }) {
       <div ref={logRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3.5 text-[13px]">{messages.map(message => <div key={message.id} className={message.from==="admin"?"ml-auto w-fit max-w-[86%]":"max-w-full"}><p className={`w-fit max-w-full rounded-2xl px-3.5 py-2.5 leading-5 shadow-sm ${message.from === "bon" ? "border border-[#eadfd3] bg-[#fff7eb] text-[#59351e]" : "ml-auto bg-[#a83d12] text-white"}`}>{message.text}</p>{message.drafts?.length ? <div className="mt-2 space-y-2">{message.drafts.map((item,index)=><article key={`${message.id}-${index}`} className={`rounded-xl border p-3 ${item.status==="approved"?"border-emerald-300 bg-emerald-50":item.status==="discarded"?"hidden":"border-[#dfc49d] bg-white"}`}><div className="flex items-start gap-2"><input type="checkbox" checked={Boolean(item.selected)} onChange={event=>updateCard(message.id,index,{selected:event.target.checked})} aria-label={`Select ${item.title}`}/><div className="min-w-0 flex-1">{item.editing?<div className="space-y-2"><label className="block"><span className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-[#59351e]">Quest title</span><input value={item.title} onChange={event=>updateCard(message.id,index,{title:event.target.value})} className="w-full rounded border p-2 font-bold"/></label><label className="block"><span className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-[#59351e]">Quest description</span><textarea value={item.description} onChange={event=>updateCard(message.id,index,{description:event.target.value})} className="w-full rounded border p-2"/></label><div className="grid grid-cols-2 gap-2"><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Difficulty</span><select value={item.difficulty} onChange={event=>updateCard(message.id,index,{difficulty:event.target.value as QuestDraft["difficulty"]})} className="w-full rounded border p-2"><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Books required</span><input value={item.targetValue} type="number" min="1" onChange={event=>updateCard(message.id,index,{targetValue:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Reward points</span><input value={item.points} type="number" min="1" onChange={event=>updateCard(message.id,index,{points:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Time limit (days)</span><input value={item.timeLimitDays} type="number" min="1" onChange={event=>updateCard(message.id,index,{timeLimitDays:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label></div><label className="block"><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Genre</span><input value={item.targetGenre} onChange={event=>updateCard(message.id,index,{targetGenre:event.target.value})} placeholder="Leave blank for any genre" className="w-full rounded border p-2"/></label></div>:<><b className="block text-[#59351e]">{item.title}</b><span className="text-[10px] font-bold uppercase text-[#a65b1e]">{item.difficulty} · {item.targetValue} books · {item.points} points · {item.timeLimitDays} days</span><p className="mt-1 text-xs leading-4 text-[#71543d]">{item.description}</p><p className="mt-1 text-[10px] text-emerald-700">{item.rationale}</p></>}</div></div><div className="mt-2 flex flex-wrap gap-1"><button onClick={()=>void approveCards(message.id,[index])} className="rounded bg-[#a83d12] px-2 py-1 text-[10px] font-bold text-white"><Check size={11} className="inline"/> Approve</button><button onClick={()=>{updateCard(message.id,index,{editing:!item.editing});}} className="rounded border px-2 py-1 text-[10px]"><Edit3 size={11} className="inline"/> Edit manually</button><button onClick={()=>{setDraft(`Refine \"${item.title}\": `);}} className="rounded border px-2 py-1 text-[10px]">Refine</button><button onClick={()=>void answer(`Regenerate an alternative to \"${item.title}\" with the same difficulty.`,[item])} className="rounded border px-2 py-1 text-[10px]"><RefreshCw size={11} className="inline"/> Regenerate</button><button onClick={()=>updateCard(message.id,index,{status:"discarded",selected:false})} className="rounded border px-2 py-1 text-[10px] text-rose-700"><Trash2 size={11} className="inline"/> Discard</button></div></article>)}{message.drafts.some(item=>item.status==="draft")&&<button onClick={()=>void approveCards(message.id,message.drafts!.map((item,index)=>item.selected&&item.status==="draft"?index:-1).filter(index=>index>=0))} className="w-full rounded-lg bg-[#59351e] px-3 py-2 text-xs font-bold text-white">Approve selected</button>}</div>:null}</div>)}{busy && <p role="status" className="flex w-fit items-center gap-2 rounded-2xl border border-[#eadfd3] bg-[#fff7eb] px-3.5 py-2.5 leading-5 text-[#59351e]"><LoaderCircle className="animate-spin" size={14}/>Analyzing Tankobonbon data...</p>}</div>
       {messages.some(message=>message.drafts?.length)&&<div className="border-t border-[#eadfd3] bg-[#fffaf3] px-3 pt-2.5"><button type="button" disabled={busy} onClick={()=>{setDraft("");window.setTimeout(()=>inputRef.current?.focus(),0);}} className="w-full rounded-xl border border-[#a83d12] bg-white px-3 py-2 text-xs font-bold text-[#a83d12] transition hover:bg-[#fff4e8] disabled:opacity-50">Want a different quest? Write your own AI prompt</button></div>}
       <div className="flex gap-2 overflow-x-auto border-t border-[#eadfd3] bg-[#fffaf3] px-3 py-2.5">{suggestions.map(suggestion => <button key={suggestion} disabled={busy} onClick={() => void answer(suggestion)} className="max-w-[220px] shrink-0 whitespace-normal rounded-full border border-[#d6b58f] bg-white px-3 py-1.5 text-left text-[10px] font-semibold leading-4 text-[#804916] transition hover:bg-[#fff2df] disabled:opacity-50">{suggestion}</button>)}</div>
-      <form onSubmit={submit} className="flex gap-2 border-t border-[#eadfd3] bg-white p-3"><input ref={inputRef} value={draft} onChange={event => setDraft(event.target.value)} maxLength={800} disabled={busy} placeholder="Ask BON to create or refine a quest..." className="min-w-0 flex-1 rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-2.5 text-[13px] outline-none transition focus:border-[#a83d12] focus:ring-2 focus:ring-[#a83d12]/10 disabled:opacity-60"/><button disabled={busy || !draft.trim()} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#a83d12] text-white transition hover:bg-[#8f320d] disabled:opacity-50" aria-label="Send message"><Send size={16}/></button></form>
+      <form onSubmit={submit} className="flex gap-2 border-t border-[#eadfd3] bg-white p-3"><input ref={inputRef} value={draft} onChange={event => setDraft(event.target.value)} maxLength={800} disabled={busy} placeholder={messages.some(message=>message.drafts?.length) ? "Ask BON to refine or create a quest..." : "Ask BON about library analytics..."} className="min-w-0 flex-1 rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-2.5 text-[13px] outline-none transition focus:border-[#a83d12] focus:ring-2 focus:ring-[#a83d12]/10 disabled:opacity-60"/><button disabled={busy || !draft.trim()} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#a83d12] text-white transition hover:bg-[#8f320d] disabled:opacity-50" aria-label="Send message"><Send size={16}/></button></form>
     </section>}
+    {open && rankingMode && <AdminRankingPanel mode={rankingMode} books={rankedBooks} shown={rankingShown} setShown={setRankingShown} onOpenAnalytics={onOpenAnalytics} />}
     <button onClick={toggle} onPointerDown={startDrag} aria-label={open ? "Close BON chat" : "Open BON chat"} className="assistive-button" aria-expanded={open}>
       <span className="assistive-ring" aria-hidden="true"/><img src="/ai-mascot.png" alt="" draggable={false} className="assistive-avatar"/><span className="assistive-badge" aria-hidden="true"><MessageCircle size={11}/></span>
     </button>
   </div>;
+}
+
+function AdminRankingPanel({ mode, books, shown, setShown, onOpenAnalytics }: { mode: RankingMode; books: RankedBook[]; shown: number; setShown: (value: number) => void; onOpenAnalytics?: () => void }) {
+  const visible = books.slice(0, shown);
+  const max = Math.max(1, ...books.map(book => book.sessions));
+  const title = mode === "most" ? "Most-used books" : "Least-used books";
+  const remaining = Math.max(0, books.length - shown);
+  return <section className="admin-ranking-popover absolute bottom-[74px] right-0 z-40 w-[min(520px,calc(100vw-1.5rem))] rounded-2xl border border-[#eadfd3] bg-[#fffaf3] p-4 text-[#59351e] shadow-[0_20px_55px_rgba(57,36,20,.28)]" aria-label={title}>
+    <div className="flex items-start justify-between gap-3"><div><h2 className="font-serif text-xl font-semibold">{title}</h2><p className="mt-1 text-xs text-[#8d735e]">{mode === "most" ? "Highest reading activity first" : "Lowest reading activity first"} · current recorded activity</p></div><span className="rounded-full bg-[#f3e6d2] px-2 py-1 text-[10px] font-bold uppercase tracking-wider">{books.length} titles</span></div>
+    <div className="mt-4 space-y-3">{visible.map((book, index) => <div key={book.id}><div className="flex items-center gap-2 text-sm"><b className="w-5 text-[#8d735e]">{index + 1}.</b><span className="min-w-0 flex-1 truncate font-semibold">{book.title}</span><span className="shrink-0 text-xs text-[#71543d]">{book.sessions} {book.sessions === 1 ? "session" : "sessions"}</span></div><div className="ml-7 mt-1 h-2 overflow-hidden rounded-full bg-[#eadfce]"><span className="block h-full rounded-full bg-[#b88945]" style={{ width: `${book.sessions ? Math.max(3, (book.sessions / max) * 100) : 0}%` }} /></div>{mode === "least" && !book.hasCopies ? <span className="ml-7 mt-1 block text-[10px] text-[#a65b1e]">No physical copies recorded</span> : null}</div>)}</div>
+    <div className="mt-4 border-t border-[#dfc49d] pt-3 text-center"><p className="text-xs text-[#71543d]">Showing {visible.length} of {books.length} titles.</p>{remaining > 0 ? <button type="button" onClick={() => setShown(Math.min(books.length, shown + 5))} className="mt-2 w-full rounded-xl border border-[#d6b58f] bg-white px-3 py-2 text-xs font-bold text-[#804916] hover:bg-[#fff2df]">View more books</button> : null}<button type="button" onClick={onOpenAnalytics} className="mt-2 w-full rounded-xl bg-[#59351e] px-3 py-2 text-xs font-bold text-white hover:bg-[#7a4928]">View full analytics</button></div>
+  </section>;
 }
