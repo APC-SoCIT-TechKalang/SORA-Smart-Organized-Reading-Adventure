@@ -40,7 +40,7 @@ button { font: inherit; }
   .admin-content > div:first-child { align-items: flex-start; }
   .admin-content h1 { font-size: clamp(1.8rem, 8vw, 2.4rem); }
   .admin-content section { min-width: 0; }
-  .admin-content table { min-width: 620px; }
+  .admin-content table { max-width: 100%; }
 }
 
 @media (max-width: 480px) {
@@ -51,6 +51,24 @@ button { font: inherit; }
   .admin-content { padding-inline: 12px; }
   .admin-content .grid { min-width: 0; }
   .mascot-chat-bubble { display: none; }
+}
+
+@media (max-width: 1100px) {
+  .bulk-book-table, .bulk-book-table tbody, .bulk-book-table tr, .bulk-book-table td { display: block; width: 100%; }
+  .bulk-book-table thead { display: none; }
+  .bulk-book-table tr { margin-bottom: 12px; padding: 8px; border: 1px solid #dfcfbe; border-radius: 12px; }
+  .bulk-book-table td { display: grid; grid-template-columns: minmax(75px, 28%) minmax(0, 1fr); align-items: center; gap: 8px; min-width: 0; padding: 6px; overflow-wrap: anywhere; }
+  .bulk-book-table td::before { color: #806b59; font-weight: 700; }
+  .bulk-book-table td:nth-child(1)::before { content: "Copy"; }
+  .bulk-book-table td:nth-child(2)::before { content: "ISBN"; }
+  .bulk-book-table td:nth-child(3)::before { content: "Title"; }
+  .bulk-book-table td:nth-child(4)::before { content: "Author"; }
+  .bulk-book-table td:nth-child(5)::before { content: "Genre"; }
+  .bulk-book-table td:nth-child(6)::before { content: "Tags"; }
+  .bulk-book-table td:nth-child(7)::before { content: "Type"; }
+  .bulk-book-table td:nth-child(8)::before { content: "Age"; }
+  .bulk-book-table td:nth-child(9)::before { content: "Shelf"; }
+  .bulk-book-table td:nth-child(10)::before { content: "Action"; }
 }
 
 .lock-screen { isolation: isolate; background: radial-gradient(circle at 50% 42%, #5d301d 0%, #351b11 42%, #1e100b 100%); }

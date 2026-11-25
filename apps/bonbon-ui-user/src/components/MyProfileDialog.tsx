@@ -56,7 +56,7 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
   }, [open]);
 
   return createPortal(<AnimatePresence>{open && <motion.div className="fixed inset-0 z-[100] flex items-end justify-center bg-umber/75 p-0 backdrop-blur-md sm:items-center sm:p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onMouseDown={event => event.target === event.currentTarget && onClose()}>
-    <motion.section role="dialog" aria-modal="true" aria-labelledby="my-profile-title" className="relative max-h-[94dvh] w-full max-w-5xl overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream shadow-[0_24px_80px_rgba(67,39,20,.38)] sm:tb-cut-lg sm:max-h-[min(900px,calc(100vh-2rem))] sm:rounded-none" initial={{ y: 24, scale: .97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: .97 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
+    <motion.section role="dialog" aria-modal="true" aria-labelledby="my-profile-title" className="relative max-h-[94dvh] w-full max-w-5xl overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream shadow-[0_24px_80px_rgba(67,39,20,.38)] sm:tb-cut-lg sm:max-h-[min(900px,calc(100dvh-2rem))] sm:rounded-none" initial={{ y: 24, scale: .97 }} animate={{ y: 0, scale: 1 }} exit={{ y: 18, scale: .97 }} transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
       <header className="sticky top-0 z-20 flex items-start justify-between border-b border-gold/40 bg-umber px-5 py-5 text-cream sm:px-7"><div><p className="font-body text-[10px] font-800 uppercase tracking-[.28em] text-sun">Tankobonbon account</p><h2 id="my-profile-title" className="mt-1 font-display text-2xl font-900 uppercase tracking-[.06em]">My profile</h2></div><button type="button" aria-label="Close my profile" onClick={onClose} className="rounded-full p-2 text-sun transition hover:bg-cream/10"><XIcon /></button></header>
       <div className="space-y-8 p-4 sm:p-7">
         <section aria-labelledby="profile-card-title" className="space-y-4">
@@ -101,7 +101,7 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
       </div>
     </motion.section>
     {qrExpanded && qrPayload && <div role="dialog" aria-modal="true" aria-label="Enlarged kiosk QR code" className="fixed inset-0 z-[110] flex items-center justify-center bg-umber/90 p-4 backdrop-blur-md" onMouseDown={event => { if (event.target === event.currentTarget) setQrExpanded(false); }}>
-      <div className="relative flex max-h-[95dvh] w-full max-w-lg flex-col items-center rounded-2xl bg-white p-5 text-center shadow-2xl sm:p-8">
+      <div className="relative flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col items-center overflow-y-auto rounded-2xl bg-white p-5 text-center shadow-2xl sm:p-8">
         <button type="button" autoFocus onClick={() => setQrExpanded(false)} aria-label="Close enlarged QR code" className="absolute right-2 top-2 rounded-full p-2 text-umber hover:bg-parch/40"><XIcon aria-hidden="true" /></button>
         <p className="mb-4 mt-6 font-display text-xl font-900 text-umber">Scan at the kiosk</p>
         <QRCodeSVG value={qrPayload} level="H" marginSize={4} bgColor="#ffffff" fgColor="#321b0d" className="h-auto w-full max-w-[min(75vw,400px,55dvh)]" title="Enlarged Tankobonbon kiosk login QR code" />

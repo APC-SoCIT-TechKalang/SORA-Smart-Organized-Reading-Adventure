@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import type { Session } from '@supabase/supabase-js';
 import type { Commission, SectionId, Toast, Volume } from '../types/library';
 import { database, errorMessage, readRows, setupMessage, supabase } from '../lib/supabase';
@@ -311,11 +312,11 @@ function KioskInactivityWarning() {
   if (!kioskSession || !visible) return null;
   const minutes = Math.floor(secondsLeft / 60);
   const seconds = String(secondsLeft % 60).padStart(2, '0');
-  return <div className="fixed inset-0 z-[200] flex items-center justify-center bg-umber/75 p-4 backdrop-blur-sm" role="presentation">
-    <section role="alertdialog" aria-modal="true" aria-labelledby="kiosk-idle-title" aria-describedby="kiosk-idle-description" className="w-full max-w-md rounded-2xl border border-gold/40 bg-cream p-6 text-center text-umber shadow-[0_24px_70px_rgba(46,25,12,.4)] sm:p-8">
+  return createPortal(<div className="fixed inset-0 z-[200] flex items-center justify-center overflow-hidden bg-umber/75 p-2 backdrop-blur-sm sm:p-4" role="presentation">
+    <section role="alertdialog" aria-modal="true" aria-labelledby="kiosk-idle-title" aria-describedby="kiosk-idle-description" className="max-h-[calc(100dvh-1rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-gold/40 bg-cream p-4 text-center text-umber shadow-[0_24px_70px_rgba(46,25,12,.4)] sm:max-h-[calc(100dvh-2rem)] sm:p-8">
       <h2 id="kiosk-idle-title" className="font-display text-2xl font-900">Are you still there?</h2>
       <p id="kiosk-idle-description" className="mt-3 text-sm leading-6 text-umber/70">For your privacy, this kiosk will sign you out in <strong aria-live="off">{minutes}:{seconds}</strong> if you remain inactive.</p>
       <button type="button" onClick={() => { lastActivity.current = Date.now(); setVisible(false); setSecondsLeft(WARNING_COUNTDOWN_SECONDS); }} className="tb-button-primary tb-cut-sm mt-6 min-h-12 px-6">Yes, I'm still here</button>
     </section>
-  </div>;
+  </div>, document.body);
 }

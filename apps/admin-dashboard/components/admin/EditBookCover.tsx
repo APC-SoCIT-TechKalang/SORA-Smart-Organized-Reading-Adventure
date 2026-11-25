@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { ImagePlus, LoaderCircle, Save, X } from "lucide-react";
 import { database, usesReplacementSchema } from "../../lib/supabase";
 import type { Book } from "./dashboard-data";
@@ -64,13 +65,13 @@ export function EditBookCover({
     setBusy(false);
     if (ok) close();
   };
-  return (
-    <div className="fixed inset-0 z-[60] bg-[#2d190c]/40 backdrop-blur-sm">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] bg-[#2d190c]/40 backdrop-blur-sm">
       <aside
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-cover-title"
-        className="absolute right-0 top-0 flex h-full w-full max-w-[500px] flex-col bg-[#fffdf9] shadow-2xl"
+        className="absolute right-0 top-0 flex h-[100dvh] w-full max-w-[500px] min-w-0 flex-col overflow-hidden bg-[#fffdf9] shadow-2xl"
       >
         <header className="flex items-center justify-between border-b border-[#eadbc9] bg-[#fff7e9] px-7 py-5">
           <div>
@@ -96,7 +97,7 @@ export function EditBookCover({
         </header>
         <form
           onSubmit={save}
-          className="flex flex-1 flex-col overflow-y-auto p-7"
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-7"
         >
           <div
             className="mx-auto grid shrink-0 place-items-center overflow-hidden rounded-xl border border-[#dfc69f] bg-[#fffaf1] p-2 shadow-[0_12px_28px_rgba(79,46,24,.16)]"
@@ -225,6 +226,6 @@ export function EditBookCover({
           </footer>
         </form>
       </aside>
-    </div>
+    </div>, document.body
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import { createPortal } from "react-dom";
 
 import {
   useCallback,
@@ -1389,6 +1390,10 @@ function ReaderDetailsDrawer({ entry, close, run }: {
   run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean>;
 }) {
   const { reader, member, visit, status } = entry;
+  const [firstName, setFirstName] = useState(reader.first_name);
+  const [lastName, setLastName] = useState(reader.last_name);
+  const [birthday, setBirthday] = useState(reader.birthday ?? "");
+  const [saving, setSaving] = useState(false);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
     const previousOverflow = document.body.style.overflow;
@@ -1412,8 +1417,8 @@ function ReaderDetailsDrawer({ entry, close, run }: {
   };
 
   const initials = `${reader.first_name.charAt(0)}${reader.last_name.charAt(0)}`.toUpperCase();
-  return <div className="fixed inset-0 z-[65] grid place-items-center bg-[#2d190c]/45 p-2 backdrop-blur-[3px] sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="reader-details-title" className="flex max-h-[calc(100dvh-1rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.32)] sm:max-h-[90dvh]">
+  return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-[#2d190c]/45 p-2 backdrop-blur-[3px] sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
+    <form role="dialog" aria-modal="true" aria-labelledby="reader-details-title" className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.32)] sm:max-h-[calc(100dvh-2.5rem)]" onSubmit={async event => { event.preventDefault(); if (saving) return; setSaving(true); try { const ok = await run(() => replacementDb().rpc("admin_update_reader_profile", { p_user_id: reader.user_id, p_first_name: firstName.trim(), p_last_name: lastName.trim(), p_birthdate: birthday }), "Reader profile updated"); if (ok) close(); } finally { setSaving(false); } }}>
       <header className="relative shrink-0 overflow-hidden border-b border-[#eadfd3] bg-[#543822] px-5 py-5 text-white sm:px-8 sm:py-7"><div aria-hidden="true" className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-[#f3d793]/15" /><div aria-hidden="true" className="absolute -right-7 -top-7 h-28 w-28 rounded-full border border-[#f3d793]/10" /><div className="relative flex items-start justify-between gap-4"><div className="flex min-w-0 items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-[#f3d793]/25 bg-white/10 font-serif text-lg font-semibold text-[#f3d793] sm:h-16 sm:w-16">{initials}</span><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#f3d793]">Reader profile</p><h2 id="reader-details-title" className="mt-1 truncate font-serif text-xl font-semibold sm:text-2xl">{reader.first_name} {reader.last_name}</h2><span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}>{statusText}</span></div></div><button type="button" onClick={close} aria-label="Close reader details" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d793]"><X size={18} aria-hidden="true" /></button></div></header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-7">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1422,12 +1427,13 @@ function ReaderDetailsDrawer({ entry, close, run }: {
           <ReaderDetail label="Visit state" value={visit ? "Active reading session" : "Not checked in"} />
           <ReaderDetail label="Birthday" value={reader.birthday ? new Date(reader.birthday).toLocaleDateString() : "Not provided"} />
         </div>
+        {usesReplacementSchema && <fieldset disabled={saving} className="mt-6 grid gap-4 rounded-xl border border-[#eadfd3] bg-white p-4 sm:grid-cols-2 sm:p-5"><legend className="px-2 font-serif text-lg font-semibold">Edit reader information</legend><label className="text-xs font-bold">First name<input required maxLength={255} value={firstName} onChange={event => setFirstName(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#d8c3ad] px-3 text-sm font-normal" /></label><label className="text-xs font-bold">Last name<input required maxLength={255} value={lastName} onChange={event => setLastName(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#d8c3ad] px-3 text-sm font-normal" /></label><label className="text-xs font-bold sm:col-span-2">Birthday<input required type="date" max={new Date().toISOString().slice(0, 10)} value={birthday} onChange={event => setBirthday(event.target.value)} className="mt-2 min-h-11 w-full rounded-lg border border-[#d8c3ad] px-3 text-sm font-normal" /></label></fieldset>}
         <div className="mt-5 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#9a806b]">Reader ID</p><p className="mt-2 break-all font-mono text-xs leading-5 text-[#654a36]">{reader.user_id}</p></div>
         {visit && usesReplacementSchema && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">This reader has an active session. Finish the session before deactivating the account.</p>}
       </div>
-      <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] px-4 py-4 sm:flex-row sm:items-center sm:justify-end sm:px-8"><button type="button" onClick={close} className="min-h-11 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold text-[#704d34]">Close</button><button type="button" disabled={usesReplacementSchema ? Boolean(visit) : !visit && !member} onClick={() => void performPrimaryAction()} className={`min-h-11 rounded-xl border px-5 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45 ${usesReplacementSchema && !reader.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-[#e3c1ad] bg-white text-[#a83d12] hover:bg-[#fff1e7]"}`}>{usesReplacementSchema ? visit ? "Reading session in progress" : reader.is_active ? "Deactivate reader" : "Reactivate reader" : visit ? "Check out reader" : "Check in reader"}</button></footer>
-    </section>
-  </div>;
+      <footer className="flex shrink-0 flex-wrap gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] px-4 py-4 sm:items-center sm:justify-end sm:px-8"><button type="button" onClick={close} className="min-h-11 flex-1 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold text-[#704d34] sm:flex-none">Close</button><button type="button" disabled={saving || (usesReplacementSchema ? Boolean(visit) : !visit && !member)} onClick={() => void performPrimaryAction()} className={`min-h-11 flex-1 rounded-xl border px-5 py-3 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-45 sm:flex-none ${usesReplacementSchema && !reader.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "border-[#e3c1ad] bg-white text-[#a83d12] hover:bg-[#fff1e7]"}`}>{usesReplacementSchema ? visit ? "Reading session in progress" : reader.is_active ? "Deactivate reader" : "Reactivate reader" : visit ? "Check out reader" : "Check in reader"}</button>{usesReplacementSchema && <button type="submit" disabled={saving || !firstName.trim() || !lastName.trim() || !birthday} className="min-h-11 w-full rounded-xl bg-[#a83d12] px-5 text-xs font-bold text-white disabled:opacity-50 sm:w-auto">{saving ? "Saving…" : "Save changes"}</button>}</footer>
+    </form>
+  </div>, document.body);
 }
 
 function ReaderDetail({ label, value }: { label: string; value: string }) {

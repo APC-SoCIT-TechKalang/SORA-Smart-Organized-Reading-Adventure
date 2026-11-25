@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { IScannerControls } from '@zxing/browser';
 import { CameraIcon, ScanLineIcon, XIcon } from 'lucide-react';
+import { createPortal } from 'react-dom';
 
 export function ReturnBookPrompt({ title, busy, close, confirm }: {
   title: string; busy: boolean; close: () => void;
@@ -37,8 +38,8 @@ export function ReturnBookPrompt({ title, busy, close, confirm }: {
     return () => { stopped = true; controls?.stop(); if (video.current) video.current.srcObject = null; };
   }, [cameraOpen]);
 
-  return <div className="fixed inset-0 z-[80] grid place-items-center bg-umber/55 p-4 backdrop-blur-sm">
-    <section role="dialog" aria-modal="true" aria-labelledby="return-book-title" className="tb-surface tb-cut-lg w-full max-w-lg border border-gold/40 bg-cream p-6 shadow-2xl sm:p-8">
+  return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-umber/55 p-2 backdrop-blur-sm sm:p-4">
+    <section role="dialog" aria-modal="true" aria-labelledby="return-book-title" className="tb-surface tb-cut-lg max-h-[calc(100dvh-1rem)] w-full max-w-lg overflow-y-auto border border-gold/40 bg-cream p-4 shadow-2xl sm:max-h-[calc(100dvh-2rem)] sm:p-8">
       <div className="flex items-start justify-between gap-4"><div><p className="tb-eyebrow">Return one book</p><h2 id="return-book-title" className="mt-1 font-display text-2xl font-900 text-umber">Finish reading</h2></div><button type="button" onClick={close} disabled={busy} aria-label="Close return prompt"><XIcon className="h-5 w-5" /></button></div>
       <p className="mt-4 font-800">{title}</p>
       <p className="mt-2 text-sm leading-6 text-umber/65">Scan this book’s ISBN barcode or its library copy barcode, then place the selected copy in the return cart. Your seat and session timer will continue.</p>
@@ -50,5 +51,5 @@ export function ReturnBookPrompt({ title, busy, close, confirm }: {
         {returnError && <p role="alert" className="mt-3 text-sm text-rust">{returnError}</p>}
       </form>
     </section>
-  </div>;
+  </div>, document.body);
 }

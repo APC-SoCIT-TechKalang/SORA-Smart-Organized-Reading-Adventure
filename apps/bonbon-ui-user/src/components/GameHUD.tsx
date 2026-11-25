@@ -62,7 +62,7 @@ export function GameHUD() {
                   <ChevronDownIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />
                 </button>
                 {accountOpen && (
-                  <div role="menu" className="fixed inset-x-3 top-[68px] z-50 overflow-hidden rounded-xl border border-gold/35 bg-cream p-2 shadow-[0_20px_50px_rgba(64,43,29,.2)] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-64">
+                  <div role="menu" className="fixed inset-x-3 top-[68px] z-50 max-h-[calc(100dvh-5rem)] overflow-y-auto rounded-xl border border-gold/35 bg-cream p-2 shadow-[0_20px_50px_rgba(64,43,29,.2)] sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 sm:w-64">
                     <div className="border-b border-gold/25 px-3 py-2.5">
                       <p className="font-display text-sm font-800 text-umber">{displayName}’s account</p>
                       <p className="mt-1 truncate text-xs text-umber/60">{session.user.email}</p>

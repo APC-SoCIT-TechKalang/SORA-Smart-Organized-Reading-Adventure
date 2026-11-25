@@ -53,7 +53,7 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="reading-stats-title"
-          className="relative max-h-[94dvh] w-full max-w-5xl overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_24px_80px_rgba(67,39,20,.38)] sm:tb-cut-lg sm:max-h-[min(850px,calc(100vh-2rem))] sm:rounded-none sm:pb-0"
+          className="relative max-h-[94dvh] w-full max-w-5xl overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_24px_80px_rgba(67,39,20,.38)] sm:tb-cut-lg sm:max-h-[min(850px,calc(100dvh-2rem))] sm:rounded-none sm:pb-0"
           initial={{ y: 24, scale: .97 }}
           animate={{ y: 0, scale: 1 }}
           exit={{ y: 18, scale: .97 }}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   ArrowLeft,
   BookOpenCheck,
@@ -578,9 +579,9 @@ export function CompleteAddVolume({ data, close, run }: Props) {
         return { error: result.error };
   };
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[60] bg-[#2d190c]/40 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] bg-[#2d190c]/40 backdrop-blur-sm"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget && !submitting) close();
       }}
@@ -589,7 +590,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-volume-title"
-        className="absolute right-0 top-0 flex h-full w-full max-w-[680px] flex-col overflow-hidden border-l border-[#d89b39] bg-[#fffdf9] shadow-[-20px_0_60px_rgba(67,37,18,.2)]"
+        className="absolute right-0 top-0 flex h-[100dvh] w-full max-w-[680px] min-w-0 flex-col overflow-hidden border-l border-[#d89b39] bg-[#fffdf9] shadow-[-20px_0_60px_rgba(67,37,18,.2)]"
       >
         <header className="flex items-center justify-between border-b border-[#eadbc9] bg-[linear-gradient(135deg,#fffaf1,#f8ead4)] px-7 py-5">
           <div>
@@ -1065,6 +1066,6 @@ export function CompleteAddVolume({ data, close, run }: Props) {
           </footer>
         </form>}
       </aside>
-    </div>
+    </div>, document.body
   );
 }
