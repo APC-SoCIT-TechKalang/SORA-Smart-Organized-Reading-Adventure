@@ -22,7 +22,7 @@ test('template fallback creates a general quest when available books lack genre 
   const draft=templateQuestDraft('Hard',new Map([['*',4]]),[]);
   assert.equal(draft?.targetGenre,''); assert.equal(draft?.targetValue,4); assert.equal(draft?.title,'Hard Manga Quest');
 });
-test('quest copy keeps reading inside Tankobonbon and removes take-home language',()=>{
-  const draft=validateQuestDraft({targetGenre:'Sports',bookCount:1,title:'Rivalry Rush',description:'Borrow one manga and return it within a week.'},'Easy',new Map([['Sports',2],['*',2]]));
-  assert.match(draft?.description??'',/during your library visits/i); assert.doesNotMatch(draft?.description??'',/borrow|within a week/i); assert.match(draft?.requirement??'',/inside Tankobonbon/i);
+test('quest copy stays concise and removes policy reminders and long dashes',()=>{
+  const draft=validateQuestDraft({targetGenre:'Sports',bookCount:1,title:'Rivalry Rush — Easy',description:'Read one Sports manga in the library. We will verify each session. Books never leave the building.'},'Easy',new Map([['Sports',2],['*',2]]));
+  assert.equal(draft?.description,'Read one Sports manga.'); assert.equal(draft?.requirement,'Read 1 Sports manga title.'); assert.doesNotMatch(draft?.title??'',/[—–]/); assert.doesNotMatch(draft?.description??'',/verify|building|library/i);
 });

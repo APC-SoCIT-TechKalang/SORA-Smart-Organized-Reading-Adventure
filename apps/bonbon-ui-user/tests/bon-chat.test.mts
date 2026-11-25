@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { detectIntent, parseBody, wantsRecommendation } from '../api/bon-chat.ts';
+import { detectIntent, parseBody, recommendationScore, wantsRecommendation } from '../api/bon-chat.ts';
 
 const catalog = [
   { id: 'blue-lock', title: 'Blue Lock 1', author: 'Muneyuki Kaneshiro', genre: 'Action, Drama, Sports', synopsis: 'A fierce football competition.', availableCopies: 1 },
@@ -27,4 +27,10 @@ test('uses recent book conversation to understand a short follow-up', () => {
   });
   assert.ok(parsed);
   assert.equal(parsed.intent, 'BOOK');
+});
+
+test('a relevant unavailable horror title can outrank an unrelated available title', () => {
+  const horror = { id: 'jjk-0', title: 'Jujutsu Kaisen 0', author: 'Gege Akutami', genre: 'Horror, Supernatural', synopsis: 'A dark curse story with dangerous spirits.', availableCopies: 0 };
+  const adventure = { id: 'one-piece', title: 'One Piece 1', author: 'Eiichiro Oda', genre: 'Adventure', synopsis: 'A bright pirate adventure.', availableCopies: 1 };
+  assert.ok(recommendationScore(horror, 'Something darker', [], []) > recommendationScore(adventure, 'Something darker', [], []));
 });
