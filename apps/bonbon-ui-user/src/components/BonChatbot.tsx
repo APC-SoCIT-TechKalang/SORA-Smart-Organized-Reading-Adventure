@@ -170,7 +170,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
       return queryWords.some((word) => searchable.includes(word));
     }) : [];
     const availableBooks = volumes.filter((volume) => volume.copies > 0);
-    const catalogForBon = (matchingBooks.length ? matchingBooks : availableBooks.length ? availableBooks : volumes).slice(0, 8);
+    const catalogForBon = [...matchingBooks, ...availableBooks.filter((book)=>!matchingBooks.some((match)=>match.id===book.id)), ...volumes.filter((book)=>!matchingBooks.some((match)=>match.id===book.id)&&!availableBooks.some((available)=>available.id===book.id))].slice(0, 30);
     setMessages((current) => [...current, { id: `u-${crypto.randomUUID()}`, from: 'user', text: trimmed }]);
     setDraft('');
     setThinking(true);

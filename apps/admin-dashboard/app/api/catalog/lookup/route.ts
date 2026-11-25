@@ -442,8 +442,8 @@ async function openRouter(
 ): Promise<GeminiEnrichment | null> {
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) return null;
-  const model =
-    process.env.OPENROUTER_MODEL || "deepseek/deepseek-v4-flash-0731";
+  const configuredModel=process.env.OPENROUTER_MODEL?.trim()||"";
+  const model=/^[a-z0-9._-]+\/[a-z0-9._:-]+$/i.test(configuredModel)&&!configuredModel.startsWith("sk-")?configuredModel:"deepseek/deepseek-v4-flash-0731";
   const evidence = {
     isbn: metadata.isbn,
     title: metadata.title,
