@@ -131,8 +131,11 @@ cart; the seat and timer continue. The standalone `/checkout` kiosk requires no
 username/password sign-in. The reader taps the RFID card linked to their active
 session; the server silently identifies that reader, requires all copies to
 have been returned, stops the timer, and shows that session's summary plus food
-and other charges. A session with no unpaid charge closes immediately. A
-session with a charge waits for counter payment before closing. A disputed
+and other charges. Apply `supabase/replacement/023_checkout_session_summary.sql`
+after `022` before deploying the updated reader kiosk. The summary lists each
+borrowed book by title and copy number, along with the seat, reading time, and
+charges. The reader reviews it and completes checkout even when nothing is due.
+A session with a charge waits for counter payment before closing. A disputed
 charge pauses checkout and appears in the admin dashboard's
 Checkout counter; staff adjust it there and record payment. The reader then
 completes checkout, which releases the seat. Self-payment is not enabled.

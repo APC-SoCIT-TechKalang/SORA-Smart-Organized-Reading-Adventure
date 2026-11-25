@@ -6,6 +6,9 @@ import { startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, su
 
 type CheckoutState = {
   session_id: number; session_status: string; borrow_date: string; return_date: string | null;
+  checked_in_at: string | null; minutes: number;
+  seat: { number: number; area: string } | null;
+  books: { copy_id: number; title: string; author: string; copy_number: number; returned: boolean }[];
   food_charge: number; other_charge: number; total_charge: number;
   payment_status: string; disputed: boolean; books_to_return: number;
 };
@@ -13,6 +16,7 @@ type Receipt = { session_id: number; minutes: number; total_charge: number };
 type CheckinOnlyResult = { checkin_only: true; seat_released: boolean };
 type Status = 'preparing' | 'ready' | 'scanning' | 'authorizing' | 'summary' | 'complete' | 'error';
 const money = (value: number) => `₱${Number(value).toFixed(2)}`;
+const dateTime = (value: string | null) => value ? new Date(value).toLocaleString() : 'Not recorded';
 
 export function CheckoutKioskApp() {
   const [status, setStatus] = useState<Status>('preparing');
@@ -62,16 +66,6 @@ export function CheckoutKioskApp() {
       return;
     }
     const state = begun.data as CheckoutState;
-    if (state.books_to_return === 0 && !state.disputed
-      && (state.total_charge <= 0 || state.payment_status === 'PAID')) {
-      const completed = await replacementApi().rpc('kiosk_complete_checkout', { p_session_id: state.session_id });
-      if (completed.error) throw completed.error;
-      setReceipt(completed.data as Receipt);
-      setCheckout(null);
-      setStatus('complete');
-      await signOut();
-      return;
-    }
     setCheckout(state);
     setStatus('summary');
     setMessage('');
@@ -160,9 +154,13 @@ export function CheckoutKioskApp() {
         </div>}
         {checkout && <div>
           <p className="tb-eyebrow">Checkout summary</p><h1 className="mt-2 font-display text-3xl font-900">{readerName}</h1>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2"><Summary label="Session" value={`#${checkout.session_id}`} /><Summary label="Timer" value={checkout.session_status === 'READING' ? 'Still running' : 'Stopped'} /><Summary label="Books to return" value={String(checkout.books_to_return)} /><Summary label="Total due" value={money(checkout.total_charge)} /></div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2"><Summary label="Session" value={`#${checkout.session_id}`} /><Summary label="Seat" value={checkout.seat ? `${checkout.seat.number} · ${checkout.seat.area}` : '—'} /><Summary label="Checked in" value={dateTime(checkout.checked_in_at)} /><Summary label="Reading time" value={`${checkout.minutes} ${checkout.minutes === 1 ? 'minute' : 'minutes'}${checkout.session_status === 'READING' ? ' and counting' : ''}`} /><Summary label="Timer stopped" value={checkout.return_date ? dateTime(checkout.return_date) : 'Still running'} /><Summary label="Total due" value={money(checkout.total_charge)} /></div>
+          <section className="mt-5 rounded-xl border border-gold/30 bg-parch/25 p-5 text-sm" aria-labelledby="checkout-books-title">
+            <h2 id="checkout-books-title" className="font-display text-lg font-900">Books borrowed ({checkout.books?.length ?? 0})</h2>
+            {checkout.books?.length ? <ul className="mt-3 divide-y divide-gold/20">{checkout.books.map(book => <li key={book.copy_id} className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1 py-3 first:pt-0 last:pb-0"><span><strong className="block">{book.title}</strong><span className="text-umber/60">{book.author} · Copy #{book.copy_number}</span></span><span className={book.returned ? 'text-emerald-700' : 'font-bold text-rust'}>{book.returned ? 'Returned' : 'Return needed'}</span></li>)}</ul> : <p className="mt-3 text-umber/60">No books recorded for this session.</p>}
+          </section>
           {checkout.books_to_return > 0 && <p role="alert" className="mt-5 rounded-lg border border-rust/35 bg-rust/10 p-4 text-sm">Return and scan every remaining book before tapping the card again. This session has not ended.</p>}
-          {checkout.session_status === 'CHECKOUT PENDING' && <div className="mt-5 rounded-xl border border-gold/30 bg-parch/25 p-5 text-sm"><h2 className="font-display text-lg font-900">Charges</h2><p className="mt-3 flex justify-between"><span>Food</span><strong>{money(checkout.food_charge)}</strong></p><p className="mt-2 flex justify-between"><span>Other / damages</span><strong>{money(checkout.other_charge)}</strong></p><p className="mt-3 flex justify-between border-t border-gold/25 pt-3 text-lg"><span>Total</span><strong>{money(checkout.total_charge)}</strong></p></div>}
+          <div className="mt-5 rounded-xl border border-gold/30 bg-parch/25 p-5 text-sm"><h2 className="font-display text-lg font-900">Charges</h2><p className="mt-3 flex justify-between"><span>Food</span><strong>{money(checkout.food_charge)}</strong></p><p className="mt-2 flex justify-between"><span>Other / damages</span><strong>{money(checkout.other_charge)}</strong></p><p className="mt-3 flex justify-between border-t border-gold/25 pt-3 text-lg"><span>Total due</span><strong>{money(checkout.total_charge)}</strong></p></div>
           {checkout.disputed ? <p role="status" className="mt-5 rounded-lg border border-rust/30 bg-rust/10 p-4 text-sm">Checkout is paused while staff review the disputed charge. This summary refreshes automatically.</p> : checkout.session_status === 'CHECKOUT PENDING' && checkout.total_charge > 0 && checkout.payment_status !== 'PAID' ? <div className="mt-5 space-y-3"><p className="text-sm">Settle {money(checkout.total_charge)} with staff at the counter, or request a review below.</p><textarea className="tb-input w-full rounded-lg px-3 py-3" rows={3} value={reason} onChange={event => setReason(event.target.value)} placeholder="Explain the charge you want staff to review" /><button type="button" disabled={reason.trim().length < 5 || authenticating.current} onClick={() => void dispute()} className="tb-button-secondary tb-cut-sm px-4 py-3 text-sm">Dispute charge</button></div> : checkout.session_status === 'CHECKOUT PENDING' && <button type="button" disabled={authenticating.current} onClick={() => void complete()} className="tb-button-primary tb-cut-sm mt-5 w-full justify-center px-5 py-3">Complete checkout</button>}
           {message && <p role="alert" className="mt-5 rounded-lg border border-rust/35 bg-rust/10 p-3 text-sm">{message}</p>}
           {checkout.books_to_return > 0 && <button type="button" onClick={() => void reset()} className="tb-button-secondary tb-cut-sm mt-5 px-4 py-3"><RotateCcwIcon className="h-4 w-4" /> Ready for another card</button>}

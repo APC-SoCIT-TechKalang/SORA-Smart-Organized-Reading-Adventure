@@ -27,13 +27,16 @@ try {
   for (const file of ['001_schema.sql','002_access_draft.sql','003_reader_operations_draft.sql','004_staff_operations_draft.sql','011_kiosk_reading.sql','012_library_seat_layout.sql','015_reader_three_book_sessions.sql','018_per_book_returns_checkout.sql']) await sql(file);
   await sql('022_checkout_checked_in_reader.sql');
   await sql('022_checkout_checked_in_reader.sql');
+  await sql('023_checkout_session_summary.sql');
+  await sql('023_checkout_session_summary.sql');
   await db.query(`insert into sora_v2.users(id,first_name,last_name,username,birthdate,user_role,mobile_number,membership_type,membership_rank,membership_status,membership_expires_at,remaining_minutes)
     values($1,'Reader','One','reader1','2000-01-01','Reader','1','Guild Member','F','ACTIVE',now()+interval '1 day',120),
       ($2,'Reader','Two','reader2','2000-01-01','Reader','2','Guild Member','F','ACTIVE',now()+interval '1 day',120)`, [reader, other]);
   await db.query("insert into sora_v2.librarycard(user_id,librarycard_rfid) values ($1,'CARD1'),($2,'CARD2')", [reader, other]);
   await db.exec(`insert into sora_v2.authors(author_firstname,author_lastname) values('A','Writer');
-    insert into sora_v2.books(author_id,title,isbn,book_type,age_rating) values(1,'Book','9781234567890','Manga',0);
-    insert into sora_v2.book_copies(book_id,copy_number,barcode) values(1,1,'COPY1');`);
+    insert into sora_v2.books(author_id,title,isbn,book_type,age_rating) values
+      (1,'Book','9781234567890','Manga',0),(1,'Second Book','9781234567891','Manga',0);
+    insert into sora_v2.book_copies(book_id,copy_number,barcode) values(1,1,'COPY1'),(2,1,'COPY2');`);
 
   await scenario('approved check-in with a seat hold closes without a reading session', async () => {
     await db.query('insert into sora_v2.session_activity_logs(user_id,action) values($1,\'CHECKIN_APPROVED\')', [reader]);
@@ -83,5 +86,38 @@ try {
     assert.equal(result.checkin_only, undefined);
     assert.equal((await db.query('select sora_v2.kiosk_complete_checkout(1) as result')).rows[0].result.session_id, 1);
     assert.equal(await scalar('select seat_status from sora_v2.seats where seat_number=5'), 'AVAILABLE');
+  });
+  await scenario('checkout lists every borrowed book, visit details and charges', async () => {
+    await db.query('insert into sora_v2.session_activity_logs(user_id,action) values($1,\'CHECKIN_APPROVED\')', [reader]);
+    await as(reader);
+    await db.query('select sora_v2.kiosk_reserve_seat(5)');
+    const sessionId = (await db.query("select sora_v2.kiosk_scan_book('COPY1',5) as result")).rows[0].result.session_id;
+    await db.query("select sora_v2.kiosk_scan_book('COPY2',null)");
+    await db.exec('reset role');
+    await db.query('update sora_v2.sessions set food_charge=12.50,other_charge=7.25 where session_id=$1', [sessionId]);
+    await as(reader);
+    const reading = (await db.query('select sora_v2.kiosk_checkout_state() as result')).rows[0].result;
+    assert.equal(reading.books_to_return, 2);
+    assert.deepEqual(reading.books.map(book => book.title), ['Book', 'Second Book']);
+    assert.ok(reading.books.every(book => !book.returned));
+    assert.deepEqual(reading.seat, { number: 5, area: 'Center Seating' });
+    assert.ok(reading.checked_in_at);
+    await db.query("select sora_v2.kiosk_return_book($1,1,'COPY1')", [sessionId]);
+    await db.query("select sora_v2.kiosk_return_book($1,2,'COPY2')", [sessionId]);
+    const pending = (await checkout('CARD1')).rows[0].result;
+    assert.deepEqual(pending.books.map(book => [book.title, book.returned]), [['Book', true], ['Second Book', true]]);
+    assert.equal(pending.food_charge, 12.5);
+    assert.equal(pending.other_charge, 7.25);
+    assert.equal(pending.total_charge, 19.75);
+    assert.equal(pending.books_to_return, 0);
+    assert.ok(pending.minutes >= 0);
+    await as(other);
+    assert.equal((await db.query('select sora_v2.kiosk_checkout_state() as result')).rows[0].result, null);
+  });
+  await scenario('legacy session without scan logs still lists its book', async () => {
+    await db.query("insert into sora_v2.sessions(user_id,copy_id,seat_id) values($1,1,1)", [reader]);
+    await as(reader);
+    const state = (await db.query('select sora_v2.kiosk_checkout_state() as result')).rows[0].result;
+    assert.deepEqual(state.books.map(book => book.title), ['Book']);
   });
 } finally { await db.close(); }
