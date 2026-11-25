@@ -139,10 +139,10 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     }
   }, [messages, open]);
 
-  function addBonReply(response: string, go?: SectionId) {
+  function addBonReply(response: string, go?: SectionId, recommendations?: BonMessage['recommendations']) {
     setMessages((current) => [
       ...current,
-      { id: `b-${crypto.randomUUID()}`, from: 'bon', text: response },
+      { id: `b-${crypto.randomUUID()}`, from: 'bon', text: response, recommendations },
     ]);
     if (go) {
       window.setTimeout(() => setSection(go), 320);
@@ -231,14 +231,21 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
           },
         }),
       });
-      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; error?: unknown };
+      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; recommendations?: unknown; error?: unknown };
       if (!response.ok || typeof payload.message !== 'string' || !payload.message.trim()) {
         throw new Error(typeof payload.error === 'string' ? payload.error : 'BON request failed');
       }
       const destination = typeof payload.navigateTo === 'string' && ['archive', 'catalog', 'shelf', 'commissions', 'guide'].includes(payload.navigateTo)
         ? payload.navigateTo as SectionId
         : undefined;
-      addBonReply(payload.message, destination);
+      const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations.flatMap((item) => {
+        if (!item || typeof item !== 'object') return [];
+        const value = item as Record<string, unknown>;
+        const volumeId = typeof value.id === 'string' ? value.id : '';
+        const reason = typeof value.reason === 'string' ? value.reason.trim().slice(0, 180) : '';
+        return volumeId && reason && volumes.some((volume) => volume.id === volumeId) ? [{ volumeId, reason }] : [];
+      }).slice(0, 5) : [];
+      addBonReply(payload.message, destination, recommendations);
       if (Array.isArray(payload.suggestions)) {
         const next = payload.suggestions
           .filter((item): item is string => typeof item === 'string' && Boolean(item.trim()))
@@ -309,8 +316,8 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               </div>
 
               {messages.map((message) =>
+            <div key={message.id} className={`flex shrink-0 flex-col gap-2 ${message.from === 'user' ? 'items-end' : 'items-start'}`}>
             <p
-              key={message.id}
               className={`w-fit max-w-[86%] shrink-0 px-3.5 py-2.5 font-body text-[13px] font-600 leading-relaxed shadow-sm sm:text-sm ${
               message.from === 'bon' ?
               'tb-cut-sm rounded-2xl rounded-tl-sm border border-gold/45 bg-parch/40 text-umber' :
@@ -319,6 +326,26 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               
                   {message.text}
                 </p>
+                {message.recommendations?.length ? <div className="grid w-full gap-2" aria-label="BON book recommendations">
+                  {message.recommendations.map((recommendation) => {
+                    const volume = volumes.find((item) => item.id === recommendation.volumeId);
+                    if (!volume) return null;
+                    return <button key={volume.id} type="button" onClick={() => {
+                      setSection('catalog');
+                      window.setTimeout(() => window.dispatchEvent(new CustomEvent('tankobonbon:open-volume', { detail: { volumeId: volume.id } })), 350);
+                    }} className="group grid w-full grid-cols-[52px_minmax(0,1fr)] gap-3 rounded-xl border border-gold/40 bg-cream/90 p-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-rust">
+                      <span className="h-[70px] overflow-hidden rounded-md border border-gold/25 bg-parch/40">
+                        <img src={volume.coverImage || '/book-placeholder.svg'} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.src = '/book-placeholder.svg'; }} />
+                      </span>
+                      <span className="min-w-0 py-0.5">
+                        <strong className="line-clamp-1 block font-display text-[13px] text-umber">{volume.title}</strong>
+                        <span className="mt-1 line-clamp-2 block font-body text-[11px] leading-4 text-umber/70">{recommendation.reason}</span>
+                        <span className={`mt-1.5 block font-body text-[10px] font-800 uppercase tracking-[0.08em] ${volume.copies > 0 ? 'text-emerald-700' : 'text-rust'}`}>{volume.copies > 0 ? `${volume.copies} ${volume.copies === 1 ? 'copy' : 'copies'} available` : 'Currently unavailable'}</span>
+                      </span>
+                    </button>;
+                  })}
+                </div> : null}
+            </div>
             )}
 
               {thinking ?

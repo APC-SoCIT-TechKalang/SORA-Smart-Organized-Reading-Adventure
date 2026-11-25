@@ -35,6 +35,16 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
     if (genre !== 'All' && !volumes.some((volume) => hasGenre(volume.genre, genre))) setGenre('All');
   }, [genre, volumes]);
 
+  useEffect(() => {
+    const openRecommendedVolume = (event: Event) => {
+      const volumeId = (event as CustomEvent<{ volumeId?: string }>).detail?.volumeId;
+      const volume = volumes.find((item) => item.id === volumeId);
+      if (volume) setSelected(volume);
+    };
+    window.addEventListener('tankobonbon:open-volume', openRecommendedVolume);
+    return () => window.removeEventListener('tankobonbon:open-volume', openRecommendedVolume);
+  }, [volumes]);
+
   const results = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return volumes

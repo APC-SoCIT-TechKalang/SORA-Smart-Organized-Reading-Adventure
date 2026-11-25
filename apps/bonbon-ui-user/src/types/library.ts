@@ -71,6 +71,7 @@ export interface BonMessage {
   id: string;
   from: 'bon' | 'user';
   text: string;
+  recommendations?: Array<{ volumeId: string; reason: string }>;
 }
 
 export interface Toast {
