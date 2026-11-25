@@ -79,9 +79,9 @@ function directReply(message: string, context: AnalyticsContext) {
   if (/(how many|total|count).*(book|title)|(book|title).*(how many|total|count)/.test(q)) return `Tankobonbon currently has ${context.totalTitles.toLocaleString()} catalog title${context.totalTitles === 1 ? "" : "s"} and ${context.totalCopies.toLocaleString()} physical cop${context.totalCopies === 1 ? "y" : "ies"}.`;
   if (/available.*(copy|book)|(copy|book).*available|on shelf/.test(q)) return `${context.availableCopies.toLocaleString()} of ${context.totalCopies.toLocaleString()} physical copies are currently marked available on the shelf.`;
   if (/active.*(session|visit|reader)|(session|visit|reader).*active/.test(q)) return `${context.activeSessions.toLocaleString()} reading session${context.activeSessions === 1 ? " is" : "s are"} active right now. ${context.activeReaderAccounts.toLocaleString()} of ${context.readerProfiles.toLocaleString()} reader accounts are active.`;
-  if (!/genre/.test(q) && /top|popular|most (read|borrowed)|borrowing trend/.test(q)) {
+  if (!/genre/.test(q) && /top|popular|most[- ](?:used|read|borrowed)|borrowing trend/.test(q)) {
     const top = context.topBooks[0];
-    return top ? `${top.title} currently leads with ${top.sessions.toLocaleString()} recorded reading session${top.sessions === 1 ? "" : "s"}.` : "There are no recorded reading sessions yet, so a most-read title cannot be identified.";
+    return top ? `These are the most-used books for ${context.reportingPeriod}, ranked by recorded reading sessions.` : "There are no recorded reading sessions yet, so a most-used ranking is not available.";
   }
   if (/genre/.test(q) && /least|unused|underused/.test(q)) {
     const genre = context.genreStats[0];
@@ -90,7 +90,7 @@ function directReply(message: string, context: AnalyticsContext) {
   }
   if (/least|unused|underused|not (read|borrowed)/.test(q)) {
     const books = context.leastUsedBooks.slice(0, 5);
-    return books.length ? `For ${context.reportingPeriod}, the least-used titles are ${books.map(book => `${book.title} (${book.sessions} sessions)`).join(", ")}.` : `No least-used title data is available for ${context.reportingPeriod}.`;
+    return books.length ? `These are the least-used books for ${context.reportingPeriod}, ranked by recorded reading sessions.` : `No least-used title data is available for ${context.reportingPeriod}.`;
   }
   if (/genre/.test(q)) {
     const genre = context.genreStats[0];
@@ -103,7 +103,7 @@ function directReply(message: string, context: AnalyticsContext) {
 }
 
 function isAnalyticsQuestion(message: string) {
-  return /\b(most read|most popular|least[- ]used|least read|underused|genre|analytics|summary|reading activity|active sessions?|completed sessions?|quest participation|completion rate|catalog health|utilization|trend)\b/i.test(message);
+  return /\b(most[- ]used|most read|most popular|least[- ]used|least read|underused|genre|analytics|summary|reading activity|active sessions?|completed sessions?|quest participation|completion rate|catalog health|utilization|trend)\b/i.test(message);
 }
 
 function memberSearchTerm(message: string) {
