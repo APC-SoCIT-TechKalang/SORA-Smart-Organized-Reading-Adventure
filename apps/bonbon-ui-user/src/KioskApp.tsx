@@ -161,7 +161,7 @@ export function KioskApp() {
   }), []);
   useEffect(() => { void clearSession(); }, [clearSession]);
 
-  return <main className="kiosk-entrance text-umber"><KioskHeader status={status} />
+  return <main className="kiosk-entrance text-umber"><KioskHeader />
     <div className="kiosk-entrance-stage">
       <WelcomeView status={status} message={message} startPhysicalScan={startPhysicalScan} startQrScan={startQrScan} qrScanning={qrScanning} stopQrScan={() => { setQrScanning(false); setStatus('ready'); setMessage(''); }} videoRef={videoRef} />
     </div>
@@ -173,10 +173,9 @@ export function KioskApp() {
   </main>;
 }
 
-function KioskHeader({ status }: { status: KioskStatus }) {
-  const working = status === 'authorizing' || status === 'entering';
+function KioskHeader() {
   return <header className="kiosk-entrance-header">
-    <div className="mx-auto flex w-full max-w-[1440px] items-center justify-between gap-3 px-4 py-3 sm:px-8">
+    <div className="mx-auto w-full max-w-[1440px] px-4 py-3 sm:px-8">
       <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
         <span className="kiosk-entrance-seal"><BookOpenIcon aria-hidden="true" size={21} /></span>
         <span className="min-w-0">
@@ -184,7 +183,6 @@ function KioskHeader({ status }: { status: KioskStatus }) {
           <small className="block truncate text-[8px] font-800 uppercase tracking-[.09em] text-[#e7bf86] sm:text-[10px]">S.O.R.A. Reading Adventure</small>
         </span>
       </div>
-      <span className={`kiosk-entrance-status ${working ? 'is-working' : ''}`}>{working ? 'Signing in' : 'Kiosk ready'}</span>
     </div>
   </header>;
 }
