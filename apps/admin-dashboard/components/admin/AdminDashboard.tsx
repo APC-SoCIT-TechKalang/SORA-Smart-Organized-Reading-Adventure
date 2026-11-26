@@ -294,7 +294,7 @@ export function AdminDashboard() {
             run={run}
           />
         )}{" "}
-        {bulkDrawer && <BulkAddBooks close={() => setBulkDrawer(false)} run={run} />}
+        {bulkDrawer && <BulkAddBooks data={data} close={() => setBulkDrawer(false)} run={run} />}
         {editingCover && (
           <EditBookCover
             book={editingCover}
