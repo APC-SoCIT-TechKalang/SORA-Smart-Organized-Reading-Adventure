@@ -265,11 +265,6 @@ export function AdminDashboard() {
                 <Logo />
               </>
             )}
-            <div className={`${navOpen ? "" : "ml-auto"} hidden min-w-0 items-center gap-3 sm:flex`} aria-live="polite">
-              <span className="h-5 w-px bg-[#e5d4be]" aria-hidden="true" />
-              <span className="truncate text-xs font-bold tracking-wide text-[#6e4b31]">{nav.find(item => item.page === page)?.label}</span>
-              <span className="rounded-full border border-[#dfc9a7] bg-[#fff7e8] px-2.5 py-1 text-[9px] font-bold uppercase tracking-wider text-[#94611a]">Admin workspace</span>
-            </div>
           </header>
           <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
             <div className="mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">

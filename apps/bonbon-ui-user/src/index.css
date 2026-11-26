@@ -2651,3 +2651,223 @@ button, input, select, textarea { font-size: inherit; }
   .tb-main-stage { padding-top: 1rem; }
   [role="dialog"] { max-height: calc(100dvh - 1rem) !important; }
 }
+
+/* Executive product skin: shared visual DNA from the secure admin sign-in. */
+:root {
+  --color-canvas: #f3eadc;
+  --color-surface: #fffaf1;
+  --color-surface-muted: #f2dfc2;
+  --color-ink: #442819;
+  --color-ink-muted: #80644f;
+  --color-accent: #a83d12;
+  --color-gold: #c88b16;
+  --color-line: rgba(117, 75, 24, .2);
+  --tb-espresso: #2a140d;
+  --tb-espresso-soft: #4c2718;
+  --tb-copper: #e69b62;
+  --tb-luminous: #f5c822;
+  --tb-glass: rgba(255, 250, 241, .78);
+  --tb-glass-strong: rgba(255, 253, 248, .92);
+  --shadow-sm: 0 1px 1px rgba(49, 24, 13, .04), 0 12px 30px rgba(49, 24, 13, .08);
+  --shadow-lg: 0 28px 72px rgba(49, 24, 13, .2);
+}
+
+body {
+  background: #f4ecdf;
+  color: var(--color-ink);
+  font-feature-settings: "kern" 1, "liga" 1;
+  text-rendering: optimizeLegibility;
+}
+
+.tb-field {
+  background-color: #f4ecdf;
+  background-image:
+    radial-gradient(circle at 14% 7%, rgba(245, 200, 34, .2), transparent 23rem),
+    radial-gradient(circle at 92% 70%, rgba(168, 61, 18, .11), transparent 30rem),
+    linear-gradient(rgba(110, 67, 34, .045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(110, 67, 34, .045) 1px, transparent 1px),
+    linear-gradient(145deg, #fffaf1 0%, #f2e3ce 100%);
+  background-size: auto, auto, 32px 32px, 32px 32px, auto;
+}
+
+.tb-world-shell::before {
+  inset: 64px 0 0;
+  background:
+    radial-gradient(circle at 16% 18%, rgba(245, 200, 34, .14), transparent 25%),
+    radial-gradient(circle at 88% 68%, rgba(168, 61, 18, .1), transparent 30%),
+    linear-gradient(118deg, transparent 0 45%, rgba(255, 255, 255, .28) 49%, transparent 53%);
+}
+
+.tb-hud {
+  border-bottom-color: rgba(193, 128, 12, .28) !important;
+  background: rgba(255, 251, 244, .8) !important;
+  box-shadow: 0 12px 34px rgba(43, 21, 12, .08), inset 0 -1px rgba(255,255,255,.8) !important;
+  backdrop-filter: blur(22px) saturate(1.16);
+}
+
+.tb-hud::before {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 8%, #e69b62 32%, #f5c822 50%, #e69b62 68%, transparent 92%);
+  box-shadow: 0 0 18px rgba(245, 200, 34, .28);
+}
+
+.tb-brand-seal {
+  border-color: rgba(200, 139, 22, .42) !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.9), rgba(245,200,34,.09)) !important;
+  box-shadow: inset 0 0 0 3px rgba(255,255,255,.58), 0 8px 22px rgba(66, 35, 18, .1);
+}
+
+.tb-surface,
+.tb-ornate-panel,
+.tb-stat-card,
+.tb-quest-card,
+.tb-list-panel,
+.tb-nav-panel {
+  border-color: rgba(159, 102, 25, .22) !important;
+  background-color: var(--tb-glass-strong);
+  background-image:
+    linear-gradient(145deg, rgba(255,255,255,.8), rgba(255,255,255,.12) 58%),
+    radial-gradient(circle at 100% 0%, rgba(245,200,34,.09), transparent 15rem) !important;
+  box-shadow: 0 16px 45px rgba(49, 24, 13, .09), inset 0 1px rgba(255,255,255,.84);
+  backdrop-filter: blur(18px) saturate(1.08);
+}
+
+.tb-nav-panel {
+  box-shadow: 0 20px 55px rgba(49, 24, 13, .14), inset 0 1px rgba(255,255,255,.86);
+}
+
+.tb-nav-item {
+  border: 1px solid transparent;
+  border-radius: .8rem;
+  transition: color .18s ease, background-color .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+
+.tb-nav-item:hover {
+  border-color: rgba(200,139,22,.2);
+  background: rgba(245,200,34,.09);
+  box-shadow: inset 0 1px rgba(255,255,255,.7);
+}
+
+.tb-button-primary {
+  border-color: rgba(245, 200, 34, .72);
+  background: linear-gradient(110deg, #f5c822 0%, #e7ad22 58%, #d28a18 100%);
+  color: #32180d;
+  box-shadow: 0 10px 24px rgba(128, 75, 11, .2), inset 0 1px rgba(255,255,255,.5);
+}
+
+.tb-button-primary:hover {
+  border-color: #ffe66a;
+  background: linear-gradient(110deg, #ffe04d, #f5c822 58%, #e69b32);
+  color: #261108;
+  box-shadow: 0 15px 32px rgba(128, 75, 11, .27), 0 0 0 1px rgba(245,200,34,.16);
+  transform: translateY(-2px);
+}
+
+.tb-button-secondary,
+.tb-icon-button {
+  border-color: rgba(143, 89, 25, .28);
+  background: rgba(255, 251, 244, .74);
+  color: #4b2b19;
+  box-shadow: inset 0 1px rgba(255,255,255,.82), 0 6px 16px rgba(49,24,13,.05);
+  backdrop-filter: blur(10px);
+}
+
+.tb-button-secondary:hover,
+.tb-icon-button:hover {
+  border-color: rgba(200,139,22,.62);
+  background: #fff8e9;
+  box-shadow: 0 10px 24px rgba(49,24,13,.09), 0 0 0 3px rgba(245,200,34,.08);
+  transform: translateY(-1px);
+}
+
+.tb-button-primary:active,
+.tb-button-secondary:active,
+.tb-icon-button:active {
+  transform: translateY(1px) scale(.99);
+}
+
+.tb-input,
+input.tb-input,
+select.tb-input,
+textarea.tb-input {
+  border-color: rgba(143, 89, 25, .3);
+  background: rgba(255, 252, 247, .8);
+  box-shadow: inset 0 1px 2px rgba(49,24,13,.04), 0 5px 18px rgba(49,24,13,.035);
+  backdrop-filter: blur(10px);
+}
+
+.tb-input:focus,
+input.tb-input:focus,
+select.tb-input:focus,
+textarea.tb-input:focus {
+  border-color: #d99a1d;
+  background: #fffdf9;
+  box-shadow: 0 0 0 4px rgba(245,200,34,.16), 0 10px 24px rgba(49,24,13,.08);
+}
+
+.tb-eyebrow {
+  color: #aa6515;
+  letter-spacing: .2em;
+}
+
+.tb-stat-card,
+.tb-quest-card,
+.tb-book-card {
+  transition: transform .24s cubic-bezier(.22,1,.36,1), border-color .24s ease, box-shadow .24s ease;
+}
+
+.tb-stat-card:hover,
+.tb-quest-card:hover,
+.tb-book-card:hover {
+  border-color: rgba(200,139,22,.52) !important;
+  box-shadow: 0 22px 48px rgba(49,24,13,.14), 0 0 0 1px rgba(245,200,34,.09);
+  transform: translateY(-4px);
+}
+
+.tb-stat-card :is(strong, b),
+.tabular-nums,
+[class*="tabular-nums"] {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.tb-state {
+  border: 1px solid rgba(159, 102, 25, .24);
+  background: linear-gradient(145deg, rgba(255,253,248,.84), rgba(245,200,34,.045));
+  box-shadow: inset 0 1px rgba(255,255,255,.85);
+}
+
+[role="dialog"] {
+  border-color: rgba(200,139,22,.3) !important;
+  box-shadow: 0 32px 100px rgba(35,16,9,.34), 0 0 0 1px rgba(255,255,255,.35) inset !important;
+  animation: tb-dialog-enter .26s cubic-bezier(.22,1,.36,1);
+}
+
+[role="dialog"] :is(header, footer) {
+  backdrop-filter: blur(14px);
+}
+
+@keyframes tb-dialog-enter {
+  from { opacity: 0; transform: translateY(12px) scale(.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+:is(a, button, input, select, textarea):focus-visible {
+  outline: 2px solid #e0a51f;
+  outline-offset: 3px;
+}
+
+@media (max-width: 767px) {
+  .tb-surface,
+  .tb-ornate-panel,
+  .tb-stat-card,
+  .tb-quest-card,
+  .tb-list-panel { box-shadow: 0 10px 28px rgba(49,24,13,.08), inset 0 1px rgba(255,255,255,.8); }
+  .tb-main-stage { gap: .75rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [role="dialog"],
+  .tb-stat-card,
+  .tb-quest-card,
+  .tb-book-card { animation: none; transition: none; }
+}
