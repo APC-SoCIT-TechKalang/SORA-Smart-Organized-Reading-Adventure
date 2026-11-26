@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Camera, CheckCircle2, LoaderCircle, Nfc, QrCode, ShieldCheck, WalletCards, X } from "lucide-react";
+import { CheckCircle2, Clock3, LoaderCircle, Nfc, QrCode, ShieldCheck, WalletCards, X } from "lucide-react";
 import { database, errorMessage } from "../../lib/supabase";
 import { isDigitalCardPayload, parseDigitalCardPayload, sanitizeCardPayload, subscribeToCardScanner } from "../../lib/card-scanner";
 import type { DashboardData } from "./dashboard-data";
@@ -30,7 +30,23 @@ type UserRow = {
 type BarcodeDetectorInstance = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> };
 type BarcodeDetectorConstructor = new (options: { formats: string[] }) => BarcodeDetectorInstance;
 const api = () => database().schema("sora_v2");
-const MINUTE_PRESETS = [30, 60, 120, 180];
+const PESO_PRESETS = [50, 100, 200, 500];
+type RateTier = "Adult" | "Minor";
+
+// Library pricing policy. Change these values when the hourly rates change.
+export const TOP_UP_RATES_PHP_PER_HOUR: Record<RateTier, number> = {
+  Adult: 50,
+  Minor: 30,
+};
+
+function formatDuration(totalMinutes: number) {
+  if (totalMinutes <= 0) return "0 minutes";
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (!hours) return `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+  if (!minutes) return `${hours} ${hours === 1 ? "hour" : "hours"}`;
+  return `${hours}h ${minutes}m`;
+}
 
 export function TopUpTerminal({ data, name, run }: {
   data: DashboardData;
@@ -41,21 +57,35 @@ export function TopUpTerminal({ data, name, run }: {
   const [verifying, setVerifying] = useState(false);
   const [message, setMessage] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [minutes, setMinutes] = useState("60");
+  const [rateTier, setRateTier] = useState<RateTier>("Adult");
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("Cash");
   const [reference, setReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [completedBalance, setCompletedBalance] = useState<number | null>(null);
   const verificationLock = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const resetTimer = useRef<number | null>(null);
+
+  const amountValue = Number(amount) || 0;
+  const hourlyRate = TOP_UP_RATES_PHP_PER_HOUR[rateTier];
+  const calculatedMinutes = amountValue > 0 ? Math.max(1, Math.round((amountValue / hourlyRate) * 60)) : 0;
+  const newBalance = (reader?.balance ?? 0) + calculatedMinutes;
 
   const reset = useCallback(() => {
+    if (resetTimer.current) window.clearTimeout(resetTimer.current);
     setReader(null);
-    setMinutes("60");
+    setRateTier("Adult");
     setAmount("");
     setMethod("Cash");
     setReference("");
     setMessage("");
+    setCompletedBalance(null);
+    setSubmitting(false);
+  }, []);
+
+  useEffect(() => () => {
+    if (resetTimer.current) window.clearTimeout(resetTimer.current);
   }, []);
 
   const verifyPayload = useCallback(async (rawPayload: string) => {
@@ -112,9 +142,9 @@ export function TopUpTerminal({ data, name, run }: {
   }, []);
 
   useEffect(() => {
-    if (reader || cameraOpen) return;
+    if (reader) return;
     return subscribeToCardScanner(payload => void verifyPayload(payload));
-  }, [cameraOpen, reader, verifyPayload]);
+  }, [reader, verifyPayload]);
 
   useEffect(() => {
     if (!reader) return;
@@ -184,14 +214,13 @@ export function TopUpTerminal({ data, name, run }: {
               <strong className="mt-4 block font-serif text-xl">Tap physical card</strong><span className="mt-1.5 block text-xs leading-5 text-white/70">Use the RFID reader connected to this terminal.</span>
               <span className="absolute right-4 top-4 rounded-full bg-[#f9d219] px-2.5 py-1 text-[8px] font-extrabold uppercase tracking-wider text-[#543822]">Recommended</span>
             </button>
-            <button type="button" disabled={verifying} onClick={() => { setMessage("USB 2D scanner is ready, or open the camera below."); }} className="group min-h-44 rounded-2xl border border-[#d8c3ad] bg-[#fffaf1] p-5 text-left text-[#543822] transition hover:-translate-y-1 hover:border-[#c4800c] hover:shadow-lg disabled:translate-y-0 disabled:opacity-60">
+            <button type="button" disabled={verifying} onClick={() => { setMessage(""); setCameraOpen(true); }} className="group min-h-44 rounded-2xl border border-[#d8c3ad] bg-[#fffaf1] p-5 text-left text-[#543822] transition hover:-translate-y-1 hover:border-[#c4800c] hover:shadow-lg disabled:translate-y-0 disabled:opacity-60">
               <span className="grid h-16 w-16 place-items-center rounded-full border border-[#d8c3ad] bg-white text-[#a83d12]"><QrCode size={28} /></span>
-              <strong className="mt-4 block font-serif text-xl">Scan digital card</strong><span className="mt-1.5 block text-xs leading-5 text-[#806b59]">Show the QR code from the reader’s Digital ID.</span>
+              <strong className="mt-4 block font-serif text-xl">Scan digital card</strong><span className="mt-1.5 block text-xs leading-5 text-[#806b59]">Opens the camera. The USB 2D scanner also stays ready.</span>
             </button>
           </div>
-          <div className="mt-4 flex flex-col items-center justify-between gap-3 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 sm:flex-row">
+          <div className="mt-4 flex items-center gap-3 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4">
             <div className="flex items-center gap-3 text-sm text-[#704d34]">{verifying ? <LoaderCircle className="animate-spin text-[#a83d12]" size={20} /> : <ShieldCheck className="text-emerald-700" size={20} />}<span>{verifying ? "Verifying card and membership…" : "Global RFID and QR scanner listening"}</span></div>
-            <button type="button" disabled={verifying} onClick={() => setCameraOpen(true)} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-[#c8a681] bg-white px-4 text-xs font-bold text-[#a83d12] sm:w-auto"><Camera size={16} />Use camera</button>
           </div>
         </div>
       </section>
@@ -207,14 +236,39 @@ export function TopUpTerminal({ data, name, run }: {
 
     {cameraOpen && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/75 p-2 backdrop-blur-sm sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) setCameraOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="camera-scan-title" className="terminal-modal-panel flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] shadow-2xl"><header className="flex items-center justify-between border-b border-[#eadfd3] p-4 sm:p-5"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">Digital card</p><h2 id="camera-scan-title" className="mt-1 font-serif text-2xl">Scan QR code</h2></div><button type="button" onClick={() => setCameraOpen(false)} aria-label="Close camera" className="grid h-10 w-10 place-items-center rounded-full border border-[#d8c3ad]"><X size={18} /></button></header><div className="min-h-0 overflow-y-auto p-3 sm:p-5"><div className="relative aspect-video overflow-hidden rounded-xl bg-[#21130c]"><video ref={videoRef} muted playsInline className="h-full w-full object-cover" /><div className="pointer-events-none absolute inset-[14%] rounded-xl border-2 border-white shadow-[0_0_0_999px_rgba(45,25,12,.45)]" /><div className="pointer-events-none absolute left-[18%] right-[18%] top-1/2 h-0.5 bg-[#f9d219] shadow-[0_0_14px_#f9d219]" /></div><p className="mt-4 text-center text-sm text-[#806b59]">Hold the Digital ID QR code inside the frame.</p></div></section></div>, document.body)}
 
-    {reader && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/55 p-2 backdrop-blur-sm sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) reset(); }}><form role="dialog" aria-modal="true" aria-labelledby="top-up-menu-title" className="terminal-modal-panel flex max-h-[90dvh] min-h-0 w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.38)]" onSubmit={async event => { event.preventDefault(); if (submitting) return; setSubmitting(true); try { const ok = await run(() => api().rpc("admin_top_up", { p_user_id: reader.userId, p_minutes: Number(minutes), p_amount: Number(amount), p_method: method, p_reference: reference.trim() }), `Top-up completed for ${reader.name}`); if (ok) reset(); } finally { setSubmitting(false); } }}>
-      <header className="relative shrink-0 overflow-hidden bg-[#543822] px-5 py-5 text-white sm:px-7"><div aria-hidden="true" className="absolute -right-10 -top-16 h-44 w-44 rounded-full border border-[#f3d793]/15" /><div className="relative flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#f3d793]">Verified top-up session</p><h2 id="top-up-menu-title" className="mt-1 font-serif text-2xl font-semibold sm:text-3xl">{reader.name}</h2><p className="mt-2 text-xs text-white/65">Card: {reader.cardUid} · {reader.membership}</p></div><button type="button" disabled={submitting} onClick={reset} aria-label="Close top-up menu" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10"><X size={18} /></button></div></header>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-7">
-        <div className="flex items-center justify-between gap-4 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4"><div><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#9a806b]">Current balance</p><p className="mt-1 font-serif text-3xl font-semibold text-[#a83d12]">{reader.balance.toLocaleString()} minutes</p></div><CheckCircle2 className="shrink-0 text-emerald-700" size={28} /></div>
-        <fieldset className="mt-5"><legend className="text-xs font-bold uppercase tracking-[.13em] text-[#795a42]">Quick top-up</legend><div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{MINUTE_PRESETS.map(value => <button key={value} type="button" onClick={() => setMinutes(String(value))} className={`min-h-12 rounded-xl border text-sm font-bold transition ${minutes === String(value) ? "border-[#a83d12] bg-[#a83d12] text-white" : "border-[#d8c3ad] bg-white text-[#704d34] hover:bg-[#fff5e8]"}`}>+{value} min</button>)}</div></fieldset>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2"><label className="text-xs font-bold">Custom minutes<input required type="number" min="1" max="10000" value={minutes} onChange={event => setMinutes(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" /></label><label className="text-xs font-bold">Amount paid<input required type="number" min="0" step="0.01" value={amount} onChange={event => setAmount(event.target.value)} placeholder="0.00" className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" /></label><label className="text-xs font-bold">Payment method<select value={method} onChange={event => setMethod(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal"><option>Cash</option><option>Gcash</option><option>Card</option></select></label><label className="text-xs font-bold">Receipt / payment reference<input required maxLength={100} value={reference} onChange={event => setReference(event.target.value)} className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" placeholder="Enter reference" /></label></div>
-      </div>
-      <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] p-4 sm:flex-row sm:justify-end sm:px-7"><button type="button" disabled={submitting} onClick={reset} className="min-h-12 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold">Cancel</button><button type="submit" disabled={submitting || !minutes || Number(minutes) <= 0 || amount === "" || !reference.trim()} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-6 text-xs font-bold text-white disabled:opacity-45">{submitting ? <><LoaderCircle size={16} className="animate-spin" />Processing…</> : <><WalletCards size={16} />Confirm top-up</>}</button></footer>
+    {reader && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/55 p-2 backdrop-blur-sm sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) reset(); }}><form role="dialog" aria-modal="true" aria-labelledby="top-up-menu-title" className="terminal-modal-panel flex max-h-[90dvh] min-h-0 w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.38)]" onSubmit={async event => {
+      event.preventDefault();
+      if (submitting || calculatedMinutes <= 0 || amountValue <= 0) return;
+      setSubmitting(true);
+      const updatedBalance = reader.balance + calculatedMinutes;
+      const ok = await run(() => api().rpc("admin_top_up", {
+        p_user_id: reader.userId,
+        p_minutes: calculatedMinutes,
+        p_amount: amountValue,
+        p_method: method,
+        p_reference: reference.trim() || null,
+      }), `Top-up completed for ${reader.name}`);
+      if (ok) {
+        setCompletedBalance(updatedBalance);
+        resetTimer.current = window.setTimeout(reset, 2200);
+      } else setSubmitting(false);
+    }}>
+      <header className="relative shrink-0 overflow-hidden bg-[#543822] px-5 py-4 text-white sm:px-6"><div aria-hidden="true" className="absolute -right-10 -top-16 h-44 w-44 rounded-full border border-[#f3d793]/15" /><div className="relative flex items-start justify-between gap-4"><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#f3d793]">Verified top-up session</p><h2 id="top-up-menu-title" className="mt-1 truncate font-serif text-2xl font-semibold">{reader.name}</h2><p className="mt-1.5 truncate text-xs text-white/65">Card {reader.cardUid} · {reader.membership}</p></div><button type="button" disabled={submitting} onClick={reset} aria-label="Close top-up menu" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10"><X size={18} /></button></div></header>
+
+      {completedBalance !== null ? <div className="grid min-h-0 flex-1 place-items-center overflow-y-auto p-6 text-center sm:p-8"><div><span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-emerald-700"><CheckCircle2 size={34} /></span><p className="mt-5 text-[10px] font-bold uppercase tracking-[.18em] text-emerald-700">Top-up successful</p><h3 className="mt-2 font-serif text-3xl font-semibold">{completedBalance.toLocaleString()} minutes</h3><p className="mt-2 text-sm text-[#806b59]">New balance · {formatDuration(completedBalance)}</p><p className="mt-5 text-xs text-[#9a806b]">Resetting the terminal for the next reader…</p></div></div> : <>
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          <fieldset><legend className="text-[10px] font-bold uppercase tracking-[.15em] text-[#795a42]">Reader rate</legend><div className="mt-2 grid grid-cols-2 rounded-xl border border-[#d8c3ad] bg-[#f7efe4] p-1">{(["Adult", "Minor"] as RateTier[]).map(tier => <button key={tier} type="button" aria-pressed={rateTier === tier} onClick={() => setRateTier(tier)} className={`min-h-11 rounded-lg px-3 text-sm font-bold transition ${rateTier === tier ? "bg-[#a83d12] text-white shadow-sm" : "text-[#704d34] hover:bg-white"}`}>{tier}<span className="ml-1.5 text-[10px] font-medium opacity-75">₱{TOP_UP_RATES_PHP_PER_HOUR[tier]}/hr</span></button>)}</div></fieldset>
+
+          <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[#543822] p-4 text-white"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#f3d793]">Current balance</p><p className="mt-2 font-serif text-2xl font-semibold">{reader.balance.toLocaleString()}</p><p className="text-[11px] text-white/65">minutes</p></div><div className="rounded-xl border border-[#e7bd66] bg-[#fff4cf] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#8b5510]">New balance</p><p className="mt-2 font-serif text-2xl font-semibold text-[#a83d12]">{newBalance.toLocaleString()}</p><p className="text-[11px] text-[#8b6b3e]">minutes</p></div></div>
+
+          <fieldset className="mt-4"><legend className="text-[10px] font-bold uppercase tracking-[.15em] text-[#795a42]">Choose amount</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{PESO_PRESETS.map(value => <button key={value} type="button" onClick={() => setAmount(String(value))} className={`min-h-12 rounded-xl border text-sm font-bold transition ${amountValue === value ? "border-[#a83d12] bg-[#a83d12] text-white" : "border-[#d8c3ad] bg-white text-[#704d34] hover:bg-[#fff5e8]"}`}>₱{value}</button>)}</div></fieldset>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]"><label className="text-xs font-bold">Custom peso amount<div className="relative mt-2"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-semibold text-[#806b59]">₱</span><input required inputMode="decimal" type="number" min="1" max="100000" step="1" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Enter amount" className="min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white pl-8 pr-3 text-sm font-normal" /></div></label><div className="flex min-w-40 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><Clock3 size={20} className="shrink-0" /><div><p className="text-[9px] font-bold uppercase tracking-wider">Time added</p><p className="text-sm font-bold">{formatDuration(calculatedMinutes)}</p><p className="text-[10px]">{calculatedMinutes.toLocaleString()} min</p></div></div></div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold">Payment method<select value={method} onChange={event => setMethod(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal"><option>Cash</option><option>Gcash</option><option>Card</option></select></label><label className="text-xs font-bold">Receipt / reference <span className="font-normal text-[#9a806b]">(optional)</span><input maxLength={100} value={reference} onChange={event => setReference(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" placeholder="Enter reference" /></label></div>
+        </div>
+        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] p-4 sm:flex-row sm:justify-end sm:px-6"><button type="button" disabled={submitting} onClick={reset} className="min-h-12 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold">Cancel</button><button type="submit" disabled={submitting || amountValue <= 0 || calculatedMinutes <= 0} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-6 text-xs font-bold text-white disabled:opacity-45 sm:flex-none">{submitting ? <><LoaderCircle size={16} className="animate-spin" />Processing…</> : <><WalletCards size={16} />Confirm ₱{amountValue.toLocaleString()} top-up</>}</button></footer>
+      </>}
     </form></div>, document.body)}
   </>;
 }
