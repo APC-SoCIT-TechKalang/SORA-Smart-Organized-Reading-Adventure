@@ -28,7 +28,7 @@ export function HeroReading() {
         {Array.from({ length: 10 }, (_, index) => <span key={index} style={{ '--i': index } as CSSProperties}>✦</span>)}
       </div>
       <div className="relative grid min-h-[480px] lg:min-h-[570px] lg:grid-cols-[minmax(0,1.12fr)_minmax(340px,.88fr)]">
-        <div className="flex flex-col p-5 sm:p-7 lg:p-8">
+        <div className="flex flex-col p-5 sm:p-6 lg:p-7">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="inline-flex items-center gap-2 rounded-full border border-gold/30 bg-white/60 px-3 py-1.5 text-[9px] font-900 uppercase tracking-[.2em] text-gold backdrop-blur"><SparklesIcon className="h-3.5 w-3.5" />{isReading ? 'Your active chapter' : 'Curated for your next visit'}</span>
             {session && <span className="text-[10px] font-800 uppercase tracking-[.14em] text-umber/45">Reader dashboard</span>}
@@ -63,7 +63,7 @@ export function HeroReading() {
           <div className="flex items-center gap-2 border-t border-gold/20 pt-3 text-[10px] font-700 text-umber/45"><CheckCircle2Icon className="h-4 w-4 text-gold" />Live availability is shown for signed-in readers.</div>
         </div>
 
-        <div className="relative flex items-center justify-center overflow-hidden bg-[#543822] p-6 text-cream sm:p-8 lg:min-h-full">
+        <div className="relative flex items-center justify-center overflow-hidden bg-[#543822] p-5 text-cream sm:p-6 lg:min-h-full">
           <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(circle_at_50%_40%,rgba(249,210,25,.28),transparent_38%),repeating-linear-gradient(135deg,transparent_0,transparent_28px,rgba(243,215,147,.035)_28px,rgba(243,215,147,.035)_29px)]" />
           <div className="relative w-full max-w-[250px]">
             <div className="mb-3 flex items-center justify-between gap-3">

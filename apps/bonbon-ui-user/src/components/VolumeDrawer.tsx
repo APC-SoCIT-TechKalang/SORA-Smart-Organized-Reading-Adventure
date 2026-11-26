@@ -45,10 +45,10 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
       {volume && (
         <motion.div className="fixed inset-0 z-[60] flex items-end justify-center sm:items-center sm:p-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
           <motion.button type="button" aria-label="Close volume details" onClick={onClose} className="absolute inset-0 bg-umber/70 backdrop-blur-md" />
-          <motion.aside role="dialog" aria-modal="true" aria-labelledby="volume-title" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }} transition={{ duration: 0.28, ease: EASE }} className="tb-scroll relative z-10 max-h-[94dvh] w-full max-w-[940px] overflow-y-auto rounded-t-2xl border border-gold/45 bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_28px_75px_rgba(30,17,8,.42)] sm:max-h-[92dvh] sm:rounded-2xl sm:pb-0">
+          <motion.aside role="dialog" aria-modal="true" aria-labelledby="volume-title" initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 18, scale: 0.98 }} transition={{ duration: 0.28, ease: EASE }} className="tb-scroll relative z-10 max-h-[calc(100dvh-1rem)] w-full max-w-[860px] overflow-y-auto rounded-t-2xl border border-gold/45 bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_28px_75px_rgba(30,17,8,.42)] sm:max-h-[calc(100dvh-2rem)] sm:rounded-2xl sm:pb-0">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-gold/30 bg-umber px-5 py-3 text-sand"><span className="font-display text-xs font-700 uppercase tracking-[.14em]">Book details</span><button type="button" onClick={onClose} aria-label="Close book details" className="flex h-10 w-10 items-center justify-center rounded-full text-sand/70 transition hover:bg-sand/10 hover:text-sun"><XIcon aria-hidden="true" className="h-5 w-5" /></button></div>
 
-            <div className="grid gap-5 p-4 min-[390px]:p-5 sm:gap-7 sm:p-8 md:grid-cols-[200px_minmax(0,1fr)]">
+            <div className="grid gap-4 p-4 min-[390px]:p-5 sm:gap-5 sm:p-6 md:grid-cols-[180px_minmax(0,1fr)]">
               <div className="mx-auto w-[132px] min-[390px]:w-[150px] sm:w-[170px] md:mx-0 md:w-[200px]">
                 <div className="overflow-hidden border-[3px] border-gold bg-umber p-1 shadow-[0_16px_28px_rgba(84,56,34,.22)]">
                   {image ? <img src={image} alt={`${volume.title} cover`} className="aspect-[3/4] w-full object-cover" /> : <div className="flex aspect-[3/4] flex-col justify-end p-4" style={{ backgroundColor: volume.plateColor }}><span className="font-display text-xl font-900 uppercase leading-tight" style={{ color: volume.plateInk }}>{volume.plate.map((line) => <span key={line} className="block">{line}</span>)}</span></div>}
@@ -58,7 +58,7 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
 
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2"><span className="tb-eyebrow">{volume.genre} · Volume {volume.volume}</span><span className={`book-status text-[9px] font-800 uppercase ${volume.copies > 0 ? 'is-available' : 'is-loan'}`}>{volume.copies < 0 ? 'Sign in for availability' : volume.copies > 0 ? 'Available' : 'Ask staff'}</span></div>
-                <h2 id="volume-title" className="mt-2 font-display text-3xl font-900 leading-tight text-umber sm:text-4xl">{volume.title}</h2>
+                <h2 id="volume-title" className="mt-2 font-display text-2xl font-900 leading-tight text-umber sm:text-3xl">{volume.title}</h2>
                 <p className="mt-2 text-sm font-600 text-umber/60">by {volume.author}</p>
 
                 <div className="mt-5 flex flex-wrap gap-2"><Badge icon={<StarIcon aria-hidden="true" className="h-3.5 w-3.5 fill-sun text-sun" />} label={volume.rating ? `${volume.rating} reader rating` : 'Not rated'} /><Badge icon={<Layers3Icon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />} label={volume.chapters ? `${volume.chapters} chapters` : 'Chapter count pending'} /><Badge icon={<CalendarDaysIcon aria-hidden="true" className="h-3.5 w-3.5 text-gold" />} label="Collection edition" /></div>

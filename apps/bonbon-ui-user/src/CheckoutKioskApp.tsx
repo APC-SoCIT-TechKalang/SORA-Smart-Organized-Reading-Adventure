@@ -141,8 +141,8 @@ export function CheckoutKioskApp() {
 
   return <main className="tb-field tb-world-shell min-h-screen text-umber">
     <header className="tb-hud border-b border-gold/35 bg-cream/90 shadow-[0_8px_30px_rgba(84,56,34,.07)]"><div className="mx-auto flex max-w-[1440px] items-center justify-between px-4 py-3 sm:px-6"><div className="flex items-center gap-3"><span className="tb-brand-seal grid h-11 w-11 place-items-center rounded-full border border-gold/50 bg-parch/25"><BookOpenIcon className="h-5 w-5 text-rust" /></span><span className="font-display text-xl font-900 uppercase tracking-[.06em]">Tankobonbon</span></div><span className="tb-eyebrow">Checkout kiosk</span></div></header>
-    <div className="mx-auto grid min-h-[calc(100vh-76px)] max-w-[1480px] place-items-center px-4 py-8 sm:px-6">
-      <section className="tb-surface tb-cut-lg w-full max-w-2xl border border-gold/35 p-7 shadow-[0_24px_70px_rgba(84,56,34,.18)] sm:p-10">
+    <div className="mx-auto grid min-h-[calc(100dvh-68px)] max-w-[1360px] place-items-center px-4 py-5 sm:px-6">
+      <section className="tb-surface tb-cut-lg w-full max-w-xl border border-gold/35 p-5 shadow-[0_24px_70px_rgba(84,56,34,.18)] sm:p-7">
         {status === 'preparing' && <p role="status" className="text-center">Preparing checkout kiosk…</p>}
         {['ready', 'scanning', 'authorizing', 'error'].includes(status) && !checkout && <div className="text-center">
           <span className="mx-auto grid h-24 w-24 place-items-center rounded-full bg-parch/50 text-rust"><CreditCardIcon className="h-11 w-11" /></span>

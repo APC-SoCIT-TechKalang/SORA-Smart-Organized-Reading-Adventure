@@ -146,7 +146,7 @@ export function KioskApp() {
   useEffect(() => { void clearSession(); }, [clearSession]);
 
   return <main className="tb-field tb-world-shell min-h-screen overflow-hidden text-umber"><KioskHeader />
-    <div className="relative mx-auto grid min-h-[calc(100dvh-76px)] max-w-[1480px] place-items-center px-4 py-7 sm:px-6 sm:py-10 lg:px-10">
+    <div className="relative mx-auto grid min-h-[calc(100dvh-68px)] max-w-[1360px] place-items-center px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
       <div aria-hidden="true" className="pointer-events-none absolute -left-28 top-12 h-72 w-72 rounded-full border border-gold/15 bg-sun/15 blur-3xl" />
       <div aria-hidden="true" className="pointer-events-none absolute -right-32 bottom-4 h-96 w-96 rounded-full border border-rust/10 bg-rust/10 blur-3xl" />
       <WelcomeView status={status} message={message} startPhysicalScan={startPhysicalScan} startQrScan={startQrScan} qrScanning={qrScanning} stopQrScan={() => { setQrScanning(false); setStatus('ready'); setMessage(''); }} videoRef={videoRef} />
@@ -168,17 +168,17 @@ interface WelcomeViewProps {
 
 function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanning, stopQrScan, videoRef }: WelcomeViewProps) {
   if (qrScanning) return <section aria-labelledby="scan-title" className="tb-surface tb-cut-lg relative z-10 grid w-full max-w-5xl overflow-hidden border border-gold/35 shadow-[0_30px_90px_rgba(84,56,34,.2)] lg:grid-cols-[1.15fr_.85fr]">
-    <div className="relative min-h-[360px] bg-umber p-4 sm:p-7 lg:min-h-[560px]">
-      <div className="relative mx-auto h-full min-h-[328px] w-full overflow-hidden rounded-2xl border border-sun/60 bg-[#24150d] shadow-[inset_0_0_50px_rgba(0,0,0,.45)] sm:min-h-[480px]">
+    <div className="relative min-h-[320px] bg-umber p-4 sm:p-6 lg:min-h-[480px]">
+      <div className="relative mx-auto h-full min-h-[288px] w-full overflow-hidden rounded-2xl border border-sun/60 bg-[#24150d] shadow-[inset_0_0_50px_rgba(0,0,0,.45)] sm:min-h-[410px]">
         <video ref={videoRef} muted playsInline aria-label="QR code camera preview" className="absolute inset-0 h-full w-full object-cover" />
         <div aria-hidden="true" className="pointer-events-none absolute inset-[12%] rounded-2xl border-2 border-white/90 shadow-[0_0_0_999px_rgba(30,17,8,.48)] sm:inset-[16%]" />
         <div aria-hidden="true" className="absolute left-[16%] right-[16%] top-1/2 h-0.5 bg-sun shadow-[0_0_16px_#f9d219] sm:left-[20%] sm:right-[20%]" />
         <span className="absolute left-4 top-4 flex items-center gap-2 rounded-full border border-white/15 bg-umber/85 px-3 py-2 text-[10px] font-800 uppercase tracking-[.15em] text-cream backdrop-blur"><CameraIcon aria-hidden="true" className="h-3.5 w-3.5 text-sun" /> Camera active</span>
       </div>
     </div>
-    <div className="flex flex-col justify-center p-7 sm:p-10 lg:p-12">
+    <div className="flex flex-col justify-center p-6 sm:p-8 lg:p-10">
       <p className="tb-eyebrow">Digital reader card</p>
-      <h1 id="scan-title" className="mt-4 font-display text-3xl font-900 uppercase leading-[1.08] tracking-[.035em] sm:text-4xl">Hold your QR code inside the frame</h1>
+      <h1 id="scan-title" className="mt-3 font-display text-2xl font-900 uppercase leading-[1.08] tracking-[.035em] sm:text-3xl">Hold your QR code inside the frame</h1>
       <p className="mt-4 text-sm leading-6 text-umber/65 sm:text-base">Open your digital reader card and show the QR code on its back. Keep your screen steady and bright.</p>
       <div className="mt-7 flex items-start gap-3 border-y border-gold/20 py-4 text-left text-xs leading-5 text-umber/60"><ShieldCheckIcon aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-gold" /><p>Your QR code is used only to identify your reader account for this kiosk session.</p></div>
       {message && <p role="status" className="mt-5 rounded-xl border border-gold/30 bg-parch/30 p-3 text-sm text-umber/70">{message}</p>}
@@ -190,14 +190,14 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
   const steps = ['Scan your reader card', 'Choose an available seat', 'Scan a book and start reading'];
   return <section aria-labelledby="kiosk-welcome-title" className="tb-cut-lg relative z-10 w-full max-w-6xl before:absolute before:-inset-2 before:-z-10 before:border before:border-gold/15 before:bg-cream/35 before:content-['']">
     <div className="grid overflow-hidden border border-gold/40 bg-cream shadow-[0_36px_110px_rgba(84,56,34,.25),0_4px_0_rgba(196,128,12,.2)] lg:grid-cols-[1.04fr_.96fr]">
-      <div className="relative flex min-h-[390px] flex-col justify-between overflow-hidden bg-[radial-gradient(circle_at_92%_8%,rgba(196,128,12,.2),transparent_30%),linear-gradient(145deg,#5b3922,#3d2517)] p-7 text-cream sm:p-10 lg:min-h-[620px] lg:p-14">
+      <div className="relative flex min-h-[350px] flex-col justify-between overflow-hidden bg-[radial-gradient(circle_at_92%_8%,rgba(196,128,12,.2),transparent_30%),linear-gradient(145deg,#5b3922,#3d2517)] p-6 text-cream sm:p-8 lg:min-h-[500px] lg:p-10">
         <div aria-hidden="true" className="absolute inset-0 opacity-[.055]" style={{ backgroundImage: 'radial-gradient(#fff 1px, transparent 1px)', backgroundSize: '13px 13px' }} />
         <div aria-hidden="true" className="absolute -right-24 -top-28 h-80 w-80 rounded-full border border-sun/20" />
         <div aria-hidden="true" className="absolute -right-9 -top-12 h-52 w-52 rounded-full border border-sun/15" />
         <div aria-hidden="true" className="absolute bottom-0 left-0 h-1.5 w-full bg-gradient-to-r from-rust via-sun to-gold" />
         <div className="relative">
           <div className="flex items-center gap-3"><span className="border border-sun/30 bg-sun/10 px-2.5 py-1.5 font-display text-[9px] font-900 tracking-[.18em] text-sun">CH. 01</span><p className="flex items-center gap-2 text-[10px] font-800 uppercase tracking-[.24em] text-sun"><SparklesIcon aria-hidden="true" className="h-4 w-4" /> Welcome, reader</p></div>
-          <h1 id="kiosk-welcome-title" className="mt-7 max-w-lg font-display text-[2.5rem] font-900 uppercase leading-[.94] tracking-[.01em] sm:text-5xl lg:text-[3.7rem]">Your next <span className="text-sun">chapter</span><br />starts here.</h1>
+          <h1 id="kiosk-welcome-title" className="mt-5 max-w-lg font-display text-[2.25rem] font-900 uppercase leading-[.96] tracking-[.01em] sm:text-4xl lg:text-[3.15rem]">Your next <span className="text-sun">chapter</span><br />starts here.</h1>
           <p className="mt-6 max-w-md border-l-2 border-sun/50 pl-4 text-sm leading-6 text-sand/75 sm:text-base sm:leading-7">Sign in with your reader card, choose a seat, then scan a book to begin your in-store reading session.</p>
         </div>
         <div className="relative mt-10">
@@ -208,7 +208,7 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
         </div>
       </div>
 
-      <div className="relative flex flex-col justify-center overflow-hidden bg-[linear-gradient(145deg,rgba(255,253,248,.99),rgba(255,247,226,.98))] p-7 sm:p-10 lg:p-14">
+      <div className="relative flex flex-col justify-center overflow-hidden bg-[linear-gradient(145deg,rgba(255,253,248,.99),rgba(255,247,226,.98))] p-6 sm:p-8 lg:p-10">
         <div aria-hidden="true" className="absolute -right-24 -top-24 h-52 w-52 rotate-12 border border-gold/10 bg-parch/10" />
         <div className="relative flex items-center justify-between gap-4">
           <div><p className="tb-eyebrow">Reader sign in</p><h2 className="mt-2 font-display text-2xl font-900 uppercase tracking-[.025em] sm:text-3xl">Tap to begin</h2></div>

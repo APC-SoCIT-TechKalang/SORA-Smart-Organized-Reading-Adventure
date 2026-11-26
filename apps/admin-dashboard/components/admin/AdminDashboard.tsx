@@ -18,7 +18,6 @@ import {
   LogOut,
   Menu,
   Plus,
-  Radio,
   Search,
   Sparkles,
   Trophy,
@@ -48,6 +47,7 @@ import { ReaderCheckIn } from "./ReaderCheckIn";
 import { AnalyticsWorkspace } from "./AnalyticsWorkspace";
 import { CheckoutQueue } from "./CheckoutQueue";
 import { QuestManagement } from "./QuestManagement";
+import { TopUpTerminal } from "./TopUpTerminal";
 
 type Page =
   "Overview" | "Analytics" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
@@ -179,7 +179,7 @@ export function AdminDashboard() {
     ) : page === "Readers" ? (
       <Readers data={data} active={active} name={name} run={run} />
     ) : (
-      <TopUp data={data} name={name} run={run} />
+      <TopUpTerminal data={data} name={name} run={run} />
     );
   return (
     <main className="admin-shell min-h-screen text-[#543822]">
@@ -248,14 +248,14 @@ export function AdminDashboard() {
               </>
             )}
           </header>
-          <div className="mx-auto max-w-[1440px] p-5 sm:p-8 lg:p-10">
-            <div className="mb-8 flex flex-col gap-4 border-b border-[#c4800c]/25 pb-6 sm:flex-row sm:items-end sm:justify-between">
+          <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
+            <div className="mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.24em] text-[#953410]">
                   <span className="h-px w-6 bg-[#c4800c]" />
                   {page === "Catalogue" ? "Book Management" : page === "Challenges" ? "Quest" : page}
                 </p>
-                <h1 className="font-serif text-3xl font-semibold tracking-tight text-[#543822] sm:text-4xl">
+                <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#543822] sm:text-3xl">
                   {page === "Overview" ? "Reading Room Today" : page === "Challenges" ? "Quest" : page}
                 </h1>
               </div>
@@ -378,7 +378,7 @@ function Overview({
   return (
     <>
       <div className="grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
-        <section className="admin-hero-card relative overflow-hidden rounded-3xl p-6 text-[#fefefd] shadow-[0_20px_50px_rgba(84,56,34,.35)] sm:p-8">
+        <section className="admin-hero-card relative overflow-hidden rounded-3xl p-5 text-[#fefefd] shadow-[0_20px_50px_rgba(84,56,34,.35)] sm:p-6">
           <div
             className="admin-hero-orb admin-hero-orb-one"
             aria-hidden="true"
@@ -393,7 +393,7 @@ function Overview({
               <p className="text-[10px] font-bold uppercase tracking-[.22em] text-[#f9d219]">
                 On the floor
               </p>
-              <strong className="mt-3 block font-serif text-6xl leading-none drop-shadow-[0_4px_12px_rgba(0,0,0,.35)]">
+              <strong className="mt-2 block font-serif text-5xl leading-none drop-shadow-[0_4px_12px_rgba(0,0,0,.35)]">
                 {
                   data.copies.filter((copy) => copy.status === "WITH_READER")
                     .length
@@ -1436,9 +1436,8 @@ function ReaderDetailsDrawer({ entry, close, run }: {
             <h3 id="library-card-information-title" className="font-serif text-lg font-semibold text-[#543822]">Library Card Information</h3>
             {libraryCard && <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${libraryCard.is_active && !libraryCard.deactivated_at ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-stone-200 bg-stone-100 text-stone-600"}`}>{libraryCard.is_active && !libraryCard.deactivated_at ? "Active card" : "Inactive card"}</span>}
           </div>
-          {libraryCard?.librarycard_rfid ? <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {libraryCard?.librarycard_rfid ? <div className="mt-4">
             <div className="min-w-0 rounded-lg border border-[#eadfd3] bg-white p-3"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">Assigned card UID</p><p className="mt-2 break-all font-mono text-sm font-semibold text-[#543822]">{libraryCard.librarycard_rfid}</p></div>
-            <div className="rounded-lg border border-[#eadfd3] bg-white p-3"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">Assigned on</p><p className="mt-2 text-sm font-semibold text-[#543822]">{new Date(libraryCard.created_at).toLocaleDateString()}</p></div>
           </div> : <p className="mt-3 text-sm text-[#806b59]">No library card has been assigned to this reader.</p>}
         </section>
         {visit && usesReplacementSchema && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">This reader has an active session. Finish the session before deactivating the account.</p>}
@@ -1450,153 +1449,4 @@ function ReaderDetailsDrawer({ entry, close, run }: {
 
 function ReaderDetail({ label, value }: { label: string; value: string }) {
   return <div className="rounded-xl border border-[#eadfd3] bg-white p-4"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">{label}</p><p className="mt-2 text-sm font-semibold text-[#543822]">{value}</p></div>;
-}
-
-function TopUp({
-  data,
-  name,
-  run,
-}: {
-  data: Data;
-  name: (id: string | null) => string;
-  run: (
-    action: () => PromiseLike<{ error: unknown }>,
-    success: string,
-  ) => Promise<boolean>;
-}) {
-  const hourly = data.memberAccounts.filter(
-    (item) =>
-      item.status === "ACTIVE" &&
-      item.remaining_minutes !== null &&
-      (!usesReplacementSchema ||
-        !item.membership_label.startsWith("Guild Adventurer")),
-  );
-  const [membership, setMembership] = useState("");
-  const [minutes, setMinutes] = useState("60");
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("Cash");
-  const [reference, setReference] = useState("");
-  const selected = hourly.find(
-    (item) => item.user_id === membership,
-  );
-  return (
-    <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
-      <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-7">
-        <div className="flex min-h-[560px] flex-col items-center justify-center rounded-2xl bg-[#f8f3ec] px-6 text-center">
-          <div className="rfid-pulse mb-8 grid h-32 w-32 place-items-center rounded-full bg-[#f3e6d4]">
-            <span className="grid h-20 w-20 place-items-center rounded-full bg-[#a83d12] text-[#fff9ef] shadow-xl">
-              <Radio size={38} />
-            </span>
-          </div>
-          <h2 className="font-serif text-3xl font-semibold text-[#392414]">
-            Top up reading time
-          </h2>
-          <p className="mt-3 max-w-md text-sm leading-6 text-[#806b59]">
-            Select an active hourly membership after scanning or verifying the
-            member’s card.
-          </p>
-          <select
-            value={membership}
-            onChange={(event) => setMembership(event.target.value)}
-            className="mt-6 w-full max-w-md rounded-xl border border-[#e2d5c8] bg-white px-3 py-3 text-sm"
-          >
-            <option value="">Select membership</option>
-            {hourly.map((item) => (
-              <option key={item.user_id} value={item.user_id}>
-                {item.membership_label} · {name(item.user_id)}
-              </option>
-            ))}
-          </select>
-          {selected && (
-            <div className="mt-5 w-full max-w-md rounded-2xl border border-[#e8dfd3] bg-white p-5 text-left">
-              <p className="text-xs text-[#806b59]">Current balance</p>
-              <b className="font-serif text-2xl text-[#a83d12]">
-                {selected.remaining_minutes} minutes
-              </b>
-              <input
-                type="number"
-                min="1"
-                value={minutes}
-                onChange={(event) => setMinutes(event.target.value)}
-                className="mt-5 w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
-                placeholder="Minutes to add"
-              />
-              <input
-                required
-                value={reference}
-                onChange={(event) => setReference(event.target.value)}
-                className="mt-3 w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
-                placeholder="Receipt / payment reference"
-              />
-              {usesReplacementSchema && (
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <input
-                    required
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={amount}
-                    onChange={(event) => setAmount(event.target.value)}
-                    className="w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
-                    placeholder="Amount paid"
-                  />
-                  <select
-                    value={method}
-                    onChange={(event) => setMethod(event.target.value)}
-                    className="w-full rounded-xl border border-[#e2d5c8] px-3 py-3 text-sm"
-                  >
-                    <option>Cash</option>
-                    <option>Gcash</option>
-                    <option>Card</option>
-                  </select>
-                </div>
-              )}
-              <button
-                onClick={() =>
-                  void run(
-                    () =>
-                      replacementDb().rpc("admin_top_up", {
-                        p_user_id: selected.user_id,
-                        p_minutes: Number(minutes),
-                        p_amount: Number(amount),
-                        p_method: method,
-                        p_reference: reference,
-                      }),
-                    "Top-up saved",
-                  )
-                }
-                className="mt-4 w-full rounded-xl bg-[#a83d12] px-6 py-3 text-xs font-bold text-white"
-              >
-                Confirm top-up
-              </button>
-            </div>
-          )}
-        </div>
-      </section>
-      <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
-        <SectionTitle
-          title="Active time balances"
-          copy="Live membership data"
-        />
-        <div className="mt-5 space-y-1">
-          {hourly.map((item) => (
-            <div
-              className="flex items-center justify-between border-b border-[#eee5dc] py-4 text-xs"
-              key={item.user_id}
-            >
-              <div>
-                <b>{name(item.user_id)}</b>
-                <small className="mt-1 block text-[#8d735e]">
-                  {item.membership_label}
-                </small>
-              </div>
-              <span className="rounded-full bg-[#fff0c9] px-2.5 py-1 font-bold text-[#804916]">
-                {item.remaining_minutes} min
-              </span>
-            </div>
-          ))}
-        </div>
-      </section>
-    </div>
-  );
 }

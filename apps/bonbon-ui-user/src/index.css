@@ -2639,3 +2639,15 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
 @media (prefers-reduced-motion: reduce) {
   .arrival-spotlight-ring { animation: none; }
 }
+
+/* 100% browser-zoom calibration: preserve 16px text and reduce viewport pressure. */
+html { font-size: 16px; text-size-adjust: 100%; }
+body { font-size: 1rem; line-height: 1.5; }
+button, input, select, textarea { font-size: inherit; }
+#root { min-width: 320px; overflow-x: clip; }
+.tb-main-stage, .tb-main-stage > * { min-width: 0; }
+[role="dialog"] { min-width: 0; }
+@media (max-height: 760px) and (min-width: 640px) {
+  .tb-main-stage { padding-top: 1rem; }
+  [role="dialog"] { max-height: calc(100dvh - 1rem) !important; }
+}

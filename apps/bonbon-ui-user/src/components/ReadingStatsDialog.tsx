@@ -53,7 +53,7 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
           role="dialog"
           aria-modal="true"
           aria-labelledby="reading-stats-title"
-          className="relative max-h-[94dvh] w-full max-w-5xl overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_24px_80px_rgba(67,39,20,.38)] sm:tb-cut-lg sm:max-h-[min(850px,calc(100dvh-2rem))] sm:rounded-none sm:pb-0"
+          className="relative max-h-[calc(100dvh-1rem)] w-full max-w-4xl overflow-y-auto rounded-t-2xl border-2 border-gold bg-cream pb-[env(safe-area-inset-bottom)] shadow-[0_24px_80px_rgba(67,39,20,.38)] sm:tb-cut-lg sm:max-h-[min(780px,calc(100dvh-2rem))] sm:rounded-none sm:pb-0"
           initial={{ y: 24, scale: .97 }}
           animate={{ y: 0, scale: 1 }}
           exit={{ y: 18, scale: .97 }}
@@ -69,7 +69,7 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
           </div>
 
           {readerAccess !== 'active' ? (
-            <div className="p-6 text-center sm:p-10">
+            <div className="p-5 text-center sm:p-7">
               <BarChart3Icon className="mx-auto h-9 w-9 text-gold" />
               <h3 className="mt-3 font-display text-xl font-800">Reading stats unavailable</h3>
               <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-umber/65">Please sign in with an activated reader membership to view your journal.</p>
