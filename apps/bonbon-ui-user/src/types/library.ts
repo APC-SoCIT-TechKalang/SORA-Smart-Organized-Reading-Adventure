@@ -26,6 +26,7 @@ export interface Volume {
 
 export interface Commission {
   id: string;
+  assignmentId?: string;
   track: QuestTrack;
   name: string;
   detail: string;

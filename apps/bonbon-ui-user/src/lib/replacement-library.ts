@@ -33,6 +33,7 @@ interface ReplacementReadingActivity {
 }
 
 interface QuestDashboardItem {
+  user_quest_id?: number;
   quest_id: number; name: string; description: string; difficulty: 'Easy' | 'Medium' | 'Hard';
   objective_type: 'BOOKS_READ' | 'READING_MINUTES'; current_value: number; target_value: number;
   points: number; status: 'IN PROGRESS' | 'COMPLETED' | 'EXPIRED' | 'CANCELLED';
@@ -142,7 +143,8 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
     claimed: questDashboard.quests.filter(item => item.status === 'COMPLETED').map(item => String(item.quest_id)),
     enrolled: questDashboard.quests.map(item => String(item.quest_id)),
     commissions: questDashboard.quests.map(quest => ({
-      id: String(quest.quest_id), name: quest.name, detail: quest.description,
+      id: String(quest.quest_id), assignmentId: quest.user_quest_id == null ? undefined : String(quest.user_quest_id),
+      name: quest.name, detail: quest.description,
       track: 'weekly', seal: quest.difficulty, coins: quest.points, xp: 0, participants: 0,
       progress: Math.min(100, Math.round((quest.current_value / Math.max(1, quest.target_value)) * 100)),
       difficulty: quest.difficulty, status: quest.status, currentValue: quest.current_value,
