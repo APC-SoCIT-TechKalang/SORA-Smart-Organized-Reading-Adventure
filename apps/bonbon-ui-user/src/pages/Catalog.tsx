@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ChevronDownIcon, LayoutGridIcon, ListIcon, SearchIcon, SparklesIcon, StarIcon, XIcon } from 'lucide-react';
+import { ArrowUpRightIcon, BookOpenIcon, ChevronDownIcon, CrownIcon, LayoutGridIcon, ListIcon, SearchIcon, SparklesIcon, StarIcon, XIcon } from 'lucide-react';
 import { CatalogGrid } from '../components/CatalogGrid';
 import { VolumeDrawer } from '../components/VolumeDrawer';
 import { SectionHeading } from '../components/OrnatePanel';
@@ -54,46 +54,7 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
 
   return (
     <div className="space-y-6">
-      {bestBooks.length > 0 && <section aria-labelledby="best-picks-title" className="relative overflow-hidden rounded-[28px] border border-gold/30 bg-[linear-gradient(135deg,rgba(255,253,248,.98),rgba(243,215,147,.2))] p-4 shadow-[0_18px_48px_rgba(84,56,34,.1)] sm:p-6">
-        <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-28 h-64 w-64 rounded-full border border-gold/15" />
-        <div className="relative flex flex-wrap items-end justify-between gap-4 border-b border-gold/20 pb-5">
-          <div>
-            <p className="tb-eyebrow flex items-center gap-2"><SparklesIcon className="h-4 w-4" /> Curated for curious readers</p>
-            <h2 id="best-picks-title" className="mt-2 font-display text-2xl font-900 text-umber sm:text-3xl">Five books worth opening</h2>
-            <p className="mt-2 max-w-xl text-xs leading-5 text-umber/55 sm:text-sm">A focused shortlist chosen from reader ratings, available copies, and collection highlights.</p>
-          </div>
-          <span className="rounded-full border border-gold/30 bg-cream/75 px-3 py-2 text-[10px] font-900 uppercase tracking-[.16em] text-gold">Top {bestBooks.length} library picks</span>
-        </div>
-
-        <div className="relative mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {bestBooks.map((book, index) => {
-            const isFeatured = index === 0;
-            return <button
-              key={book.id}
-              type="button"
-              onClick={() => setSelected(book)}
-              className={`group relative overflow-hidden rounded-2xl border p-3 text-left transition hover:-translate-y-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${isFeatured
-                ? 'border-umber bg-[linear-gradient(145deg,#543822,#7a4c25)] text-cream shadow-[0_18px_38px_rgba(84,56,34,.24)] sm:col-span-2 lg:row-span-2 lg:p-5'
-                : 'border-gold/30 bg-cream/90 shadow-[0_10px_28px_rgba(84,56,34,.08)] hover:border-gold hover:shadow-[0_16px_34px_rgba(84,56,34,.14)]'
-              }`}
-            >
-              {isFeatured && <span aria-hidden="true" className="absolute -bottom-24 -right-20 h-56 w-56 rounded-full border border-sun/15" />}
-              <div className={`relative grid min-w-0 gap-3 ${isFeatured ? 'grid-cols-[100px_minmax(0,1fr)] items-center sm:grid-cols-[150px_minmax(0,1fr)] sm:gap-5' : 'grid-cols-[70px_minmax(0,1fr)]'}`}>
-                <DiscoveryCover volume={book} compact={!isFeatured} />
-                <div className="min-w-0 py-1">
-                  <span className={`inline-flex items-center gap-1.5 font-900 uppercase tracking-[.16em] ${isFeatured ? 'rounded-full bg-sun px-2.5 py-1 text-[9px] text-umber' : 'text-[9px] text-gold'}`}>
-                    {isFeatured && <StarIcon className="h-3 w-3 fill-current" />} Pick #{index + 1}
-                  </span>
-                  <h3 className={`mt-2 line-clamp-2 font-display font-800 ${isFeatured ? 'text-xl leading-6 text-cream sm:text-2xl sm:leading-8' : 'text-sm leading-5 text-umber'}`}>{book.title}</h3>
-                  <p className={`mt-1 truncate ${isFeatured ? 'text-xs text-sand/75' : 'text-[10px] text-umber/55'}`}>{book.author}</p>
-                  <span className={`mt-3 flex items-center gap-1 font-800 ${isFeatured ? 'text-xs text-sun' : 'text-[10px] text-gold'}`}><StarIcon className="h-3 w-3 fill-sun text-sun" />{book.rating || 'Collection pick'}</span>
-                  {isFeatured && <span className="mt-4 hidden text-[10px] font-800 uppercase tracking-[.18em] text-sand/70 sm:block">Open book details →</span>}
-                </div>
-              </div>
-            </button>;
-          })}
-        </div>
-      </section>}
+      {bestBooks.length > 0 && <TopFiveShowcase books={bestBooks} onSelect={setSelected} />}
 
       <div id="full-catalog" className="scroll-mt-24"><SectionHeading title="Explore the full collection" meta={`${results.length} of ${volumes.length} titles`} /></div>
 
@@ -142,9 +103,76 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   );
 }
 
+function TopFiveShowcase({ books, onSelect }: { books: Volume[]; onSelect: (book: Volume) => void }) {
+  const [featured, ...supporting] = books;
+  const featuredGenre = splitGenres(featured.genre)[0] || 'Library favorite';
+
+  return <section aria-labelledby="best-picks-title" className="relative overflow-hidden rounded-[30px] border border-umber/80 bg-umber p-3 text-cream shadow-[0_28px_70px_rgba(61,36,19,.25)] sm:p-5">
+    <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full border border-sun/10" />
+    <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-16 h-52 w-52 rounded-full border border-sun/10" />
+
+    <header className="relative flex flex-col gap-4 px-2 pb-5 pt-2 sm:flex-row sm:items-end sm:justify-between sm:px-3 sm:pb-6">
+      <div>
+        <p className="flex items-center gap-2 text-[10px] font-900 uppercase tracking-[.2em] text-sun sm:text-xs"><SparklesIcon className="h-4 w-4" /> Handpicked from the Bonbon collection</p>
+        <h2 id="best-picks-title" className="mt-2 font-display text-3xl font-900 leading-none sm:text-4xl">The Bonbon Essential Five</h2>
+        <p className="mt-3 max-w-2xl text-xs leading-5 text-cream/60 sm:text-sm">Five standout stories selected from reader ratings, collection quality, and books you can discover in the library today.</p>
+      </div>
+      <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-sun/25 bg-sun/10 px-3 py-2 text-[9px] font-900 uppercase tracking-[.16em] text-sun sm:text-[10px]"><CrownIcon className="h-3.5 w-3.5" /> Bonbon Top {books.length}</span>
+    </header>
+
+    <div className="relative grid gap-3 lg:grid-cols-[1.12fr_.88fr]">
+      <button type="button" onClick={() => onSelect(featured)} className="group relative min-h-[300px] overflow-hidden rounded-[24px] border border-sun/30 bg-[linear-gradient(135deg,#9f3518_0%,#6e3e21_52%,#4a2e1c_100%)] p-5 text-left shadow-[0_22px_55px_rgba(22,11,5,.34)] transition duration-300 hover:-translate-y-1 hover:border-sun/60 hover:shadow-[0_28px_65px_rgba(22,11,5,.42)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sun sm:min-h-[360px] sm:p-7">
+        {featured.coverImage && <img src={featured.coverImage} alt="" aria-hidden="true" className="absolute -right-12 -top-16 h-[130%] w-2/3 rotate-6 object-cover opacity-[.11] blur-2xl transition duration-700 group-hover:scale-110" />}
+        <div aria-hidden="true" className="absolute -bottom-28 -right-20 h-72 w-72 rounded-full border border-sun/15" />
+        <span className="absolute right-5 top-3 font-display text-[5.5rem] font-900 leading-none text-cream/[.055] sm:right-7 sm:text-[8rem]">01</span>
+
+        <div className="relative grid h-full grid-cols-[105px_minmax(0,1fr)] items-center gap-5 sm:grid-cols-[175px_minmax(0,1fr)] sm:gap-8">
+          <div className="relative">
+            <span className="absolute -left-2 -top-2 z-10 grid h-9 w-9 place-items-center rounded-full border-2 border-umber bg-sun text-umber shadow-lg"><CrownIcon className="h-4 w-4 fill-current" /></span>
+            <DiscoveryCover volume={featured} />
+          </div>
+          <div className="min-w-0 py-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-sun px-3 py-1 text-[9px] font-900 uppercase tracking-[.15em] text-umber"><StarIcon className="h-3 w-3 fill-current" /> No. 1 library pick</span>
+            <p className="mt-4 text-[9px] font-800 uppercase tracking-[.17em] text-sand/65 sm:text-[10px]">{featuredGenre}</p>
+            <h3 className="mt-1.5 line-clamp-3 font-display text-2xl font-900 leading-[1.04] text-cream sm:text-4xl">{featured.title}</h3>
+            <p className="mt-2 truncate text-xs text-sand/70 sm:text-sm">by {featured.author}</p>
+            <div className="mt-5 flex flex-wrap gap-2 text-[10px] font-800"><span className="inline-flex items-center gap-1.5 rounded-full border border-sun/25 bg-umber/30 px-3 py-1.5 text-sun"><StarIcon className="h-3 w-3 fill-current" /> {ratingLabel(featured)}</span><span className="inline-flex items-center gap-1.5 rounded-full border border-cream/15 bg-cream/5 px-3 py-1.5 text-cream/75"><BookOpenIcon className="h-3 w-3" /> {availabilityLabel(featured)}</span></div>
+            <span className="mt-6 hidden items-center gap-2 text-[10px] font-900 uppercase tracking-[.16em] text-sun sm:inline-flex">Explore this book <ArrowUpRightIcon className="h-4 w-4 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" /></span>
+          </div>
+        </div>
+      </button>
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+        {supporting.map((book, index) => <button key={book.id} type="button" onClick={() => onSelect(book)} className="group relative min-h-[158px] overflow-hidden rounded-[20px] border border-gold/25 bg-[#fffaf0] p-3 text-left text-umber shadow-[0_12px_30px_rgba(27,14,6,.13)] transition duration-300 hover:-translate-y-1 hover:border-sun/70 hover:shadow-[0_18px_38px_rgba(27,14,6,.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-sun sm:p-4">
+          <span aria-hidden="true" className="absolute -right-1 -top-4 font-display text-[5.5rem] font-900 leading-none text-umber/[.045]">0{index + 2}</span>
+          <div className="relative grid h-full grid-cols-[82px_minmax(0,1fr)] items-center gap-3">
+            <DiscoveryCover volume={book} compact />
+            <div className="min-w-0 py-1">
+              <span className="text-[9px] font-900 uppercase tracking-[.17em] text-rust">Essential pick #{index + 2}</span>
+              <h3 className="mt-1.5 line-clamp-2 font-display text-base font-900 leading-5 sm:text-lg">{book.title}</h3>
+              <p className="mt-1 truncate text-[10px] text-umber/50">{book.author}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] font-800"><span className="flex items-center gap-1 text-gold"><StarIcon className="h-3 w-3 fill-current" /> {ratingLabel(book)}</span><span className={book.copies > 0 ? 'text-emerald-700' : 'text-rust'}>{availabilityLabel(book)}</span></div>
+              <span className="mt-3 inline-flex items-center gap-1 text-[9px] font-900 uppercase tracking-[.12em] text-rust opacity-70 transition group-hover:opacity-100">View details <ArrowUpRightIcon className="h-3.5 w-3.5" /></span>
+            </div>
+          </div>
+        </button>)}
+      </div>
+    </div>
+  </section>;
+}
+
+function ratingLabel(book: Volume) {
+  return book.rating > 0 ? `${book.rating.toFixed(1)} reader score` : 'Collection favorite';
+}
+
+function availabilityLabel(book: Volume) {
+  if (book.copies <= 0) return 'Currently in use';
+  return `${book.copies} ${book.copies === 1 ? 'copy' : 'copies'} available`;
+}
+
 function DiscoveryCover({ volume, compact = false }: { volume: Volume; compact?: boolean }) {
   const plate = Array.isArray(volume.plate) && volume.plate.length ? volume.plate : [volume.title];
-  return <span className={`relative block overflow-hidden border border-sand/35 bg-cream shadow-[0_18px_45px_rgba(28,15,7,.32)] ${compact ? 'h-[94px] w-[70px] rounded-lg' : 'aspect-[3/4] w-full rounded-xl'}`}>
+  return <span className={`relative block overflow-hidden border border-sand/35 bg-cream shadow-[0_18px_45px_rgba(28,15,7,.32)] ${compact ? 'h-[112px] w-[82px] rounded-lg' : 'aspect-[3/4] w-full rounded-xl'}`}>
     <span className="relative flex h-full w-full overflow-hidden rounded-[inherit]" style={{ backgroundColor: volume.plateColor }}>
       {volume.coverImage
         ? <img src={volume.coverImage} alt={`${volume.title} book cover`} className="h-full w-full bg-cream object-contain transition duration-500 group-hover:scale-[1.03]" onError={event => { event.currentTarget.src = '/book-placeholder.svg'; }} />
