@@ -275,17 +275,6 @@ export function AdminDashboard() {
                 <Logo />
               </>
             )}
-            <div className="admin-command-strip ml-auto flex min-w-0 items-center gap-3">
-              <span className="admin-command-copy hidden min-w-0 items-center gap-2 md:flex">
-                <Sparkles size={13} aria-hidden="true" />
-                <span className="truncate">Library operations</span>
-              </span>
-              <span className="admin-command-divider hidden md:block" aria-hidden="true" />
-              <span className="admin-live-status">
-                <span className="admin-live-dot" aria-hidden="true" />
-                System live
-              </span>
-            </div>
           </header>
           <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
             <div className="admin-page-heading mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">
