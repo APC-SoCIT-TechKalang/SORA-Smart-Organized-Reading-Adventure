@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { IScannerControls } from "@zxing/browser";
-import { Camera, LoaderCircle, Nfc, ScanLine, ShieldCheck, X } from "lucide-react";
+import { Camera, LoaderCircle, Nfc, QrCode, ShieldCheck, X } from "lucide-react";
 import { database, errorMessage } from "../../lib/supabase";
 import { isDigitalCardPayload, normalizePhysicalCardUid, parseDigitalCardPayload, sanitizeCardPayload, subscribeToCardScanner } from "../../lib/card-scanner";
 
@@ -107,16 +107,36 @@ export function ReaderCheckIn() {
     return () => { disposed = true; controls?.stop(); if (videoRef.current) videoRef.current.srcObject = null; };
   }, [cameraOpen, processScan]);
 
-  return <section aria-label="Reader check-in" className="mb-6 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
-    <div><h2 className="font-serif text-2xl font-semibold">Reader check-in</h2>
-      <p className="mt-2 text-sm text-[#795a42]">Tap the reader&apos;s RFID card or scan their card barcode or Digital ID. Check-in starts as soon as the card is verified.</p></div>
-    {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-    <div className="mt-5 grid gap-3 sm:grid-cols-2">
-      <div className="rounded-xl border border-[#dfc9ad] bg-[#fff8ed] p-4"><Nfc size={25} className="text-[#a83d12]" aria-hidden="true" /><h3 className="mt-2 font-serif text-lg font-semibold">Tap RFID card</h3><p className="mt-1 text-xs text-[#806b59]">The connected USB card reader is listening.</p></div>
-      <button type="button" disabled={busy} onClick={() => { setError(""); setCameraOpen(value => !value); }} className="rounded-xl border border-[#dfc9ad] bg-white p-4 text-left transition hover:border-[#a83d12] hover:bg-[#fff8ed] disabled:opacity-50"><ScanLine size={25} className="text-[#a83d12]" aria-hidden="true" /><h3 className="mt-2 font-serif text-lg font-semibold">Scan barcode or Digital ID</h3><p className="mt-1 text-xs text-[#806b59]">Use a USB scanner at any time, or tap here for the camera.</p></button>
+  return <section aria-labelledby="reader-checkin-label reader-checkin-heading" className="mb-6 overflow-hidden rounded-2xl border border-[#dfc9ad] bg-[#fffdf9] shadow-[0_18px_50px_rgba(84,56,34,.1)]">
+    <div className="relative overflow-hidden bg-[#543822] px-5 py-5 text-white sm:px-7 sm:py-6">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-16 -top-24 h-64 w-64 rounded-full border border-[#f3d793]/15" />
+      <p id="reader-checkin-label" className="relative text-[10px] font-bold uppercase tracking-[.22em] text-[#f3d793]">Reader check-in</p>
+      <h2 id="reader-checkin-heading" className="relative mt-2 font-serif text-2xl font-semibold sm:text-3xl">Present your library card</h2>
+      <p className="relative mt-3 max-w-2xl text-sm leading-6 text-white/80">Tap a physical card or scan its barcode or Digital ID. Check-in starts once the card is verified.</p>
     </div>
-    <p className="mt-4 flex items-center gap-2 text-xs text-[#806b59]" aria-live="polite">{busy ? <LoaderCircle size={16} className="animate-spin" /> : <ShieldCheck size={16} className="text-emerald-700" />}{busy ? "Verifying card and approving check-in…" : "Ready for the next card"}</p>
+    <div className="p-4 sm:p-5">
+      {error && <p role="alert" className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
+      {message && <p role="status" className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="min-w-0 rounded-2xl border border-[#a83d12] bg-[#a83d12] p-5 text-white shadow-[0_16px_36px_rgba(168,61,18,.22)]">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <span className="rfid-pulse grid h-16 w-16 shrink-0 place-items-center rounded-full border border-white/20 bg-white/10"><Nfc size={30} aria-hidden="true" /></span>
+            <span className="rounded-full bg-[#f9d219] px-2.5 py-1 text-[9px] font-extrabold uppercase tracking-wider text-[#543822]">Recommended</span>
+          </div>
+          <h3 className="mt-4 font-serif text-xl font-bold">Tap physical card</h3>
+          <p className="mt-1.5 text-xs leading-5 text-white/85">Use the RFID reader connected to this terminal.</p>
+        </div>
+        <button type="button" disabled={busy} onClick={() => { setError(""); setCameraOpen(value => !value); }} className="flex min-w-0 flex-col items-start rounded-2xl border border-[#d8c3ad] bg-[#fffaf1] p-5 text-left text-[#543822] transition hover:border-[#c4800c] hover:shadow-lg disabled:opacity-60 motion-safe:enabled:hover:-translate-y-1">
+          <span className="grid h-16 w-16 shrink-0 place-items-center rounded-full border border-[#d8c3ad] bg-white text-[#a83d12]"><QrCode size={28} aria-hidden="true" /></span>
+          <strong className="mt-4 font-serif text-xl">Scan barcode or Digital ID</strong>
+          <span className="mt-1.5 text-xs leading-5 text-[#806b59]">Opens the camera. The USB scanner stays ready.</span>
+        </button>
+      </div>
+      <p className="mt-4 flex items-center gap-3 rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 text-sm text-[#704d34]" aria-live="polite">
+        {busy ? <LoaderCircle size={20} className="shrink-0 text-[#a83d12] motion-safe:animate-spin" aria-hidden="true" /> : <ShieldCheck size={20} className="shrink-0 text-emerald-700" aria-hidden="true" />}
+        <span>{busy ? "Verifying card and approving check-in…" : "Ready for the next card"}</span>
+      </p>
+    </div>
     {cameraOpen && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center bg-[#2d190c]/70 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setCameraOpen(false); }}>
       <section role="dialog" aria-modal="true" aria-labelledby="reader-checkin-camera-title" data-reader-checkin-camera className="terminal-modal-panel w-full max-w-[460px] rounded-2xl border border-[#c4800c] bg-[#fffaf1] p-3 shadow-[0_25px_75px_rgba(35,19,9,.4)] sm:p-4">
         <div className="mb-3 flex items-center justify-between gap-3 px-1"><h3 id="reader-checkin-camera-title" className="flex items-center gap-2 font-serif text-lg font-semibold"><Camera size={17} className="text-[#a83d12]" />Scan library card</h3><button ref={closeCameraRef} type="button" onClick={() => setCameraOpen(false)} aria-label="Close camera" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#d8c3ad] bg-white hover:bg-[#fff0dc]"><X size={17} /></button></div>

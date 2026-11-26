@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { BookOpen, Boxes, ChevronDown, ChevronRight, Edit3, MapPin, PackageOpen, Plus, Printer, Search, SlidersHorizontal, X } from "lucide-react";
+import { BookOpen, Boxes, ChevronDown, ChevronRight, Edit3, LibraryBig, MapPin, PackageOpen, Plus, Printer, Search, SlidersHorizontal, X } from "lucide-react";
+import { AdminMetricGrid } from "./AdminMetricGrid";
 import { printBookLabels } from "./BookBarcodeLabels";
 import { InventoryAlerts } from "./InventoryAlerts";
 import { ReturnCartStation } from "./ReturnCartStation";
@@ -107,7 +108,6 @@ export function CatalogueEditor({ data, query, setQuery, setDrawer, setBulkDrawe
     return { volumes, copies };
   }, [matches, copiesByBook]);
   const returnCount = data.copies.filter(copy => statusLabel(copy.status) === "Return Cart").length;
-  const stats = [["Unique titles", groups.length], ["Registered volumes", data.books.length], ["Physical copies", data.copies.length]] as const;
   function renderVolume(book: Book, nested = false) {
     const copies = copiesByBook.get(book.book_id) ?? [];
     const number = nested ? volumeIdentity(book).number : null;
@@ -129,7 +129,11 @@ export function CatalogueEditor({ data, query, setQuery, setDrawer, setBulkDrawe
 
   return <>
     <InventoryAlerts />
-    <div className="mb-5 grid gap-3 sm:grid-cols-3">{stats.map(([label, value]) => <div key={label} className="admin-kpi rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-4 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]">{label}</p><b className="mt-2 block font-serif text-3xl">{value.toLocaleString()}</b></div>)}</div>
+    <AdminMetricGrid className="mb-5" metrics={[
+      ["Unique titles", groups.length, LibraryBig],
+      ["Registered volumes", data.books.length, BookOpen],
+      ["Physical copies", data.copies.length, Boxes],
+    ]} />
     <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 shadow-sm focus-within:border-[#c4800c] focus-within:ring-2 focus-within:ring-[#f3d793]/50"><Search size={16} className="text-[#9a806b]" /><span className="sr-only">Search catalogue</span><input value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" placeholder="Search series, volume, author, or genre" /></label><button onClick={() => setBulkDrawer(true)} className="min-h-12 rounded-xl border border-[#a83d12] px-4 py-2.5 text-xs font-bold text-[#a83d12] hover:bg-[#fff6e8]">Bulk Add</button><button onClick={() => setDrawer(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#8f320d]"><Plus size={15} />Add Book</button></div>
     <section className="catalogue-records overflow-visible rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] shadow-sm"><div className="flex flex-col gap-2 border-b border-[#eee5dc] px-5 py-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-serif text-xl font-semibold">Catalog by title and series</h2><p className="mt-1 text-xs text-[#8d735e]">{matches.length.toLocaleString()} {query.trim() ? "matching" : "unique"} titles · {visibleCounts.volumes.toLocaleString()} volumes · {visibleCounts.copies.toLocaleString()} physical copies</p></div><button type="button" onClick={() => { setReturnCartOpen(true); void refreshData(); }} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-lg border border-[#e2ba81] bg-[#fff6e8] px-3 text-xs font-bold text-[#8f3c12] transition hover:border-[#a83d12] hover:bg-[#ffeed4] sm:self-auto"><PackageOpen size={15} aria-hidden="true" />Return cart <span className="rounded-full bg-[#f8dfb7] px-2 py-0.5 text-[10px]">{returnCount.toLocaleString()}</span><ChevronRight size={14} aria-hidden="true" /></button></div>
       <div className="catalogue-row catalogue-column-head gap-4 border-b border-[#eee5dc] bg-[#fcf8f2] px-5 py-3 text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]"><span>Title / series</span><span>Primary genre</span><span>Copies / status</span><span className="text-center">Reads</span><span className="text-right">Actions</span></div>

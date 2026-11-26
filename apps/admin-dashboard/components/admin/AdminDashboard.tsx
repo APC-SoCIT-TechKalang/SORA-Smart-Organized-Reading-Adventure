@@ -22,6 +22,8 @@ import {
   Sparkles,
   Trophy,
   Users,
+  UserPlus,
+  BadgeCheck,
   Wallet,
   X,
 } from "lucide-react";
@@ -44,6 +46,7 @@ import { EditBookCover } from "./EditBookCover";
 import { EditCopyLocation } from "./EditCopyLocation";
 import { CatalogueEditor } from "./CatalogueEditor";
 import { ReaderCheckIn } from "./ReaderCheckIn";
+import { AdminMetricGrid } from "./AdminMetricGrid";
 import { AnalyticsWorkspace } from "./AnalyticsWorkspace";
 import { CheckoutQueue } from "./CheckoutQueue";
 import { QuestManagement } from "./QuestManagement";
@@ -168,6 +171,8 @@ export function AdminDashboard() {
     /not found|error|failed|denied|forbidden|violates|unable|invalid/i.test(
       notice,
     );
+  const currentWorkspace = nav.find(item => item.page === page);
+  const WorkspaceIcon = currentWorkspace?.icon ?? LayoutDashboard;
   const content =
     page === "Overview" ? (
       <Overview data={data} setPage={setPage} name={name} run={run} />
@@ -272,18 +277,16 @@ export function AdminDashboard() {
             )}
           </header>
           <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
-            <div className="admin-page-heading mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">
-              <div className="min-w-0">
-                <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.24em] text-[#953410]">
-                  <span className="h-px w-6 bg-[#c4800c]" />
-                  {page === "Catalogue" ? "Book Management" : page === "Challenges" ? "Quest" : page}
-                </p>
-                <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#543822] sm:text-3xl">
-                  {page === "Overview" ? "Reading Room Today" : page === "Challenges" ? "Quest" : page}
+            <header className="admin-page-heading">
+              <span className="admin-page-heading-icon" aria-hidden="true"><WorkspaceIcon size={23} strokeWidth={1.8} /></span>
+              <div className="admin-page-heading-copy">
+                {page === "Overview" && <p className="admin-page-heading-label">Overview</p>}
+                <h1 className="font-serif font-semibold tracking-tight">
+                  {page === "Overview" ? "Reading Room Today" : (currentWorkspace?.label ?? page)}
                 </h1>
-                <p className="mt-1 text-xs text-[#806b59]">{page === "Overview" ? "A clear view of today’s library activity." : page === "Analytics" ? "Explore reading trends and verified activity." : page === "Catalogue" ? "Manage titles, copies, and shelf locations." : page === "Challenges" ? "Review quests and reader progress." : page === "Readers" ? "Manage members and library cards." : "Verify cards and add reading time."}</p>
+                <p className="admin-page-heading-description">{page === "Overview" ? "A clear view of today’s library activity." : page === "Analytics" ? "Explore reading trends and verified activity." : page === "Catalogue" ? "Manage titles, copies, and shelf locations." : page === "Challenges" ? "Review quests and reader progress." : page === "Readers" ? "Manage members and library cards." : "Verify cards and add reading time."}</p>
               </div>
-            </div>
+            </header>
             {error && (
               <div
                 role="alert"
@@ -1106,29 +1109,12 @@ function Readers({
   return (
     <>
       {usesReplacementSchema && <ReaderCheckIn />}
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          [
-            "Registered readers",
-            data.readers.filter((reader) => reader.roles?.name === "reader")
-              .length,
-          ],
-          ["Awaiting activation", pending.length],
-          ["Reading now", active.length],
-          [
-            "Active memberships",
-            data.memberAccounts.filter((item) => item.status === "ACTIVE").length,
-          ],
-        ].map(([label, value]) => (
-          <div
-            className="admin-kpi rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm"
-            key={String(label)}
-          >
-            <p className="text-[11px] font-semibold text-[#8d735e]">{label}</p>
-            <b className="mt-2 block font-serif text-3xl">{value}</b>
-          </div>
-        ))}
-      </div>
+      <AdminMetricGrid className="mb-6" metrics={[
+        ["Registered readers", data.readers.filter(reader => reader.roles?.name === "reader").length, Users],
+        ["Awaiting activation", pending.length, UserPlus],
+        ["Reading now", active.length, BookOpen],
+        ["Active memberships", data.memberAccounts.filter(item => item.status === "ACTIVE").length, BadgeCheck],
+      ]} />
       {usesReplacementSchema && (
         <section className="mb-6 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
           <SectionTitle

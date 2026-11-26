@@ -2,7 +2,8 @@
 
 import { FormEvent, type ReactNode, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Bot, CalendarDays, Download, FileText, LoaderCircle, Send } from "lucide-react";
+import { BookOpen, Bot, CalendarDays, Clock3, Download, FileText, LoaderCircle, Send, Trophy, Users } from "lucide-react";
+import { AdminMetricGrid } from "./AdminMetricGrid";
 import { database } from "../../lib/supabase";
 import type { DashboardData } from "./dashboard-data";
 import { friendlyAdminBonError } from "./AdminBonWidgets";
@@ -95,8 +96,13 @@ export function AnalyticsWorkspace({ data }: { data: DashboardData }) {
 }
 
 function DashboardView({ data, analytics }: { data: DashboardData; analytics: Analytics }) {
-  const cards = [["Reading sessions", analytics.logs.length], ["Active readers", data.visits.filter(item => item.status === "ACTIVE").length], ["Reading minutes", analytics.minutes], ["Quest completion", `${analytics.questCompletionRate}%`]];
-  return <><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cards.map(([label, value]) => <article key={String(label)} className="admin-kpi rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-5 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.16em] text-[#a65b1e]">{label}</p><strong className="mt-3 block font-serif text-4xl text-[#543822]">{value}</strong></article>)}</div><div className="grid gap-6 xl:grid-cols-2"><ChartCard title="Reading activity" copy="Sessions recorded during the selected period.">{analytics.daily.length ? <ResponsiveContainer width="100%" height={260}><LineChart data={analytics.daily}><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis dataKey="day" tick={{fontSize:11}}/><YAxis allowDecimals={false} tick={{fontSize:11}}/><Tooltip/><Line type="monotone" dataKey="sessions" stroke="#a83d12" strokeWidth={3}/></LineChart></ResponsiveContainer> : <EmptyChart message="No reading sessions were recorded for these filters."/>}</ChartCard><ChartCard title="Genre activity" copy="Top active genres during the selected period.">{analytics.genres.length ? <ResponsiveContainer width="100%" height={260}><BarChart data={analytics.genres} layout="vertical" margin={{left:12}}><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis type="number" allowDecimals={false}/><YAxis dataKey="genre" type="category" width={105} tick={{fontSize:11}}/><Tooltip/><Bar dataKey="sessions" fill="#c4800c" radius={[0,6,6,0]}/></BarChart></ResponsiveContainer> : <EmptyChart message="No genre activity was recorded for these filters."/>}</ChartCard></div><div className="grid gap-6 xl:grid-cols-2"><Ranked title="Most read books" rows={analytics.mostUsed}/><Ranked title="Least read books" rows={analytics.leastUsed}/></div></>;
+  const cards = [
+    ["Reading sessions", analytics.logs.length, BookOpen],
+    ["Active readers", data.visits.filter(item => item.status === "ACTIVE").length, Users],
+    ["Reading minutes", analytics.minutes, Clock3],
+    ["Quest completion", `${analytics.questCompletionRate}%`, Trophy],
+  ] as const;
+  return <><AdminMetricGrid metrics={cards} /><div className="grid gap-6 xl:grid-cols-2"><ChartCard title="Reading activity" copy="Sessions recorded during the selected period.">{analytics.daily.length ? <ResponsiveContainer width="100%" height={260}><LineChart data={analytics.daily}><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis dataKey="day" tick={{fontSize:11}}/><YAxis allowDecimals={false} tick={{fontSize:11}}/><Tooltip/><Line type="monotone" dataKey="sessions" stroke="#a83d12" strokeWidth={3}/></LineChart></ResponsiveContainer> : <EmptyChart message="No reading sessions were recorded for these filters."/>}</ChartCard><ChartCard title="Genre activity" copy="Top active genres during the selected period.">{analytics.genres.length ? <ResponsiveContainer width="100%" height={260}><BarChart data={analytics.genres} layout="vertical" margin={{left:12}}><CartesianGrid strokeDasharray="3 3" stroke="#eadfd3"/><XAxis type="number" allowDecimals={false}/><YAxis dataKey="genre" type="category" width={105} tick={{fontSize:11}}/><Tooltip/><Bar dataKey="sessions" fill="#c4800c" radius={[0,6,6,0]}/></BarChart></ResponsiveContainer> : <EmptyChart message="No genre activity was recorded for these filters."/>}</ChartCard></div><div className="grid gap-6 xl:grid-cols-2"><Ranked title="Most read books" rows={analytics.mostUsed}/><Ranked title="Least read books" rows={analytics.leastUsed}/></div></>;
 }
 function ChartCard({ title, copy, children }: { title: string; copy: string; children: ReactNode }) { return <section className="rounded-2xl border border-[#eadfd3] bg-[#fffdf9] p-5 shadow-sm"><h2 className="font-serif text-xl font-semibold">{title}</h2><p className="mt-1 text-xs text-[#8d735e]">{copy}</p><div className="mt-5">{children}</div></section>; }
 function EmptyChart({ message }: { message: string }) { return <div className="grid h-[260px] place-items-center rounded-xl border border-dashed border-[#decdbd] bg-[#fffaf3] px-6 text-center text-sm text-[#8d735e]">{message}</div>; }
