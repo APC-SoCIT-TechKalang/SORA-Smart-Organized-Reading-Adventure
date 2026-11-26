@@ -5,10 +5,18 @@ import { errorMessage } from '../lib/supabase';
 import { LibrarySeatMap } from './LibrarySeatMap';
 
 type Seat = { seat_id: number; seat_number: number; seat_area: string; seat_status: string };
-type Active = { session_id: number; seat_id: number; borrow_date: string; session_status: string };
+type Active = { session_id: number; seat_id: number; borrow_date: string; return_date?: string | null; session_status: string };
 type Reservation = { seat_id: number; expires_at: string };
 type ReadingAccount = { membership_type: string | null; membership_status: string; membership_expires_at: string | null; remaining_minutes: number };
 type ReadingState = { seats: Seat[]; active: Active | null; books?: { copy_id: number }[]; checked_in: boolean; waiting: boolean; staff: boolean; reservation: Reservation | null };
+
+const formatCountdown = (seconds: number) => {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remainingSeconds = safe % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+};
 
 export function KioskReading() {
   const { profile, refresh } = useGame();
@@ -84,7 +92,10 @@ export function KioskReading() {
   const hasHold = !!reservation && holdSeconds > 0;
   const membershipActive = account?.membership_status === 'ACTIVE' && !!account.membership_expires_at && new Date(account.membership_expires_at).getTime() > now;
   const unlimited = account?.membership_type === 'Guild Adventurer';
-  const hasTime = unlimited || (account?.remaining_minutes ?? 0) > 0;
+  const reading = active?.session_status === 'READING';
+  const elapsedReadingSeconds = reading && active ? Math.max(0, (now - new Date(active.borrow_date).getTime()) / 1000) : 0;
+  const liveRemainingSeconds = account ? Math.max(0, account.remaining_minutes * 60 - elapsedReadingSeconds) : 0;
+  const hasTime = unlimited || liveRemainingSeconds > 0;
   const atBookLimit = activeBookCount >= 3;
   const readingIssue = !membershipActive ? 'An active, unexpired membership is required. Ask library staff to activate your membership.'
     : !hasTime ? 'You have 0 reading minutes. Ask the librarian to add reading time in the admin Top-up terminal, then scan your book again.' : '';
@@ -120,7 +131,7 @@ export function KioskReading() {
       })}>Move to selected seat</button>}
       <div ref={feedback} className="space-y-3 scroll-mt-24" aria-live="polite">
         {loaded && account && <div aria-label="Reading time balance" className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold/30 bg-parch/25 px-4 py-3 text-sm">
-          <span className="font-700">Reading time</span><strong>{unlimited ? 'Unlimited · Guild Adventurer' : `${account.remaining_minutes} minutes remaining`}</strong>
+          <span className="font-700">Reading time</span><strong>{unlimited ? 'Unlimited · Guild Adventurer' : reading ? `${formatCountdown(liveRemainingSeconds)} remaining` : `${account.remaining_minutes} minutes remaining`}</strong>
         </div>}
         {loaded && readingIssue && <p role="alert" className="rounded-lg border border-rust/35 bg-rust/10 p-3 text-sm">{readingIssue}</p>}
         {error && <p role="alert" className="rounded-lg border border-rust/40 bg-rust/10 p-3">{error}</p>}

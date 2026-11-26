@@ -121,10 +121,59 @@ export function parseEditionTitle(title: string) {
   const range = normalized.match(/\(\s*vol(?:ume)?s?\.?\s*(\d+(?:\.\d+)?\s*-\s*\d+(?:\.\d+)?)\s*\)/i)?.[1]?.replace(/\s/g, "") ?? "";
   const omnibus = normalized.match(/^(.*?)[\s,:-]+omnibus(?:\s+(?:vol(?:ume)?\.?\s*)?)?\s*(\d+(?:\.\d+)?)\b/i);
   if (omnibus) return { series: omnibus[1].trim(), volume: omnibus[2], collectedVolumeRange: range };
-  const explicit = normalized.match(/^(.*?)(?:[,.\s:-]+(?:vol(?:ume)?\.?|book)\s*#?)(\d+(?:\.\d+)?)\b/i);
+  const explicit = normalized.match(/^(.*?)(?:[,.\s:-]+(?:vol(?:ume)?\.?|book)\s*#?\s*)(\d+(?:\.\d+)?)\b/i);
   if (explicit) return { series: explicit[1].replace(/[(:\s-]+$/, "").trim(), volume: explicit[2], collectedVolumeRange: range };
   const ending = normalized.match(/^(.*?)[,.\s-]+(\d+(?:\.\d+)?)$/);
   return { series: ending?.[1]?.trim() ?? "", volume: ending?.[2] ?? "", collectedVolumeRange: range };
+}
+
+function structuredVolume(info: RecordValue) {
+  for (const value of [info.volume_number, info.volumeNumber, info.volume, info.number]) {
+    if (typeof value !== "number" && typeof value !== "string") continue;
+    const match = String(value).trim().match(/^(?:vol(?:ume)?\.?\s*)?(\d+(?:\.\d+)?)$/i);
+    if (match) return match[1];
+  }
+  return "";
+}
+
+function editionParts(title: string, subtitle: string, info: RecordValue) {
+  const fullTitle = subtitle && !title.toLocaleLowerCase().includes(subtitle.toLocaleLowerCase()) ? `${title}: ${subtitle}` : title;
+  const titleParts = parseEditionTitle(fullTitle);
+  const seriesValues = typeof info.series === "string" ? [info.series] : strings(info.series);
+  const seriesParts = seriesValues.map(parseEditionTitle).find(part => part.volume);
+  const evidence = [titleParts.volume, seriesParts?.volume ?? "", structuredVolume(info)].filter(Boolean);
+  return {
+    fullTitle,
+    series: titleParts.series || seriesParts?.series || "",
+    volume: new Set(evidence).size > 1 ? "" : evidence[0] ?? "",
+    range: titleParts.collectedVolumeRange,
+  };
+}
+
+export function hasJapaneseCharacters(value: string) {
+  return /[\u3040-\u30ff\u3400-\u9fff]/u.test(value);
+}
+
+// Only exact-ISBN providers can establish an edition's volume. A manga
+// service may supply its official English series name after alias matching.
+export function resolveEditionIdentity(primary: BookMetadata, exactMatches: BookMetadata[], englishSeries = "", romanizedSeries = "") {
+  const matches = [primary, ...exactMatches];
+  const volumes = [...new Set(matches.map(item => item.volume).filter(Boolean))];
+  const volumeConflict = volumes.length > 1;
+  const volume = volumeConflict ? "" : volumes[0] ?? "";
+  const englishEdition = matches.find(item => item.title && !hasJapaneseCharacters(item.title));
+  const result = { ...primary, volume };
+  if (englishEdition && (!primary.title || hasJapaneseCharacters(primary.title))) {
+    result.title = englishEdition.title;
+    result.series = englishEdition.series || result.series;
+  } else if (englishSeries && !hasJapaneseCharacters(englishSeries) &&
+    (hasJapaneseCharacters(result.title) || (romanizedSeries && titleMatches(result.series || result.title, [romanizedSeries]) && !titleMatches(result.series || result.title, [englishSeries])))) {
+    const officialEdition = exactMatches.find(item =>
+      !hasJapaneseCharacters(item.title) && item.title.toLocaleLowerCase().startsWith(englishSeries.toLocaleLowerCase()));
+    result.title = officialEdition?.title || (volume ? `${englishSeries} ${volume}` : englishSeries);
+    result.series = englishSeries;
+  }
+  return { metadata: result, volumeConflict, usedEnglishFallback: result.title !== primary.title };
 }
 
 function strings(value: unknown) {
@@ -221,15 +270,14 @@ export function googleAdapter(info: RecordValue, requestedIsbn: string): BookMet
   const result = emptyBookMetadata(requestedIsbn);
   const title = String(info.title ?? "");
   const subtitle = String(info.subtitle ?? "");
-  const fullTitle = subtitle && !title.toLocaleLowerCase().includes(subtitle.toLocaleLowerCase()) ? `${title}: ${subtitle}` : title;
-  const parts = parseEditionTitle(fullTitle);
+  const parts = editionParts(title, subtitle, info);
   const identifiers = Array.isArray(info.industryIdentifiers) ? info.industryIdentifiers as Array<{type?: string; identifier?: string}> : [];
   const images = info.imageLinks && typeof info.imageLinks === "object" ? info.imageLinks as Record<string, string> : {};
   result.isbn10 = isbn10FromIdentifiers(identifiers);
-  result.title = fullTitle;
+  result.title = parts.fullTitle;
   result.series = parts.series;
   result.volume = parts.volume;
-  result.collectedVolumeRange = parts.collectedVolumeRange;
+  result.collectedVolumeRange = parts.range;
   result.authors = strings(info.authors);
   result.publisher = String(info.publisher ?? "");
   result.publicationDate = String(info.publishedDate ?? "");
@@ -244,19 +292,18 @@ export function openLibraryAdapter(info: RecordValue, requestedIsbn: string, des
   const result = emptyBookMetadata(requestedIsbn);
   const title = String(info.title ?? "");
   const subtitle = String(info.subtitle ?? "");
-  const fullTitle = subtitle && !title.toLocaleLowerCase().includes(subtitle.toLocaleLowerCase()) ? `${title}: ${subtitle}` : title;
-  const parts = parseEditionTitle(fullTitle);
-  const coverId = typeof info.cover_i === "number" ? info.cover_i : null;
-  const identifiers = strings(info.isbn);
+  const parts = editionParts(title, subtitle, info);
+  const coverId = typeof info.cover_i === "number" ? info.cover_i : Array.isArray(info.covers) && typeof info.covers[0] === "number" ? info.covers[0] : null;
+  const identifiers = [...strings(info.isbn), ...strings(info.isbn_10), ...strings(info.isbn_13)];
   result.isbn10 = identifiers.find(value => normalizeIsbn(value).length === 10) ?? "";
-  result.title = fullTitle;
+  result.title = parts.fullTitle;
   result.series = parts.series;
   result.volume = parts.volume;
-  result.collectedVolumeRange = parts.collectedVolumeRange;
+  result.collectedVolumeRange = parts.range;
   result.authors = strings(info.author_name);
-  result.publisher = strings(info.publisher)[0] ?? "";
-  result.publicationDate = strings(info.publish_date)[0] ?? String(info.first_publish_year ?? "");
-  result.genres = cleanLabels(strings(info.subject));
+  result.publisher = [...strings(info.publisher), ...strings(info.publishers)][0] ?? "";
+  result.publicationDate = typeof info.publish_date === "string" ? info.publish_date : strings(info.publish_date)[0] ?? String(info.first_publish_year ?? "");
+  result.genres = cleanLabels([...strings(info.subject), ...strings(info.subjects)]);
   result.description = cleanHtml(description);
   result.coverUrls = cleanUrls([
     coverId ? `https://covers.openlibrary.org/b/id/${coverId}-L.jpg?default=false` : "",
@@ -276,7 +323,7 @@ export function aniListAdapter(info: RecordValue, base: BookMetadata): BookMetad
   const edges = Array.isArray(staff.edges) ? staff.edges as RecordValue[] : [];
   result.originalTitle = String(title.native ?? "");
   result.romanizedTitle = String(title.romaji ?? "");
-  result.series = base.series || String(title.english ?? title.romaji ?? "");
+  result.series = String(title.english ?? "");
   result.genres = cleanLabels(strings(info.genres));
   result.themes = cleanLabels(tags.filter(tag => Number(tag.rank ?? 0) >= 60 && !tag.isMediaSpoiler && tag !== demographicTag)
     .map(tag => String(tag.name ?? "")), 8);
@@ -301,7 +348,7 @@ export function jikanAdapter(info: RecordValue, base: BookMetadata): BookMetadat
   const authors = Array.isArray(info.authors) ? info.authors as RecordValue[] : [];
   result.originalTitle = String(info.title_japanese ?? "");
   result.romanizedTitle = String(info.title ?? "");
-  result.series = base.series || String(info.title_english ?? info.title ?? "");
+  result.series = String(info.title_english ?? "");
   result.authors = authors.map(author => String(author.name ?? "")).filter(Boolean);
   result.contributors = authors.map(author => {
     const name = String(author.name ?? "");
@@ -341,9 +388,9 @@ export function mergeMetadata(primary: BookMetadata, ...fallbacks: BookMetadata[
   return result;
 }
 
-// Manga services do not identify a physical ISBN edition. Only copy
-// classification fields after an exact normalized-title match; bibliographic
-// facts and covers remain owned by Google Books/Open Library.
+// Manga services do not identify a physical ISBN edition. Enrich only
+// classification and series aliases after a normalized-title match; physical
+// edition facts and covers remain owned by Google Books/Open Library.
 export function mergeMangaEnrichment(primary: BookMetadata, ...matches: BookMetadata[]) {
   const result: BookMetadata = {
     ...primary,
@@ -378,16 +425,16 @@ export function likelyManga(metadata: BookMetadata) {
 }
 
 function comparableTitle(value: string) {
-  return value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase()
+  return value.normalize("NFKC").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase()
     .replace(/\([^)]*vol(?:ume)?[^)]*\)/g, " ")
     .replace(/\bomnibus(?:\s+(?:vol(?:ume)?\.?\s*)?\d+)?\b/g, " ")
     .replace(/\b(?:vol(?:ume)?\.?|book)\s*\d+(?:\.\d+)?\b/g, " ")
-    .replace(/[^a-z0-9]+/g, " ").trim();
+    .replace(/[^\p{L}\p{N}]+/gu, " ").trim();
 }
 
 export function titleMatches(query: string, candidates: string[]) {
   const expected = comparableTitle(query);
-  return expected.length >= 3 && candidates.some(candidate => comparableTitle(candidate) === expected);
+  return expected.length >= 2 && candidates.some(candidate => comparableTitle(candidate) === expected);
 }
 
 export function mangaSearchTitle(metadata: BookMetadata) {

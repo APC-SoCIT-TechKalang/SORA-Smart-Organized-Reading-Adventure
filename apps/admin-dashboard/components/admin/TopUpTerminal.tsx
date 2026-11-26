@@ -48,6 +48,21 @@ function formatDuration(totalMinutes: number) {
   return `${hours}h ${minutes}m`;
 }
 
+function liveReadingSeconds(balance: number, visit: DashboardData["visits"][number] | undefined, now: number) {
+  if (!visit || visit.session_status !== "READING") return Math.max(0, balance * 60);
+  const startedAt = new Date(visit.checked_in_at).getTime();
+  if (!Number.isFinite(startedAt)) return Math.max(0, balance * 60);
+  return Math.max(0, balance * 60 - Math.max(0, (now - startedAt) / 1000));
+}
+
+function formatReadingClock(seconds: number) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remainingSeconds = safe % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+}
+
 export function TopUpTerminal({ data, name, run }: {
   data: DashboardData;
   name: (id: string | null) => string;
@@ -63,6 +78,7 @@ export function TopUpTerminal({ data, name, run }: {
   const [reference, setReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [completedBalance, setCompletedBalance] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
   const verificationLock = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const resetTimer = useRef<number | null>(null);
@@ -86,6 +102,11 @@ export function TopUpTerminal({ data, name, run }: {
 
   useEffect(() => () => {
     if (resetTimer.current) window.clearTimeout(resetTimer.current);
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const verifyPayload = useCallback(async (rawPayload: string) => {
@@ -239,7 +260,7 @@ export function TopUpTerminal({ data, name, run }: {
       <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
         <div className="flex items-center justify-between gap-3"><div><h2 className="font-serif text-2xl font-semibold">Active time balances</h2><p className="mt-1 text-xs text-[#8d735e]">Updates after every completed top-up</p></div><WalletCards className="text-[#a83d12]" /></div>
         <div className="mt-4 max-h-[26rem] overflow-y-auto pr-1">
-          {hourly.map(item => { const card = data.libraryCards.find(entry => entry.user_id === item.user_id && entry.is_active && !entry.deactivated_at); return <div className="flex min-w-0 items-center justify-between gap-3 border-b border-[#eee5dc] py-4 text-xs" key={item.user_id}><div className="min-w-0"><b className="block truncate">{name(item.user_id)}</b><small className="mt-1 block truncate text-[#8d735e]">{item.membership_label}{card?.librarycard_rfid ? ` · Card ${card.librarycard_rfid}` : ""}</small></div><span className="shrink-0 rounded-full bg-[#fff0c9] px-2.5 py-1 font-bold text-[#804916]">{item.remaining_minutes} min</span></div>; })}
+          {hourly.map(item => { const card = data.libraryCards.find(entry => entry.user_id === item.user_id && entry.is_active && !entry.deactivated_at); const visit = data.visits.find(entry => entry.user_id === item.user_id && entry.status === "ACTIVE"); const live = liveReadingSeconds(item.remaining_minutes ?? 0, visit, now); return <div className="flex min-w-0 items-center justify-between gap-3 border-b border-[#eee5dc] py-4 text-xs" key={item.user_id}><div className="min-w-0"><b className="block truncate">{name(item.user_id)}</b><small className="mt-1 block truncate text-[#8d735e]">{item.membership_label}{card?.librarycard_rfid ? ` · Card ${card.librarycard_rfid}` : ""}</small></div><span className="shrink-0 rounded-full bg-[#fff0c9] px-2.5 py-1 font-bold text-[#804916]" title={visit?.session_status === "READING" ? "Live reading balance" : "Stored balance"}>{visit?.session_status === "READING" ? `${formatReadingClock(live)} left` : `${item.remaining_minutes} min`}</span></div>; })}
           {!hourly.length && <p className="py-10 text-center text-sm text-[#806b59]">No hourly memberships are active.</p>}
         </div>
       </section>

@@ -1,111 +1,131 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { IScannerControls } from "@zxing/browser";
+import { Camera, LoaderCircle, Nfc, ScanLine, ShieldCheck, X } from "lucide-react";
 import { database, errorMessage } from "../../lib/supabase";
-import { normalizePhysicalCardUid } from "../../lib/card-scanner";
+import { isDigitalCardPayload, normalizePhysicalCardUid, parseDigitalCardPayload, sanitizeCardPayload, subscribeToCardScanner } from "../../lib/card-scanner";
 
-type ReaderCard = { users: { first_name: string; last_name: string; username: string; birthdate: string; is_active: boolean; user_role: string; membership_status: string; membership_expires_at: string | null } };
-type Alert = { log_id: number; details: string; created_at: string };
+type Reader = { first_name: string; last_name: string; is_active: boolean; user_role: string; membership_status: string; membership_expires_at: string | null };
+type Card = { librarycard_rfid: string; users: Reader };
 const api = () => database().schema("sora_v2");
-const ALERTS_PER_PAGE = 8;
 
 export function ReaderCheckIn() {
-  const [rfid, setRfid] = useState("");
-  const [card, setCard] = useState<ReaderCard | null>(null);
-  const [verified, setVerified] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const [alerts, setAlerts] = useState<Alert[]>([]);
-  const [alertCount, setAlertCount] = useState(0);
-  const [alertPage, setAlertPage] = useState(1);
-  const [alertSearch, setAlertSearch] = useState("");
-  const [alertsLoading, setAlertsLoading] = useState(true);
-  const [alertError, setAlertError] = useState("");
-  const mutation = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const closeCameraRef = useRef<HTMLButtonElement>(null);
+  const scanning = useRef(false);
+
+  const processScan = useCallback(async (rawPayload: string) => {
+    if (scanning.current || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]:not([data-reader-checkin-camera])')) return;
+    scanning.current = true;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const payload = sanitizeCardPayload(rawPayload);
+      const userId = parseDigitalCardPayload(payload);
+      if (!userId && isDigitalCardPayload(payload)) throw new Error("That Digital ID is invalid. Ask the reader to reopen their current card.");
+
+      let query = api().from("librarycard")
+        .select("librarycard_rfid,users(first_name,last_name,is_active,user_role,membership_status,membership_expires_at)")
+        .eq("is_active", true).is("deactivated_at", null);
+      if (userId) query = query.eq("user_id", userId);
+      else {
+        const uid = normalizePhysicalCardUid(payload);
+        if (uid.length < 4 || uid.length > 50) throw new Error("Scan a valid RFID card or library card barcode.");
+        query = query.eq("librarycard_rfid", uid);
+      }
+      const cardResult = await query.limit(1).maybeSingle();
+      if (cardResult.error) throw cardResult.error;
+      const card = cardResult.data as unknown as Card | null;
+      if (!card?.librarycard_rfid || !card.users) throw new Error("No active library card found. Ask staff to activate or link this card first.");
+      const reader = card.users;
+      if (!reader.is_active || reader.user_role !== "Reader" || reader.membership_status !== "ACTIVE"
+        || !reader.membership_expires_at || new Date(reader.membership_expires_at).getTime() <= Date.now()) {
+        throw new Error("This reader needs an active, unexpired membership before check-in.");
+      }
+      const result = await api().rpc("approve_kiosk_checkin", { p_rfid: normalizePhysicalCardUid(card.librarycard_rfid) });
+      if (result.error) throw result.error;
+      setCameraOpen(false);
+      setMessage(`Check-in approved for ${reader.first_name} ${reader.last_name}. They can now choose a seat and scan a book.`);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      scanning.current = false;
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => subscribeToCardScanner(payload => void processScan(payload)), [processScan]);
 
   useEffect(() => {
-    let active = true;
-    const load = async () => {
-      setAlertsLoading(true);
-      const from = (alertPage - 1) * ALERTS_PER_PAGE;
-      let query = api().from("session_activity_logs")
-        .select("log_id,details,created_at", { count: "exact" })
-        .eq("action", "INVENTORY_DISCREPANCY");
-      if (alertSearch.trim()) query = query.ilike("details", `%${alertSearch.trim()}%`);
-      const result = await query.order("log_id", { ascending: false }).range(from, from + ALERTS_PER_PAGE - 1);
-      if (!active) return;
-      if (result.error) setAlertError(errorMessage(result.error));
-      else { setAlerts(result.data as Alert[]); setAlertCount(result.count ?? 0); setAlertError(""); }
-      setAlertsLoading(false);
+    if (!cameraOpen) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeCameraRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setCameraOpen(false);
     };
-    void load();
-    const timer = window.setInterval(() => void load(), 10000);
-    return () => { active = false; window.clearInterval(timer); };
-  }, [alertPage, alertSearch]);
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [cameraOpen]);
 
-  const alertPages = Math.max(1, Math.ceil(alertCount / ALERTS_PER_PAGE));
-  useEffect(() => { setAlertPage(1); }, [alertSearch]);
-  useEffect(() => { setAlertPage(page => Math.min(page, alertPages)); }, [alertPages]);
+  useEffect(() => {
+    if (!cameraOpen) return;
+    let disposed = false;
+    let controls: IScannerControls | null = null;
+    const start = async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera scanning is unavailable on this device.");
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const video = videoRef.current;
+        if (!video) return;
+        const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 200, delayBetweenScanSuccess: 750 });
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: "environment" } }, audio: false }, video,
+          result => {
+            if (disposed || !result || scanning.current) return;
+            controls?.stop();
+            setCameraOpen(false);
+            void processScan(result.getText());
+          },
+        );
+        if (disposed) controls.stop();
+      } catch (cause) {
+        if (!disposed) { setCameraOpen(false); setError(errorMessage(cause)); }
+      }
+    };
+    void start();
+    return () => { disposed = true; controls?.stop(); if (videoRef.current) videoRef.current.srcObject = null; };
+  }, [cameraOpen, processScan]);
 
-  const run = async (action: () => Promise<void>) => {
-    if (mutation.current) return;
-    mutation.current = true; setBusy(true); setError(""); setMessage("");
-    try { await action(); } catch (cause) { setError(errorMessage(cause)); }
-    finally { mutation.current = false; setBusy(false); }
-  };
-  const reader = card?.users;
-  const eligible = reader?.is_active && reader.user_role === "Reader" && reader.membership_status === "ACTIVE"
-    && !!reader.membership_expires_at && new Date(reader.membership_expires_at).getTime() > Date.now();
-  const button = "rounded-xl bg-[#a83d12] px-4 py-3 text-sm font-bold text-white disabled:opacity-50";
-
-  return <section aria-label="Reader check-in" className="mb-6 space-y-4 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+  return <section aria-label="Reader check-in" className="mb-6 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
     <div><h2 className="font-serif text-2xl font-semibold">Reader check-in</h2>
-      <p className="mt-2 text-sm text-[#795a42]">Scan the reader's library card, verify their identity, then approve entry. Their kiosk screen will update automatically.</p></div>
-    {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-    <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void run(async () => {
-      setCard(null); setVerified(false);
-      const result = await api().from("librarycard")
-        .select("users(first_name,last_name,username,birthdate,is_active,user_role,membership_status,membership_expires_at)")
-        .eq("librarycard_rfid", normalizePhysicalCardUid(rfid)).eq("is_active", true).is("deactivated_at", null).maybeSingle();
-      if (result.error) throw result.error;
-      if (!result.data) throw new Error("No active library card found. Register or activate the card first.");
-      setCard(result.data as unknown as ReaderCard);
-    }); }}>
-      <label className="min-w-60 flex-1 text-sm font-semibold">Library card RFID
-        <input className="mt-2 block w-full rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-3 font-normal" required maxLength={100} autoComplete="off"
-          value={rfid} disabled={busy} onChange={event => { setRfid(event.target.value); setCard(null); setVerified(false); setMessage(""); }} placeholder="Scan or enter the reader's card RFID" />
-      </label>
-      <button className={button} disabled={busy || !rfid.trim()}>Look up reader</button>
-    </form>
-    {reader && <div className="space-y-3 rounded-xl border border-[#e2d5c8] p-4">
-      <p className="font-semibold">{reader.first_name} {reader.last_name} (@{reader.username})</p>
-      <p className="text-sm">Birthdate: {reader.birthdate} · Membership: {reader.membership_status}</p>
-      {!eligible && <p role="alert" className="text-sm text-red-800">Activate the reader account and an unexpired membership before check-in.</p>}
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={verified} disabled={busy || !eligible} onChange={event => setVerified(event.target.checked)} />I verified this reader's identity</label>
-      <button className={button} disabled={busy || !verified || !eligible} onClick={() => void run(async () => {
-        const result = await api().rpc("approve_kiosk_checkin", { p_rfid: normalizePhysicalCardUid(rfid) });
-        if (result.error) throw result.error;
-        setMessage(`Check-in approved for ${reader.first_name} ${reader.last_name}. They can now choose a seat and scan a book at the kiosk.`);
-        setCard(null); setVerified(false); setRfid("");
-      })}>{busy ? "Saving..." : "Approve check-in"}</button>
-    </div>}
-    <div className="border-t border-[#e8dfd3] pt-4">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div><h3 className="font-serif text-xl font-semibold">Recent inventory alerts</h3><p className="mt-1 text-xs text-[#806b59]">{alertCount.toLocaleString()} {alertCount === 1 ? "alert" : "alerts"} recorded</p></div>
-        <label className="flex min-h-11 w-full items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 sm:max-w-xs"><Search size={15} className="shrink-0 text-[#a83d12]" aria-hidden="true" /><span className="sr-only">Search inventory alerts</span><input value={alertSearch} onChange={event => setAlertSearch(event.target.value)} placeholder="Search card, ISBN, or message" className="min-w-0 flex-1 bg-transparent text-sm outline-none" /></label>
-      </div>
-      {alertError ? <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{alertError}</p>
-        : <div className="mt-4 overflow-hidden rounded-xl border border-[#eadfd3] bg-[#faf6ef]">
-          <div className="max-h-[26rem] min-h-32 overflow-y-auto p-2 sm:p-3" aria-busy={alertsLoading} aria-live="polite">
-            {alertsLoading && !alerts.length ? <div className="grid min-h-28 place-items-center text-sm text-[#806b59]">Loading inventory alerts…</div>
-              : alerts.length ? <div className="space-y-2">{alerts.map(alert => <article key={alert.log_id} className="grid min-w-0 gap-2 rounded-lg border border-[#eadfd3] border-l-4 border-l-[#a83d12] bg-white p-3 sm:grid-cols-[10rem_minmax(0,1fr)] sm:items-start"><time dateTime={alert.created_at} className="text-[10px] font-bold uppercase tracking-[.08em] text-[#9a806b]">{new Date(alert.created_at).toLocaleString()}</time><p className="min-w-0 break-words text-sm leading-5 text-[#543822]">{alert.details}</p></article>)}</div>
-                : <div className="grid min-h-28 place-items-center px-4 text-center text-sm text-[#795a42]">{alertSearch ? "No inventory alerts match your search." : "No inventory discrepancies reported."}</div>}
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eadfd3] bg-white px-3 py-3"><p className="text-[10px] font-semibold text-[#806b59]">Page {alertPage.toLocaleString()} of {alertPages.toLocaleString()}</p><div className="flex gap-2"><button type="button" disabled={alertPage === 1 || alertsLoading} onClick={() => setAlertPage(page => Math.max(1, page - 1))} className="min-h-9 rounded-lg border border-[#d8c3ad] px-3 text-[10px] font-bold text-[#704d34] disabled:opacity-40">Previous</button><button type="button" disabled={alertPage >= alertPages || alertsLoading} onClick={() => setAlertPage(page => Math.min(alertPages, page + 1))} className="min-h-9 rounded-lg border border-[#d8c3ad] px-3 text-[10px] font-bold text-[#704d34] disabled:opacity-40">Next</button></div></div>
-        </div>}
+      <p className="mt-2 text-sm text-[#795a42]">Tap the reader&apos;s RFID card or scan their card barcode or Digital ID. Check-in starts as soon as the card is verified.</p></div>
+    {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+    {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="rounded-xl border border-[#dfc9ad] bg-[#fff8ed] p-4"><Nfc size={25} className="text-[#a83d12]" aria-hidden="true" /><h3 className="mt-2 font-serif text-lg font-semibold">Tap RFID card</h3><p className="mt-1 text-xs text-[#806b59]">The connected USB card reader is listening.</p></div>
+      <button type="button" disabled={busy} onClick={() => { setError(""); setCameraOpen(value => !value); }} className="rounded-xl border border-[#dfc9ad] bg-white p-4 text-left transition hover:border-[#a83d12] hover:bg-[#fff8ed] disabled:opacity-50"><ScanLine size={25} className="text-[#a83d12]" aria-hidden="true" /><h3 className="mt-2 font-serif text-lg font-semibold">Scan barcode or Digital ID</h3><p className="mt-1 text-xs text-[#806b59]">Use a USB scanner at any time, or tap here for the camera.</p></button>
     </div>
+    <p className="mt-4 flex items-center gap-2 text-xs text-[#806b59]" aria-live="polite">{busy ? <LoaderCircle size={16} className="animate-spin" /> : <ShieldCheck size={16} className="text-emerald-700" />}{busy ? "Verifying card and approving check-in…" : "Ready for the next card"}</p>
+    {cameraOpen && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center bg-[#2d190c]/70 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setCameraOpen(false); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="reader-checkin-camera-title" data-reader-checkin-camera className="terminal-modal-panel w-full max-w-[460px] rounded-2xl border border-[#c4800c] bg-[#fffaf1] p-3 shadow-[0_25px_75px_rgba(35,19,9,.4)] sm:p-4">
+        <div className="mb-3 flex items-center justify-between gap-3 px-1"><h3 id="reader-checkin-camera-title" className="flex items-center gap-2 font-serif text-lg font-semibold"><Camera size={17} className="text-[#a83d12]" />Scan library card</h3><button ref={closeCameraRef} type="button" onClick={() => setCameraOpen(false)} aria-label="Close camera" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#d8c3ad] bg-white hover:bg-[#fff0dc]"><X size={17} /></button></div>
+        <div className="relative overflow-hidden rounded-xl border border-[#c4800c] bg-[#211811] p-3 sm:p-4">
+          <span className="relative z-10 inline-flex items-center gap-1.5 rounded-full border border-[#ae8463]/40 bg-[#543822]/85 px-2.5 py-1 text-[9px] font-bold uppercase tracking-[.12em] text-white"><Camera size={11} className="text-[#f9d219]" />Camera active</span>
+          <div className="relative mx-auto mt-3 aspect-[4/3] w-full max-w-[360px] overflow-hidden rounded-xl bg-[#1b1b1b]"><video ref={videoRef} muted playsInline aria-label="Card barcode camera preview" className="absolute inset-0 h-full w-full object-cover" /><div className="pointer-events-none absolute inset-[7%] rounded-xl border-2 border-white/90" /><div className="pointer-events-none absolute left-[12%] right-[12%] top-1/2 h-0.5 bg-[#f9d219] shadow-[0_0_12px_#f9d219]" /></div>
+          <p className="mt-3 text-center text-xs text-[#f8eddc]">Hold the card barcode or Digital ID inside the frame.</p>
+        </div>
+      </section>
+    </div>, document.body)}
   </section>;
 }

@@ -19,6 +19,8 @@ import {
   normalizeIsbn,
   openLibraryAdapter,
   professionalSynopsis,
+  resolveEditionIdentity,
+  hasJapaneseCharacters,
   numericAgeRating,
   suggestedAgeRating,
   sameIsbn,
@@ -115,6 +117,47 @@ async function googleBooks(isbn: string): Promise<SourceResult> {
 }
 
 async function openLibrary(isbn: string): Promise<SourceResult> {
+  // The ISBN endpoint is an edition record. Search results are work-level and
+  // can mix the titles and volume numbers of several editions.
+  try {
+    const editionResponse = await fetch(`https://openlibrary.org/isbn/${encodeURIComponent(isbn)}.json`, {
+      headers: openLibraryHeaders, signal: AbortSignal.timeout(8000), next: { revalidate: 86400 },
+    });
+    if (editionResponse.ok) {
+      const edition = await editionResponse.json() as Record<string, unknown>;
+      const identifiers = [...(Array.isArray(edition.isbn_13) ? edition.isbn_13 : []), ...(Array.isArray(edition.isbn_10) ? edition.isbn_10 : [])].map(String);
+      if (identifiers.some(identifier => sameIsbn(identifier, isbn))) {
+        const authorLinks = Array.isArray(edition.authors) ? edition.authors as Array<{ key?: string }> : [];
+        const authorNames = await Promise.all(authorLinks.slice(0, 3).map(async author => {
+          if (!author.key?.startsWith("/authors/")) return "";
+          try {
+            const authorResponse = await fetch(`https://openlibrary.org${author.key}.json`, {
+              headers: openLibraryHeaders, signal: AbortSignal.timeout(5000), next: { revalidate: 86400 },
+            });
+            if (authorResponse.ok) {
+              const record = await authorResponse.json() as { name?: string };
+              return record.name ?? "";
+            }
+          } catch { /* Other providers may still supply authors. */ }
+          return "";
+        }));
+        const work = Array.isArray(edition.works) ? edition.works[0] as { key?: string } | undefined : undefined;
+        let description = "";
+        if (work?.key?.startsWith("/works/")) {
+          try {
+            const workResponse = await fetch(`https://openlibrary.org${work.key}.json`, {
+              headers: openLibraryHeaders, signal: AbortSignal.timeout(5000), next: { revalidate: 86400 },
+            });
+            if (workResponse.ok) {
+              const record = await workResponse.json() as { description?: string | { value?: string } };
+              description = typeof record.description === "string" ? record.description : String(record.description?.value ?? "");
+            }
+          } catch { /* Edition facts are still usable. */ }
+        }
+        return { metadata: openLibraryAdapter({ ...edition, author_name: authorNames.filter(Boolean) }, isbn, description), source: "Open Library", status: editionResponse.status };
+      }
+    }
+  } catch { /* Try ISBN-filtered search if the edition endpoint is unavailable. */ }
   const url = new URL("https://openlibrary.org/search.json");
   url.searchParams.set("isbn", isbn);
   url.searchParams.set(
@@ -709,21 +752,25 @@ export async function POST(request: NextRequest) {
     // Google Books is authoritative first; Open Library fills only blanks.
     const found: SourceResult[] = [];
     const attempts: Array<{ source: string; status: number; failed: boolean }> = [];
-    for (const lookup of [googleBooks, openLibrary]) {
-      try {
-        const result = await lookup(canonicalIsbn);
+    const lookupProviders = [googleBooks, openLibrary];
+    const lookupResults = await Promise.allSettled(lookupProviders.map(lookup => lookup(canonicalIsbn)));
+    for (const [index, outcome] of lookupResults.entries()) {
+      if (outcome.status === "fulfilled") {
+        const result = outcome.value;
         attempts.push({ source: result.source, status: result.status, failed: result.status >= 400 });
         console.info("Catalog source result", { isbn: canonicalIsbn, source: result.source, status: result.status, accepted: Boolean(result.metadata), reason: result.rejectedReason });
         if (result.metadata) found.push(result);
-      } catch (error) {
-        attempts.push({ source: lookup.name, status: 0, failed: true });
-        console.error("Catalog source failure", { isbn: canonicalIsbn, source: lookup.name, reason: error instanceof Error ? error.message : "request failed" });
+      } else {
+        attempts.push({ source: lookupProviders[index].name, status: 0, failed: true });
+        console.error("Catalog source failure", { isbn: canonicalIsbn, source: lookupProviders[index].name, reason: outcome.reason instanceof Error ? outcome.reason.message : "request failed" });
       }
     }
     const failure = catalogFailure(attempts, found.length + (existingMetadata ? 1 : 0));
     if (failure) return NextResponse.json({ error: failure.error }, { status: failure.status });
     const primary = found[0]?.metadata ?? existingMetadata!;
-    const base = mergeMetadata(primary, ...found.slice(1).map((result) => result.metadata!), ...(existingMetadata && primary !== existingMetadata ? [existingMetadata] : []));
+    const merged = mergeMetadata(primary, ...found.slice(1).map((result) => result.metadata!), ...(existingMetadata && primary !== existingMetadata ? [existingMetadata] : []));
+    const initialIdentity = resolveEditionIdentity(merged, found.slice(1).map(result => result.metadata!));
+    const base = initialIdentity.metadata;
     const sources = found.map((result) => result.source);
     if (existingMetadata) sources.push("Library catalog");
     const fieldSources = found.length
@@ -732,7 +779,7 @@ export async function POST(request: NextRequest) {
 
     let normalized = base;
     let mangaEnrichments: SourceResult[] = [];
-    if (likelyManga(base)) {
+    if (likelyManga(base) || hasJapaneseCharacters(base.title)) {
       const search = mangaSearchTitle(base);
       const enrichmentResults = await Promise.allSettled([
         aniList(search, base),
@@ -748,6 +795,12 @@ export async function POST(request: NextRequest) {
         base,
         ...enrichments.map((result) => result.metadata!),
       );
+      const officialEnglishSeries = enrichments.map(result => result.metadata?.series ?? "").find(Boolean) ?? "";
+      const romanizedSeries = enrichments.find(result => result.metadata?.series === officialEnglishSeries)?.metadata?.romanizedTitle ?? "";
+      const englishIdentity = resolveEditionIdentity(normalized, found.slice(1).map(result => result.metadata!), officialEnglishSeries, romanizedSeries);
+      normalized = englishIdentity.metadata;
+      if (initialIdentity.volumeConflict) normalized.volume = "";
+      if (englishIdentity.usedEnglishFallback) fieldSources.title = "Matched manga series — verify edition title";
       sources.push(...enrichments.map((result) => result.source));
       for (const enrichment of enrichments) {
         for (const key of ["original_title", "romanized_title", "series_name", "volume_number", "demographic", "themes", "genres", "contributors"] as Array<keyof FormMetadata>) {
@@ -757,6 +810,13 @@ export async function POST(request: NextRequest) {
     }
 
     const metadata = toFormMetadata(normalized);
+    if (hasJapaneseCharacters(metadata.title)) {
+      metadata.original_title ||= metadata.title;
+      metadata.title = "";
+      fieldSources.title = "";
+    }
+    if (initialIdentity.usedEnglishFallback) fieldSources.title = found.find(result => result.metadata?.title === metadata.title)?.source || fieldSources.title;
+    if (initialIdentity.volumeConflict) fieldSources.volume_number = "";
     // An old catalog synopsis can block better provider text during merging.
     // Prefer a clean provider description before asking AI to rewrite it.
     const providerSynopsis = [...found, ...mangaEnrichments]
@@ -812,7 +872,7 @@ export async function POST(request: NextRequest) {
     let aiConfidence = "";
     let aiFields: Array<keyof FormMetadata> = [];
     const needsAiCleanup = !metadata.genres || !metadata.themes || !metadata.demographic || !metadata.age_rating || !metadata.description;
-    if ((needsAiCleanup || Boolean(metadata.description)) && body.useAi === true) {
+    if (metadata.title && (needsAiCleanup || Boolean(metadata.description)) && body.useAi === true) {
       try {
         let enrichment = await openRouter(metadata);
         if (!enrichment?.description && !metadata.description)
@@ -845,6 +905,7 @@ export async function POST(request: NextRequest) {
     fieldSources.cover_image_url = coverCandidates.length ? (fieldSources.cover_image_url || sources[0]) : "";
 
     const missing = [
+      ["English title", metadata.title],
       ["author", metadata.author],
       ["series", metadata.series_name],
       ["volume", metadata.volume_number],
@@ -864,6 +925,8 @@ export async function POST(request: NextRequest) {
     const reviewFields = [...missing];
     if (ageRatingSuggested) reviewFields.push("age rating");
     const warnings = ["Review edition-specific details before saving."];
+    if (initialIdentity.volumeConflict) warnings.push("Exact-ISBN sources disagree on the volume number. Check the printed book and enter it manually.");
+    if (!metadata.title) warnings.push("An official English edition title could not be verified. Enter it from the printed book before saving.");
     if (normalized.collectedVolumeRange)
       warnings.push(
         `This omnibus collects original volumes ${normalized.collectedVolumeRange}; the Volume field uses omnibus number ${metadata.volume_number}.`,
@@ -880,8 +943,6 @@ export async function POST(request: NextRequest) {
       warnings.push(
         `Still unavailable from reliable sources: ${missing.join(", ")}.`,
       );
-    if (!metadata.title || !metadata.author)
-      return NextResponse.json({ error: "The sources returned incomplete metadata without a reliable title and author. Search by title explicitly or enter the record manually." }, { status: 422 });
     return NextResponse.json({
       source: existingBookId ? "catalog" : "isbn",
       existingBookId,
