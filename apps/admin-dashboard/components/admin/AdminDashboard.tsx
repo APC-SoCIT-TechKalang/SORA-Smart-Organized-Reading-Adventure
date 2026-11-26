@@ -1189,9 +1189,12 @@ function Readers({
       <section className="mb-6 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
         <SectionTitle
           title="Activate reader account"
-          copy="Verify their identity and physical card in person before activation."
+          copy={usesReplacementSchema
+            ? "Verify the reader's identity, then choose their membership and expiry. RFID card linking is managed separately below."
+            : "Verify their identity and physical card in person before activation."}
         />
         <form
+          aria-label="Activate reader account"
           className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3"
           onSubmit={async (event) => {
             event.preventDefault();
@@ -1205,7 +1208,6 @@ function Readers({
                         p_membership_rank: "F",
                         p_remaining_minutes: 0,
                         p_expires_at: new Date(expiresAt).toISOString(),
-                        p_rfid: normalizePhysicalCardUid(rfid) || null,
                       })
                     : database().rpc("admin_activate_member", {
                         p_user_id: readerId,
@@ -1214,7 +1216,7 @@ function Readers({
                         p_rfid: rfid.trim(),
                         p_expires_at: new Date(expiresAt).toISOString(),
                       }),
-                "Reader membership and physical card activated",
+                usesReplacementSchema ? "Reader membership activated" : "Reader membership and physical card activated",
               )
             ) {
               setReaderId("");
@@ -1273,7 +1275,7 @@ function Readers({
               />
             </label>
           )}
-          <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">
+          {!usesReplacementSchema && <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">
             Physical RFID UID
             <input
               required
@@ -1282,7 +1284,7 @@ function Readers({
               className="mt-2 w-full rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-3 text-sm font-normal normal-case"
               placeholder="Scan or enter card UID"
             />
-          </label>
+          </label>}
           <label className="text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">
             Membership expiry
             <input

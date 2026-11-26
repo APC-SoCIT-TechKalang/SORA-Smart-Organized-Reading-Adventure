@@ -11,9 +11,10 @@ const users = [
   { id: readerId, first_name: 'Jared Christian', last_name: 'Gatchalian', is_active: true },
   { id: otherId, first_name: 'Saimon', last_name: 'Lumod', is_active: true },
   { id: '00000000-0000-4000-8000-000000000003', first_name: 'Inactive', last_name: 'Reader', is_active: false },
-].map(user => ({ ...user, user_role: 'Reader', birthdate: '2000-01-01', membership_type: 'Wanderer', membership_status: 'ACTIVE', membership_rank: 'F', remaining_minutes: 600, membership_expires_at: '2099-01-01T00:00:00Z' }));
+].map(user => ({ ...user, user_role: 'Reader', birthdate: '2000-01-01', membership_type: 'Wanderer', membership_status: 'INACTIVE', membership_rank: 'F', remaining_minutes: 600, membership_expires_at: '2099-01-01T00:00:00Z' }));
 let cards = [{ librarycard_id: 'card-two', user_id: otherId, librarycard_rfid: '0099887766', is_active: true, deactivated_at: null }];
 const assignments = [];
+const activations = [];
 let rejectAssignment = false;
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const context = await browser.newContext({ viewport: { width: 1440, height: 1080 } });
@@ -39,6 +40,13 @@ await context.route(`${origin}/**`, async route => {
   else if (table === 'is_librarian') data = true;
   else if (table === 'users') data = users;
   else if (table === 'librarycard') data = cards;
+  else if (table === 'admin_activate_membership') {
+    const args = request.postDataJSON();
+    activations.push(args);
+    const reader = users.find(item => item.id === args.p_user_id);
+    Object.assign(reader, { membership_status: 'ACTIVE', membership_type: args.p_membership_type, membership_expires_at: args.p_expires_at });
+    data = args.p_user_id;
+  }
   else if (table === 'admin_assign_library_card') {
     const args = request.postDataJSON();
     assignments.push(args);
@@ -63,6 +71,24 @@ try {
   await page.getByRole('button', { name: 'Open navigation menu' }).click();
   await page.getByRole('button', { name: 'Readers', exact: true }).click();
   await page.getByRole('button', { name: 'Close navigation menu' }).click();
+  const activationForm = page.getByRole('form', { name: 'Activate reader account' });
+  assert.equal(await activationForm.getByLabel('Physical RFID UID').count(), 0);
+  const originalCards = structuredClone(cards);
+  // Activation succeeds both with an existing card and before a physical card is linked.
+  for (const id of [otherId, readerId]) {
+    await activationForm.getByLabel('Reader awaiting activation').selectOption(id);
+    await activationForm.getByLabel('Membership plan').selectOption({ label: 'Wanderer' });
+    await activationForm.getByLabel('Membership expiry').fill('2099-12-31T18:00');
+    const expectedExpiry = await page.evaluate(() => new Date('2099-12-31T18:00').toISOString());
+    await activationForm.getByRole('button', { name: 'Activate reader', exact: true }).click();
+    await page.getByRole('status').filter({ hasText: 'Reader membership activated' }).waitFor();
+    await page.waitForFunction(() => document.querySelector('form[aria-label="Activate reader account"] select').value === '');
+    assert.deepEqual(activations.at(-1), { p_user_id: id, p_membership_type: 'Wanderer', p_membership_rank: 'F', p_remaining_minutes: 0, p_expires_at: expectedExpiry });
+    assert.deepEqual(cards, originalCards);
+    assert.equal(assignments.length, 0);
+  }
+  assert.equal(activations.length, 2);
+  await activationForm.screenshot({ path: 'outputs/reader-activation-without-rfid.png' });
   await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
   assert.equal(await dialog.getByRole('option', { name: /Inactive/ }).count(), 0);
   await scan('0000111122'); // Scanning before a reader is selected does nothing.
@@ -121,6 +147,7 @@ try {
   await scan('00000077');
   await dialog.getByRole('alert').filter({ hasText: /already assigned/ }).waitFor();
   assert.equal(assignments.length, 2);
+  await page.waitForFunction(() => !document.querySelector('dialog[open] select').disabled);
   rejectAssignment = false;
   await scan('00000088');
   await dialog.getByText('Card linked to Jared Christian Gatchalian', { exact: true }).waitFor();
@@ -141,7 +168,7 @@ try {
     await dialog.waitFor({ state: 'detached' });
   }
   assert.deepEqual(errors, []);
-  console.log('PASS: selection, automatic print, blocked popup retry, UID normalization, duplicate protection, cancellation, server rejection/retry, replacement and mobile layouts.');
+  console.log('PASS: activation without RFID preserves cards; selection, automatic print, blocked popup retry, UID normalization, duplicate protection, cancellation, server rejection/retry, replacement and mobile layouts.');
 } catch (cause) {
   await page.screenshot({ path: 'outputs/reader-card-test-failure.png', fullPage: true });
   console.error(await page.locator('body').innerText());

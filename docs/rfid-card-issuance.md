@@ -4,6 +4,10 @@ Open **Readers → Print and link RFID cards**, below the account activation for
 Both actions list active reader accounts, including readers awaiting membership
 activation. Inactive accounts must be reactivated first.
 
+Membership activation requires the reader, membership plan, and expiry date.
+It preserves existing card records and does not ask staff to enter an RFID UID.
+Use **Link RFID UID** separately when issuing or replacing a physical card.
+
 ## Print RFID card
 
 1. Select **Print RFID card**.
