@@ -6,9 +6,9 @@
   isolation: isolate;
   overflow-x: clip;
   background:
-    radial-gradient(ellipse at 15% 0%, #fff8e8, transparent min(70vw, 48rem)),
-    radial-gradient(ellipse at 100% 86%, #c99c7152, transparent min(75vw, 56rem)),
-    linear-gradient(150deg, #f5ead6, #ead6b8);
+    radial-gradient(ellipse at 15% 0%, #e8d2b1, transparent min(70vw, 48rem)),
+    radial-gradient(ellipse at 100% 86%, #976a4a38, transparent min(75vw, 56rem)),
+    linear-gradient(150deg, #ddc4a3, #c6a17d);
 }
 
 .reader-world::before,
@@ -32,8 +32,8 @@
   right: -14vmin;
   width: min(110vmin, 65rem);
   aspect-ratio: 1;
-  background: radial-gradient(ellipse at center, #ffc77b67, #e8ac611c 49%, transparent 72%);
-  opacity: .7;
+  background: radial-gradient(ellipse at center, #f5bb7840, #d8975416 49%, transparent 72%);
+  opacity: .55;
 }
 
 .reader-brand-seal {
@@ -95,8 +95,8 @@
 }
 
 @keyframes reader-room-light {
-  from { opacity: .55; transform: translate3d(0, 0, 0); }
-  to { opacity: .85; transform: translate3d(-7%, 10%, 0); }
+  from { opacity: .4; transform: translate3d(0, 0, 0); }
+  to { opacity: .7; transform: translate3d(-7%, 10%, 0); }
 }
 
 @keyframes reader-scene-enter { from { opacity: .72; } to { opacity: 1; } }
