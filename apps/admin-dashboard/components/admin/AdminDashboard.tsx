@@ -189,6 +189,8 @@ export function AdminDashboard() {
         setBulkDrawer={setBulkDrawer}
         setEditingCover={setEditingCover}
         setEditingLocation={setEditingLocation}
+        shelveCopy={(copyId) => run(() => shelveCopy(copyId), "Copy returned to shelf")}
+        refreshData={refresh}
       />
     ) : page === "Challenges" ? (
       <QuestManagement data={data} name={name} run={run} />
