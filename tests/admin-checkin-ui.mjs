@@ -25,7 +25,7 @@ async function createPage(staff) {
     else if (table === 'current_user_id') data = readerId;
     else if (table === 'points_balance') data = 0;
     else if (table === 'users') data = staff ? [profile] : profile;
-    else if (table === 'librarycard') data = target.searchParams.get('librarycard_rfid') === 'eq.CARD1' ? { users: profile } : null;
+    else if (table === 'librarycard') data = target.searchParams.get('librarycard_rfid') === 'eq.CARD1' || target.searchParams.get('user_id') === `eq.${readerId}` ? { librarycard_rfid: 'CARD1', users: profile } : null;
     else if (table === 'approve_kiosk_checkin') {
       assert.ok(staff, 'Approval must originate in admin context');
       assert.equal(request.postDataJSON().p_rfid, 'CARD1');
@@ -46,19 +46,16 @@ try {
   await admin.getByRole('button', { name: 'Open navigation menu' }).click();
   await admin.getByRole('button', { name: 'Readers', exact: true }).click();
   const form = admin.getByRole('region', { name: 'Reader check-in' });
-  await form.getByLabel('Library card RFID').fill('UNKNOWN');
-  await form.getByRole('button', { name: 'Look up reader' }).click();
+  assert.equal(await form.getByLabel('Library card RFID').count(), 0);
+  await admin.keyboard.type('UNKNOWN', { delay: 5 });
+  await admin.keyboard.press('Enter');
   await form.getByRole('alert').filter({ hasText: 'No active library card found' }).waitFor();
-  await form.getByLabel('Library card RFID').fill('CARD1');
-  await form.getByRole('button', { name: 'Look up reader' }).click();
-  await form.getByText('Test Reader (@testreader)').waitFor();
-  assert.ok(await form.getByRole('button', { name: 'Approve check-in' }).isDisabled());
-  await form.getByLabel("I verified this reader's identity").check();
-  await form.getByRole('button', { name: 'Approve check-in' }).click();
+  await admin.keyboard.type('CARD1', { delay: 5 });
+  await admin.keyboard.press('Enter');
   await form.getByRole('status').filter({ hasText: 'Check-in approved for Test Reader' }).waitFor();
   await reader.waitForFunction(() => !document.querySelector('input[placeholder="Scan here, then press Enter"]').disabled);
   assert.equal(approvals, 1);
   assert.equal(await reader.getByRole('button', { name: 'Approve check-in' }).count(), 0);
   await form.screenshot({ path: 'work/admin-checkin.png' });
-  console.log('PASS: only admin looks up card, verifies identity and approves; reader receives approval automatically');
+  console.log('PASS: card scan approves check-in in the admin session; reader receives approval automatically');
 } finally { await browser.close(); }

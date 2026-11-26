@@ -1,63 +1,103 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { IScannerControls } from "@zxing/browser";
+import { Camera, LoaderCircle, Nfc, ScanLine, ShieldCheck, X } from "lucide-react";
 import { database, errorMessage } from "../../lib/supabase";
-import { normalizePhysicalCardUid } from "../../lib/card-scanner";
+import { isDigitalCardPayload, normalizePhysicalCardUid, parseDigitalCardPayload, sanitizeCardPayload, subscribeToCardScanner } from "../../lib/card-scanner";
 
-type ReaderCard = { users: { first_name: string; last_name: string; username: string; birthdate: string; is_active: boolean; user_role: string; membership_status: string; membership_expires_at: string | null } };
+type Reader = { first_name: string; last_name: string; is_active: boolean; user_role: string; membership_status: string; membership_expires_at: string | null };
+type Card = { librarycard_rfid: string; users: Reader };
 const api = () => database().schema("sora_v2");
 
 export function ReaderCheckIn() {
-  const [rfid, setRfid] = useState("");
-  const [card, setCard] = useState<ReaderCard | null>(null);
-  const [verified, setVerified] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
-  const mutation = useRef(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const scanning = useRef(false);
 
-  const run = async (action: () => Promise<void>) => {
-    if (mutation.current) return;
-    mutation.current = true; setBusy(true); setError(""); setMessage("");
-    try { await action(); } catch (cause) { setError(errorMessage(cause)); }
-    finally { mutation.current = false; setBusy(false); }
-  };
-  const reader = card?.users;
-  const eligible = reader?.is_active && reader.user_role === "Reader" && reader.membership_status === "ACTIVE"
-    && !!reader.membership_expires_at && new Date(reader.membership_expires_at).getTime() > Date.now();
-  const button = "rounded-xl bg-[#a83d12] px-4 py-3 text-sm font-bold text-white disabled:opacity-50";
+  const processScan = useCallback(async (rawPayload: string) => {
+    if (scanning.current || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')) return;
+    scanning.current = true;
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const payload = sanitizeCardPayload(rawPayload);
+      const userId = parseDigitalCardPayload(payload);
+      if (!userId && isDigitalCardPayload(payload)) throw new Error("That Digital ID is invalid. Ask the reader to reopen their current card.");
 
-  return <section aria-label="Reader check-in" className="mb-6 space-y-4 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
-    <div><h2 className="font-serif text-2xl font-semibold">Reader check-in</h2>
-      <p className="mt-2 text-sm text-[#795a42]">Scan the reader&apos;s library card, verify their identity, then approve entry. Their kiosk screen will update automatically.</p></div>
-    {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
-    {message && <p role="status" className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
-    <form className="flex flex-wrap items-end gap-3" onSubmit={event => { event.preventDefault(); void run(async () => {
-      setCard(null); setVerified(false);
-      const result = await api().from("librarycard")
-        .select("users(first_name,last_name,username,birthdate,is_active,user_role,membership_status,membership_expires_at)")
-        .eq("librarycard_rfid", normalizePhysicalCardUid(rfid)).eq("is_active", true).is("deactivated_at", null).maybeSingle();
+      let query = api().from("librarycard")
+        .select("librarycard_rfid,users(first_name,last_name,is_active,user_role,membership_status,membership_expires_at)")
+        .eq("is_active", true).is("deactivated_at", null);
+      if (userId) query = query.eq("user_id", userId);
+      else {
+        const uid = normalizePhysicalCardUid(payload);
+        if (uid.length < 4 || uid.length > 50) throw new Error("Scan a valid RFID card or library card barcode.");
+        query = query.eq("librarycard_rfid", uid);
+      }
+      const cardResult = await query.limit(1).maybeSingle();
+      if (cardResult.error) throw cardResult.error;
+      const card = cardResult.data as unknown as Card | null;
+      if (!card?.librarycard_rfid || !card.users) throw new Error("No active library card found. Ask staff to activate or link this card first.");
+      const reader = card.users;
+      if (!reader.is_active || reader.user_role !== "Reader" || reader.membership_status !== "ACTIVE"
+        || !reader.membership_expires_at || new Date(reader.membership_expires_at).getTime() <= Date.now()) {
+        throw new Error("This reader needs an active, unexpired membership before check-in.");
+      }
+      const result = await api().rpc("approve_kiosk_checkin", { p_rfid: normalizePhysicalCardUid(card.librarycard_rfid) });
       if (result.error) throw result.error;
-      if (!result.data) throw new Error("No active library card found. Register or activate the card first.");
-      setCard(result.data as unknown as ReaderCard);
-    }); }}>
-      <label className="min-w-60 flex-1 text-sm font-semibold">Library card RFID
-        <input className="mt-2 block w-full rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-3 font-normal" required maxLength={100} autoComplete="off"
-          value={rfid} disabled={busy} onChange={event => { setRfid(event.target.value); setCard(null); setVerified(false); setMessage(""); }} placeholder="Scan or enter the reader&apos;s card RFID" />
-      </label>
-      <button className={button} disabled={busy || !rfid.trim()}>Look up reader</button>
-    </form>
-    {reader && <div className="space-y-3 rounded-xl border border-[#e2d5c8] p-4">
-      <p className="font-semibold">{reader.first_name} {reader.last_name} (@{reader.username})</p>
-      <p className="text-sm">Birthdate: {reader.birthdate} · Membership: {reader.membership_status}</p>
-      {!eligible && <p role="alert" className="text-sm text-red-800">Activate the reader account and an unexpired membership before check-in.</p>}
-      <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={verified} disabled={busy || !eligible} onChange={event => setVerified(event.target.checked)} />I verified this reader&apos;s identity</label>
-      <button className={button} disabled={busy || !verified || !eligible} onClick={() => void run(async () => {
-        const result = await api().rpc("approve_kiosk_checkin", { p_rfid: normalizePhysicalCardUid(rfid) });
-        if (result.error) throw result.error;
-        setMessage(`Check-in approved for ${reader.first_name} ${reader.last_name}. They can now choose a seat and scan a book at the kiosk.`);
-        setCard(null); setVerified(false); setRfid("");
-      })}>{busy ? "Saving..." : "Approve check-in"}</button>
-    </div>}
+      setCameraOpen(false);
+      setMessage(`Check-in approved for ${reader.first_name} ${reader.last_name}. They can now choose a seat and scan a book.`);
+    } catch (cause) {
+      setError(errorMessage(cause));
+    } finally {
+      scanning.current = false;
+      setBusy(false);
+    }
+  }, []);
+
+  useEffect(() => subscribeToCardScanner(payload => void processScan(payload)), [processScan]);
+
+  useEffect(() => {
+    if (!cameraOpen) return;
+    let disposed = false;
+    let controls: IScannerControls | null = null;
+    const start = async () => {
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera scanning is unavailable on this device.");
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const video = videoRef.current;
+        if (!video) return;
+        const reader = new BrowserMultiFormatReader(undefined, { delayBetweenScanAttempts: 200, delayBetweenScanSuccess: 750 });
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: "environment" } }, audio: false }, video,
+          result => {
+            if (disposed || !result || scanning.current) return;
+            controls?.stop();
+            setCameraOpen(false);
+            void processScan(result.getText());
+          },
+        );
+        if (disposed) controls.stop();
+      } catch (cause) {
+        if (!disposed) { setCameraOpen(false); setError(errorMessage(cause)); }
+      }
+    };
+    void start();
+    return () => { disposed = true; controls?.stop(); if (videoRef.current) videoRef.current.srcObject = null; };
+  }, [cameraOpen, processScan]);
+
+  return <section aria-label="Reader check-in" className="mb-6 rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+    <div><h2 className="font-serif text-2xl font-semibold">Reader check-in</h2>
+      <p className="mt-2 text-sm text-[#795a42]">Tap the reader&apos;s RFID card or scan their card barcode or Digital ID. Check-in starts as soon as the card is verified.</p></div>
+    {error && <p role="alert" className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-800">{error}</p>}
+    {message && <p role="status" className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{message}</p>}
+    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+      <div className="rounded-xl border border-[#dfc9ad] bg-[#fff8ed] p-4"><Nfc size={25} className="text-[#a83d12]" aria-hidden="true" /><h3 className="mt-2 font-serif text-lg font-semibold">Tap RFID card</h3><p className="mt-1 text-xs text-[#806b59]">The connected USB card reader is listening.</p></div>
+      <button type="button" disabled={busy} onClick={() => { setError(""); setCameraOpen(value => !value); }} className="rounded-xl border border-[#dfc9ad] bg-white p-4 text-left transition hover:border-[#a83d12] hover:bg-[#fff8ed] disabled:opacity-50"><ScanLine size={25} className="text-[#a83d12]" aria-hidden="true" /><h3 className="mt-2 font-serif text-lg font-semibold">Scan barcode or Digital ID</h3><p className="mt-1 text-xs text-[#806b59]">Use a USB scanner at any time, or tap here for the camera.</p></button>
+    </div>
+    {cameraOpen && <div className="mt-4 rounded-xl border border-[#dfc9ad] bg-[#faf6ef] p-3"><div className="flex items-center justify-between gap-3 pb-2"><span className="flex items-center gap-2 text-sm font-semibold"><Camera size={16} />Camera scanner</span><button type="button" onClick={() => setCameraOpen(false)} aria-label="Close camera" className="grid h-9 w-9 place-items-center rounded-lg border bg-white"><X size={17} /></button></div><video ref={videoRef} muted playsInline aria-label="Card barcode camera preview" className="mx-auto aspect-video max-h-64 w-full rounded-lg bg-[#21130c] object-cover" /></div>}
+    <p className="mt-4 flex items-center gap-2 text-xs text-[#806b59]" aria-live="polite">{busy ? <LoaderCircle size={16} className="animate-spin" /> : <ShieldCheck size={16} className="text-emerald-700" />}{busy ? "Verifying card and approving check-in…" : "Ready for the next card"}</p>
   </section>;
 }
