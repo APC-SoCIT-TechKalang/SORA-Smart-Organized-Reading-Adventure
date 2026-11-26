@@ -2,8 +2,10 @@
 
 Open **Readers → Print and link RFID cards**, below the account activation form.
 Printing lists active reader accounts, including readers awaiting membership
-activation. Linking lists only active readers without an active card with a
-saved RFID UID. Inactive accounts must be reactivated first.
+activation. Linking lists only active reader accounts with an activated
+membership (`ACTIVE`) and no active card with a saved RFID UID. Readers awaiting
+membership activation are hidden from linking. Inactive accounts must be
+reactivated first.
 
 Membership activation requires the reader, membership plan, and expiry date.
 It preserves existing card records and does not ask staff to enter an RFID UID.
@@ -27,16 +29,17 @@ or confirm that a physical card was printed.
 ## Link RFID UID
 
 1. Select **Link RFID UID**, beside the print button.
-2. Choose the reader's name. The dialog begins waiting for a tap.
+2. Choose an activated reader's name. The dialog begins waiting for a tap.
 3. Keep the browser focused and tap the physical card on the USB RFID reader.
    The reader must type the UID followed by Enter/CR.
 4. Wait for **Card linked** and the saved UID. Select **Done**, or choose another
    reader to issue another card.
 
 Readers who already have an active linked UID are hidden from this dropdown.
-A reader disappears from the list as soon as their card is saved. If everyone
-has a linked card, the dialog displays an empty state. A card record without a
-UID, or a deactivated card, does not prevent a reader from appearing.
+A reader disappears from the list as soon as their card is saved. If no activated
+readers need a card, the dialog displays an empty state. Activate a reader's
+membership before linking their RFID. A card record without a UID, or a
+deactivated card, does not prevent an activated reader from appearing.
 
 This reads the card's built-in UID and associates it with the selected reader
 in `sora_v2.librarycard`; it does not rewrite the chip's UID. Leading zeroes are

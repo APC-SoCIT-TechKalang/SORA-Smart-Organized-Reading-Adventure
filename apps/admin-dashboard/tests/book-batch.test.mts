@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bookImportTemplate, bulkRowError, expandBookQuantities, fillRepeatedBooks, normalizeBookIsbn, parseBookBatch, validBookIsbn } from "../components/admin/book-batch.ts";
+import { bookImportTemplate, bulkRowError, catalogGenreSummary, cleanBookGenres, expandBookQuantities, fillRepeatedBooks, normalizeBookIsbn, parseBookBatch, validBookIsbn } from "../components/admin/book-batch.ts";
 
 test("bulk CSV accepts quoted fields and repeated ISBN copies", () => {
   const rows = parseBookBatch('isbn,title,author,genre,tags,book_type,age_rating,shelf\n9781646516544,"Blue Lock, Vol. 1",Muneyuki Kaneshiro,Sports,Teamwork,Manga,13,Shelf A2\n9781646516544,,,,,,,Shelf A3');
@@ -23,6 +23,13 @@ test("downloadable import template remains parseable", () => {
   const rows = parseBookBatch(bookImportTemplate);
   assert.equal(rows.length, 1);
   assert.equal(bulkRowError(rows[0]), "");
+});
+
+test("bulk genres fit the catalog column and remove provider artifacts", () => {
+  const input = "Wizards, Magic, Graphic novels, collectionid:nyt2020s, Comics, Fantasy, Adventure, Young adult fiction, Friendship, Coming of age, School life";
+  assert.deepEqual(cleanBookGenres(input).includes("collectionid:nyt2020s"), false);
+  assert.ok(catalogGenreSummary(input).length <= 100);
+  assert.match(catalogGenreSummary(input), /^Wizards, Magic/);
 });
 
 test("invalid ISBN and missing required fields stop a batch", () => {

@@ -52,7 +52,11 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
   const linkedReaderIds = new Set(data.libraryCards
     .filter(card => card.is_active && !card.deactivated_at && normalizePhysicalCardUid(card.librarycard_rfid ?? ""))
     .map(card => card.user_id));
-  const readerOptions = printing ? readers : readers.filter(reader => !linkedReaderIds.has(reader.user_id));
+  const activatedReaderIds = new Set(data.memberAccounts
+    .filter(member => member.status === "ACTIVE")
+    .map(member => member.user_id));
+  const readerOptions = printing ? readers : readers.filter(reader =>
+    activatedReaderIds.has(reader.user_id) && !linkedReaderIds.has(reader.user_id));
   const reader = readerOptions.find(item => item.user_id === readerId);
   // Keep the confirmation name after a saved reader disappears from the options.
   const selectedReader = readers.find(item => item.user_id === readerId);
@@ -139,7 +143,7 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
       <button type="button" disabled={saving} onClick={close} aria-label="Close card action" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#d8c3ad] hover:bg-[#fff5e8] disabled:opacity-45"><X size={18} aria-hidden="true" /></button>
     </div>
     <div className="space-y-4 p-5 sm:p-6">
-      <p id="reader-card-action-description" className="text-sm leading-6 text-[#795a42]">{printing ? "Choose a reader to open their personalized card in the print dialog automatically." : "Choose a reader without a linked RFID card, then tap their physical card on the connected USB reader. Its UID will be saved to their account automatically."}</p>
+      <p id="reader-card-action-description" className="text-sm leading-6 text-[#795a42]">{printing ? "Choose a reader to open their personalized card in the print dialog automatically." : "Choose an activated reader without a linked RFID card, then tap their physical card on the connected USB reader. Its UID will be saved to their account automatically."}</p>
       <label className="block text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">Reader name
         <select autoFocus value={reader ? readerId : ""} disabled={saving || !readerOptions.length} onChange={event => {
           const id = event.target.value;
@@ -151,7 +155,7 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
           {readerOptions.map(item => <option key={item.user_id} value={item.user_id}>{item.first_name} {item.last_name} · {item.user_id.slice(-6)}</option>)}
         </select>
       </label>
-      {!printing && !readerOptions.length && <p role="status" className="rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 text-sm leading-6 text-[#795a42]">All active readers already have a linked RFID card.</p>}
+      {!printing && !readerOptions.length && <p role="status" className="rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 text-sm leading-6 text-[#795a42]">No activated readers are waiting for an RFID card.</p>}
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
       {printing ? <>
         <div className="rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 text-xs leading-5 text-[#795a42]">Card size: 85.6 × 53.98 mm. Choose your card printer, use actual size (100%), and turn off headers and footers in the print dialog.</div>

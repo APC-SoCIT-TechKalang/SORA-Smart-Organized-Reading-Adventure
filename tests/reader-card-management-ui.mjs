@@ -9,13 +9,15 @@ const readerId = '00000000-0000-4000-8000-000000000001';
 const otherId = '00000000-0000-4000-8000-000000000002';
 const blankCardReaderId = '00000000-0000-4000-8000-000000000004';
 const previousCardReaderId = '00000000-0000-4000-8000-000000000005';
+const pendingReaderId = '00000000-0000-4000-8000-000000000006';
 const users = [
   { id: readerId, first_name: 'Jared Christian', last_name: 'Gatchalian', is_active: true },
   { id: otherId, first_name: 'Saimon', last_name: 'Lumod', is_active: true },
   { id: '00000000-0000-4000-8000-000000000003', first_name: 'Inactive', last_name: 'Reader', is_active: false },
   { id: blankCardReaderId, first_name: 'Unassigned', last_name: 'Reader', is_active: true },
   { id: previousCardReaderId, first_name: 'Previous', last_name: 'Reader', is_active: true },
-].map(user => ({ ...user, user_role: 'Reader', birthdate: '2000-01-01', membership_type: 'Wanderer', membership_status: 'INACTIVE', membership_rank: 'F', remaining_minutes: 600, membership_expires_at: '2099-01-01T00:00:00Z' }));
+  { id: pendingReaderId, first_name: 'Daniel', last_name: 'Tria', is_active: true },
+].map(user => ({ ...user, user_role: 'Reader', birthdate: '2000-01-01', membership_type: 'Wanderer', membership_status: [blankCardReaderId, previousCardReaderId].includes(user.id) ? 'ACTIVE' : 'INACTIVE', membership_rank: 'F', remaining_minutes: 600, membership_expires_at: '2099-01-01T00:00:00Z' }));
 let cards = [
   { librarycard_id: 'card-two', user_id: otherId, librarycard_rfid: '0099887766', is_active: true, deactivated_at: null },
   { librarycard_id: 'blank-card', user_id: blankCardReaderId, librarycard_rfid: null, is_active: true, deactivated_at: null },
@@ -82,6 +84,13 @@ try {
   await page.getByRole('button', { name: 'Close navigation menu' }).click();
   const activationForm = page.getByRole('form', { name: 'Activate reader account' });
   assert.equal(await activationForm.getByLabel('Physical RFID UID').count(), 0);
+  // An enabled account still needs membership activation before RFID linking.
+  await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
+  for (const id of [readerId, otherId, pendingReaderId]) {
+    assert.equal(await dialog.locator(`option[value="${id}"]`).count(), 0);
+  }
+  assert.equal(await dialog.locator(`option[value="${blankCardReaderId}"]`).count(), 1);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   const originalCards = structuredClone(cards);
   // Activation succeeds both with an existing card and before a physical card is linked.
   for (const id of [otherId, readerId]) {
@@ -100,6 +109,7 @@ try {
   await activationForm.screenshot({ path: 'outputs/reader-activation-without-rfid.png' });
   await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
   assert.equal(await dialog.getByRole('option', { name: /Inactive/ }).count(), 0);
+  assert.equal(await dialog.locator(`option[value="${pendingReaderId}"]`).count(), 0);
   assert.equal(await dialog.locator(`option[value="${otherId}"]`).count(), 0);
   assert.equal(await dialog.locator(`option[value="${blankCardReaderId}"]`).count(), 1);
   assert.equal(await dialog.locator(`option[value="${previousCardReaderId}"]`).count(), 1);
@@ -194,16 +204,27 @@ try {
   await dialog.getByLabel('Reader name').selectOption(previousCardReaderId);
   await scan('00000100');
   await dialog.getByText('Card linked to Previous Reader', { exact: true }).waitFor();
-  await dialog.getByText('All active readers already have a linked RFID card.', { exact: true }).waitFor();
+  await dialog.getByText('No activated readers are waiting for an RFID card.', { exact: true }).waitFor();
   assert.ok(await dialog.getByLabel('Reader name').isDisabled());
   assert.equal(await dialog.getByRole('option').count(), 1);
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
   await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
-  await dialog.getByText('All active readers already have a linked RFID card.', { exact: true }).waitFor();
+  await dialog.getByText('No activated readers are waiting for an RFID card.', { exact: true }).waitFor();
+  assert.equal(await dialog.locator(`option[value="${pendingReaderId}"]`).count(), 0);
   await dialog.screenshot({ path: 'outputs/reader-card-no-unlinked-readers.png' });
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  // Activation refresh makes the previously hidden reader eligible immediately.
+  await activationForm.getByLabel('Reader awaiting activation').selectOption(pendingReaderId);
+  await activationForm.getByLabel('Membership plan').selectOption({ label: 'Wanderer' });
+  await activationForm.getByLabel('Membership expiry').fill('2099-12-31T18:00');
+  await activationForm.getByRole('button', { name: 'Activate reader', exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('form[aria-label="Activate reader account"] select').value === '');
+  await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
+  assert.equal(await dialog.locator(`option[value="${pendingReaderId}"]`).count(), 1);
+  assert.equal(await dialog.getByRole('option').count(), 2);
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   assert.deepEqual(errors, []);
-  console.log('PASS: linked readers excluded from linking and retained for printing; saved readers removed immediately; blank/inactive cards eligible; empty state; activation, scanner, retry and mobile regressions.');
+  console.log('PASS: unactivated readers hidden until activation; linked readers excluded; activated readers with blank/inactive cards eligible; immediate refresh, empty state, printing, scanner, retry and mobile regressions.');
 } catch (cause) {
   await page.screenshot({ path: 'outputs/reader-card-test-failure.png', fullPage: true });
   console.error(await page.locator('body').innerText());
