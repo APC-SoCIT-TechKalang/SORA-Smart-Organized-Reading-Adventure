@@ -48,6 +48,7 @@ import { AnalyticsWorkspace } from "./AnalyticsWorkspace";
 import { CheckoutQueue } from "./CheckoutQueue";
 import { QuestManagement } from "./QuestManagement";
 import { TopUpTerminal } from "./TopUpTerminal";
+import { ReaderCardManagement } from "./ReaderCardManagement";
 import { normalizePhysicalCardUid } from "../../lib/card-scanner";
 
 type Page =
@@ -1305,6 +1306,7 @@ function Readers({
           </p>
         )}
       </section>
+      {usesReplacementSchema && <ReaderCardManagement data={data} run={run} />}
       <section className="overflow-hidden rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] shadow-sm">
         <div className="border-b border-[#eadfd3] bg-[linear-gradient(135deg,#fffdf9,#fff8ec)] px-5 py-5 sm:px-6">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
