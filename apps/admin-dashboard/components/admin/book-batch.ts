@@ -2,8 +2,19 @@ export type BulkBookRow = {
   isbn: string;
   title: string;
   author: string;
+  original_title: string;
+  romanized_title: string;
+  contributors: string;
+  series_name: string;
+  volume_number: string;
+  publisher: string;
+  publication_date: string;
+  imprint: string;
   genre: string;
   tags: string;
+  demographic: string;
+  description: string;
+  format: string;
   book_type: string;
   age_rating: string;
   shelf_location: string;
@@ -15,7 +26,10 @@ export type BulkBookRow = {
 };
 
 export const emptyBulkRow = (): BulkBookRow => ({
-  isbn: "", title: "", author: "", genre: "", tags: "",
+  isbn: "", title: "", author: "", original_title: "", romanized_title: "",
+  contributors: "", series_name: "", volume_number: "", publisher: "",
+  publication_date: "", imprint: "", genre: "", tags: "", demographic: "",
+  description: "", format: "Physical",
   book_type: "Manga", age_rating: "", shelf_location: "",
   quantity: 1,
 });
@@ -62,7 +76,18 @@ export function parseBookBatch(text: string): BulkBookRow[] {
     return {
       isbn: column(record, "isbn", "baseisbn"),
       title: column(record, "title"), author: column(record, "author"),
+      original_title: column(record, "originaltitle"),
+      romanized_title: column(record, "romanizedtitle"),
+      contributors: column(record, "contributors"),
+      series_name: column(record, "series", "seriesname"),
+      volume_number: column(record, "volume", "volumenumber"),
+      publisher: column(record, "publisher"),
+      publication_date: column(record, "publicationdate"),
+      imprint: column(record, "imprint"),
       genre: column(record, "genre"), tags: column(record, "tags", "themes"),
+      demographic: column(record, "demographic"),
+      description: column(record, "description", "synopsis"),
+      format: column(record, "format") || "Physical",
       book_type: column(record, "booktype") || "Manga",
       age_rating: column(record, "agerating"),
       shelf_location: column(record, "shelf", "shelflocation"),
@@ -98,8 +123,8 @@ export function expandBookQuantities(rows: BulkBookRow[]) {
 }
 
 export const bookImportTemplate = [
-  "isbn,title,author,genre,tags,book_type,age_rating,quantity,shelf,condition,acquisition_date,cover_image_url",
-  '9781646516544,"Blue Lock, Vol. 1",Muneyuki Kaneshiro,Sports,"Competition,Football",Manga,13,1,Shelf A2,Good,2026-11-26,',
+  "isbn,title,author,original_title,romanized_title,contributors,series_name,volume_number,publisher,publication_date,imprint,genre,tags,demographic,description,book_type,format,age_rating,quantity,shelf,condition,acquisition_date,cover_image_url",
+  '9781646516544,"Blue Lock, Vol. 1",Muneyuki Kaneshiro,,,Yusuke Nomura,Blue Lock,1,Kodansha Comics,2022-06-21,,Sports,"Competition,Football",Shonen,"A high-stakes football competition.",Manga,Physical,13,1,Shelf A2,Good,2026-11-26,',
 ].join("\r\n");
 
 export function fillRepeatedBooks(rows: BulkBookRow[]) {
@@ -111,6 +136,12 @@ export function fillRepeatedBooks(rows: BulkBookRow[]) {
       ...row,
       title: first.title, author: first.author, genre: first.genre,
       book_type: first.book_type, age_rating: first.age_rating,
+      original_title: first.original_title, romanized_title: first.romanized_title,
+      contributors: first.contributors, series_name: first.series_name,
+      volume_number: first.volume_number, publisher: first.publisher,
+      publication_date: first.publication_date, imprint: first.imprint,
+      tags: first.tags, demographic: first.demographic,
+      description: first.description, format: first.format,
       existingBookId: first.existingBookId,
     };
     if (isbn) firstByIsbn.set(isbn, row);
