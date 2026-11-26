@@ -37,8 +37,29 @@ export async function loadDashboardData(): Promise<DashboardData> {
   return loadFixedDashboardData();
 }
 
-type ReplacementBook = { book_id:number; title:string; series_name:string|null; original_title:string|null; romanized_title:string|null; isbn:string|null; volume_number:number|null; publisher:string|null; publication_date:string|null; imprint:string|null; book_type:string; book_description:string|null; age_rating:number; demographic:string|null; themes:string|null; coverimage_url:string|null; authors:{author_firstname:string;author_lastname:string}|null; book_genre:string|null; book_copies:{copy_id:number;copy_status:string;barcode:string}[] };
-type ReplacementCopy = { copy_id:number; book_id:number; copy_number:number; barcode:string; copy_status:string; shelf_location:string|null; condition_notes:string|null };
+export type ReplacementBook = { book_id:number; title:string; series_name:string|null; original_title:string|null; romanized_title:string|null; isbn:string|null; volume_number:number|null; publisher:string|null; publication_date:string|null; imprint:string|null; book_type:string; book_description:string|null; age_rating:number; demographic:string|null; themes:string|null; coverimage_url:string|null; authors:{author_firstname:string;author_lastname:string}|null; book_genre:string|null; book_copies:{copy_id:number;copy_status:string;barcode:string}[] };
+export type ReplacementCopy = { copy_id:number; book_id:number; copy_number:number; barcode:string; copy_status:string; shelf_location:string|null; condition_notes:string|null };
+
+const status = (value:string) => value === "In-Shelf" ? "IN_SHELF" : value === "With Reader" ? "WITH_READER" : value === "In Return Cart" ? "RETURN_CART" : value;
+
+export function projectBook(book: ReplacementBook): Book {
+  return {
+    book_id: book.book_id, title: book.title, series_name: book.series_name,
+    author: book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : null,
+    author_firstname: book.authors?.author_firstname ?? "", author_lastname: book.authors?.author_lastname ?? "",
+    original_title:book.original_title, romanized_title:book.romanized_title, isbn:book.isbn, volume_number:book.volume_number,
+    publisher:book.publisher, publication_date:book.publication_date, imprint:book.imprint, book_type:book.book_type,
+    description:book.book_description, age_rating:book.age_rating, demographic:book.demographic, themes:book.themes,
+    cover_image_url: book.coverimage_url, acquisition_status: "IN_LIBRARY",
+    book_genres: book.book_genre ? [{ genre: book.book_genre }] : [],
+    book_copies: (book.book_copies ?? []).map(copy => ({ copy_id:copy.copy_id, status:status(copy.copy_status), identifier_value:copy.barcode })),
+  };
+}
+export const projectCopy = (copy: ReplacementCopy): Copy => ({ copy_id:copy.copy_id, book_id:copy.book_id, copy_number:copy.copy_number, identifier_value:copy.barcode, status:status(copy.copy_status), condition_notes:copy.condition_notes, shelf_location:copy.shelf_location, shelf_id:null });
+
+export const dashboardShelves: Shelf[] = Array.from({length:5}, (_, i) => ({
+  shelf_id: i + 1, name: `Main Reading Hall — Shelf A${i + 1}`,
+}));
 type ReplacementUser = { id:string; first_name:string; last_name:string; birthdate:string; user_role:string; is_active:boolean; membership_type:string|null; membership_rank:string|null; remaining_minutes:number; membership_status:string; membership_expires_at:string|null };
 type ReplacementLibraryCard = { librarycard_id:string; user_id:string; librarycard_rfid:string|null; is_active:boolean; deactivated_at:string|null };
 type ReplacementSession = { session_id:number; user_id:string; copy_id:number; borrow_date:string; return_date:string|null; checked_out_at:string|null; session_status:string };
@@ -58,19 +79,8 @@ async function loadFixedDashboardData(): Promise<DashboardData> {
     readReplacementRows<ReplacementGeneration>("ai_requests", "request_id,request_category,validation_status,rejection_reason,created_at", "created_at"),
   ]);
   const copyBooks = new Map(rawCopies.map(copy => [copy.copy_id, copy.book_id]));
-  const status = (value:string) => value === "In-Shelf" ? "IN_SHELF" : value === "With Reader" ? "WITH_READER" : value === "In Return Cart" ? "RETURN_CART" : value;
-  const books: Book[] = rawBooks.map(book => ({
-    book_id: book.book_id, title: book.title, series_name: book.series_name,
-    author: book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : null,
-    author_firstname: book.authors?.author_firstname ?? "", author_lastname: book.authors?.author_lastname ?? "",
-    original_title:book.original_title, romanized_title:book.romanized_title, isbn:book.isbn, volume_number:book.volume_number,
-    publisher:book.publisher, publication_date:book.publication_date, imprint:book.imprint, book_type:book.book_type,
-    description:book.book_description, age_rating:book.age_rating, demographic:book.demographic, themes:book.themes,
-    cover_image_url: book.coverimage_url, acquisition_status: "IN_LIBRARY",
-    book_genres: book.book_genre ? [{ genre: book.book_genre }] : [],
-    book_copies: (book.book_copies ?? []).map(copy => ({ copy_id:copy.copy_id, status:status(copy.copy_status), identifier_value:copy.barcode })),
-  }));
-  const copies: Copy[] = rawCopies.map(copy => ({ copy_id:copy.copy_id, book_id:copy.book_id, copy_number:copy.copy_number, identifier_value:copy.barcode, status:status(copy.copy_status), condition_notes:copy.condition_notes, shelf_location:copy.shelf_location, shelf_id:null }));
+  const books = rawBooks.map(projectBook);
+  const copies = rawCopies.map(projectCopy);
   const readers: Reader[] = rawReaders.map(reader => ({ user_id:reader.id, first_name:reader.first_name, last_name:reader.last_name, birthday:reader.birthdate, is_active:reader.is_active, roles:{ name:reader.user_role === "Librarian" ? "admin" : "reader" } }));
   const libraryCards: LibraryCard[] = rawLibraryCards.map(card => ({ librarycard_id:card.librarycard_id, user_id:card.user_id, librarycard_rfid:card.librarycard_rfid, is_active:card.is_active, deactivated_at:card.deactivated_at }));
   // UI compatibility projection; membership data now lives in each users row.
@@ -81,7 +91,7 @@ async function loadFixedDashboardData(): Promise<DashboardData> {
   const enrollments: Enrollment[] = rawEnrollments.map(item => ({ quest_progress_id:item.user_quest_id, quest_id:item.quest_id, user_id:item.user_id, status:item.quest_status === "IN PROGRESS" ? "ACTIVE" : item.quest_status, progress_value:item.progress_value, deadline_at:item.deadline_at, points_awarded:item.points_awarded }));
   const plans: Plan[] = ["Wanderer","Guild Member","Guild Adventurer"].map((name,index) => ({ membership_type_id:index+1, name, entry_type:name === "Wanderer" ? "WALK_IN" : name === "Guild Adventurer" ? "UNLIMITED" : "HOURLY" }));
   const generationProjection: QuestGeneration[] = questGenerations.filter(item=>item.request_category==="QUEST_HELP"&&item.validation_status==="REJECTED").map((item,index)=>({generation_id:index+1,source:"AI",status:"FAILED",difficulty:null,failure_reason:item.rejection_reason,created_at:item.created_at}));
-  return { books, copies, readers, libraryCards, memberAccounts, visits, logs, quests, enrollments, questGenerations:generationProjection, plans, shelves:Array.from({length:5}, (_,i)=>({shelf_id:i+1,name:`Main Reading Hall — Shelf A${i+1}`})) };
+  return { books, copies, readers, libraryCards, memberAccounts, visits, logs, quests, enrollments, questGenerations:generationProjection, plans, shelves:dashboardShelves };
 }
 
 export const replacementDatabase = () => database().schema("sora_v2");

@@ -52,6 +52,11 @@ database, not a second product version.
    already include the column in `001_schema.sql` and should skip `010`.
 9. `011_kiosk_reading.sql` adds the kiosk check-in, seat-selection, and barcode
    scanning operations. Run it after `010` on an existing database.
+10. `028_admin_catalogue_workspace.sql` enables the paginated Admin Book
+    Management workspace. Apply it before deploying the updated Admin app.
+    It requires the existing access policies, shelf and condition fields
+    (`013`), and edition metadata (`014`). It adds read-only, librarian-gated
+    queries and a session lookup index without updating inventory records.
 
 For an existing database, run `008` during maintenance, then rerun the updated
 `002`, `003`, and `004` files in that order. Take a Supabase backup first. The

@@ -3,19 +3,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, MapPin, PackageOpen, RotateCw, ScanLine, X } from "lucide-react";
-import type { Book, Copy } from "./dashboard-data";
+import type { Copy } from "./dashboard-data";
+import { database } from "../../lib/supabase";
 
 type Props = {
-  books: Book[];
+  titles: ReadonlyMap<number, string>;
   copies: Copy[];
   onShelve: (copyId: number) => Promise<boolean>;
-  refresh: () => Promise<void>;
+  refresh: () => Promise<boolean>;
   close: () => void;
 };
 
 const onReturnCart = (copy: Copy) => copy.status === "RETURN_CART" || copy.status === "In Return Cart";
 
-export function ReturnCartStation({ books, copies, onShelve, refresh, close }: Props) {
+export function ReturnCartStation({ titles, copies, onShelve, refresh, close }: Props) {
   const [barcode, setBarcode] = useState("");
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [error, setError] = useState("");
@@ -26,12 +27,13 @@ export function ReturnCartStation({ books, copies, onShelve, refresh, close }: P
   const inputRef = useRef<HTMLInputElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const returnCopies = useMemo(() => copies.filter(onReturnCart), [copies]);
-  const titles = useMemo(() => new Map(books.map(book => [book.book_id, book.title])), [books]);
   const groups = useMemo(() => {
     const grouped = new Map<string, Copy[]>();
     for (const copy of returnCopies) {
       const shelf = copy.shelf_location || "Unassigned";
-      grouped.set(shelf, [...(grouped.get(shelf) ?? []), copy]);
+      const items = grouped.get(shelf);
+      if (items) items.push(copy);
+      else grouped.set(shelf, [copy]);
     }
     return [...grouped].sort(([a], [b]) => a === "Unassigned" ? 1 : b === "Unassigned" ? -1 : a.localeCompare(b, undefined, { numeric: true }));
   }, [returnCopies]);
@@ -53,14 +55,30 @@ export function ReturnCartStation({ books, copies, onShelve, refresh, close }: P
     };
   }, []);
 
-  const findCopy = () => {
+  const findCopy = async () => {
+    if (busyRef.current) return;
     const scanned = barcode.trim();
     setBarcode(""); setSelectedId(null); setMessage(""); setError("");
     if (!scanned) return;
     const copy = returnCopies.find(item => item.identifier_value.trim() === scanned);
     if (!copy) {
-      const known = copies.some(item => item.identifier_value.trim() === scanned);
-      setError(known ? "This copy is not in the return cart. Scan a returned copy's label." : "Copy barcode not found. Scan the library copy label, not the title ISBN.");
+      busyRef.current = true;
+      setBusy(true);
+      try {
+        const { data, error } = await database().schema("sora_v2").from("book_copies")
+          .select("copy_id,copy_status").eq("barcode", scanned).maybeSingle();
+        if (error) throw error;
+        if (data?.copy_status === "In Return Cart") {
+          if (await refresh()) setSelectedId(data.copy_id);
+        } else {
+          setError(data ? "This copy is not in the return cart. Scan a returned copy's label." : "Copy barcode not found. Scan the library copy label, not the title ISBN.");
+        }
+      } catch {
+        setError("Could not verify the barcode. Try again.");
+      } finally {
+        busyRef.current = false;
+        setBusy(false);
+      }
       inputRef.current?.focus();
       return;
     }

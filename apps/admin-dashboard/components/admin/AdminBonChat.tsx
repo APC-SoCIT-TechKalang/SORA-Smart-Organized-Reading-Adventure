@@ -26,8 +26,13 @@ const regenerationPrompts = [
   "Replace this with a clearly distinct quest. Do not reuse its title, description, or genre unless the catalog offers no alternative.",
 ];
 
-export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpenAnalytics?: () => void }) {
+export function AdminBonChat({ data, onOpenAnalytics, onDataRequested }: {
+  data: ChatData; onOpenAnalytics?: () => void; onDataRequested?: () => Promise<void>;
+}) {
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (open) void onDataRequested?.();
+  }, [open, onDataRequested]);
   const [draft, setDraft] = useState("");
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);

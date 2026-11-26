@@ -966,62 +966,130 @@ button, input, select, textarea { font-size: inherit; }
   .admin-metric-grid[data-columns="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
 
-/* Catalog rows respond to the workspace width, including with the sidebar open. */
-.catalogue-records { container: catalogue / inline-size; }
-.catalogue-row { grid-template-columns: minmax(0, 1fr); }
-.catalogue-row > * { min-width: 0; }
-.catalogue-column-head { display: none; }
-.catalogue-series-row { position: relative; padding-right: 4rem; }
-.catalogue-series-row:hover { background: #fffbf5; }
-.catalogue-series-row[aria-expanded="true"] { background: #faf0e2; }
-.admin-shell .catalogue-series-row:focus-visible { outline-offset: -3px; }
-.catalogue-series-chevron {
-  position: absolute;
-  top: 1.25rem;
-  right: 1rem;
+/* Compact Book Management tables and detail drawer. */
+.catalogue-workspace { border-color: #dfcbb5; }
+.catalogue-summary, .catalogue-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .6rem;
+  padding: .75rem 1rem;
+  border-bottom: 1px solid #e8dbce;
 }
-.catalogue-series-chevron svg { transition: transform 180ms ease; }
-.catalogue-series-row[aria-expanded="true"] .catalogue-series-chevron svg { transform: rotate(180deg); }
-.catalogue-series-panel {
+.catalogue-summary { background: #fcf6ee; border-radius: 1rem 1rem 0 0; }
+.catalogue-summary dt { color: #735843; }
+.catalogue-control {
+  display: inline-flex;
+  min-height: 2.25rem;
+  max-width: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: .35rem;
+  border: 1px solid #dac7b2;
+  border-radius: .55rem;
+  background: #fffdf9;
+  padding: .3rem .65rem;
+  color: #543822;
+  font-size: .75rem;
+  font-weight: 650;
+}
+.catalogue-control:hover:not(:disabled) { border-color: #a87b50; background: #fcf0e0; }
+.catalogue-control:disabled { opacity: .52; }
+.catalogue-control[data-active="true"], .admin-shell .catalogue-control[data-active="true"] {
+  border-color: #a7602d !important;
+  background: #fff0d9 !important;
+}
+.catalogue-control.catalogue-primary { background: #953410; border-color: #953410; color: #fff; }
+.catalogue-control.catalogue-primary:hover:not(:disabled) { background: #792b0f; }
+select.catalogue-control { display: inline-block; width: auto; }
+.catalogue-tab {
+  display: inline-flex;
+  min-height: 2.6rem;
+  align-items: center;
+  gap: .35rem;
+  padding-inline: .7rem;
+  border-bottom: 2px solid transparent;
+  border-radius: .35rem .35rem 0 0;
+  color: #735843;
+  font-size: .8rem;
+  font-weight: 700;
+}
+.catalogue-tab[aria-pressed="true"] { border-color: #953410; background: #f8eee1; color: #713017; }
+.catalogue-attention-count { border-radius: 1rem; background: #f7dfb8; color: #713017; padding: .1rem .4rem; }
+.catalogue-search {
+  display: flex;
+  min-height: 2.25rem;
+  flex: 1 1 17rem;
+  align-items: center;
+  gap: .5rem;
+  border: 1px solid #dac7b2;
+  border-radius: .55rem;
+  padding: .15rem .65rem;
+  background: #fffdf9;
+}
+.admin-shell .catalogue-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0 !important;
+  outline: none;
+  background: transparent !important;
+  padding-block: .35rem;
+  font-size: .8rem;
+  box-shadow: none;
+}
+.catalogue-search:focus-within { outline: 2px solid #dfaa24; outline-offset: 2px; }
+.catalogue-table-wrap { overflow-x: auto; scrollbar-width: thin; }
+.admin-shell table.catalogue-table { width: 100%; border-radius: 0; font-size: .75rem; }
+.catalogue-table th, .catalogue-table td { padding: .4rem .7rem; text-align: left; }
+.catalogue-table td { min-width: 4rem; }
+.catalogue-table td:last-child { min-width: 0; }
+.catalogue-table tbody tr > * { border-top: 1px solid #eee6db; }
+.admin-shell .catalogue-table tr[data-selected="true"] { background: #faebd7; }
+.catalogue-title-button {
+  display: flex;
+  width: 100%;
+  min-height: 2.5rem;
+  align-items: center;
+  gap: .6rem;
+  padding: .1rem .25rem;
+  text-align: left;
+}
+.catalogue-table th:first-child { min-width: 10rem; max-width: 20rem; }
+.catalogue-table tbody th { white-space: normal; letter-spacing: normal; }
+.catalogue-title-button strong { font-size: .8rem; }
+.catalogue-title-button small { font-size: .68rem; }
+.catalogue-thumb {
   display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 180ms ease;
+  width: 1.65rem;
+  height: 2.25rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid #e2d0b6;
+  border-radius: .25rem;
+  background: #f7eadb;
+  color: #a66c42;
+  object-fit: cover;
 }
-.catalogue-series-panel[data-open="true"] { grid-template-rows: 1fr; }
-.catalogue-series-clip { min-height: 0; }
-.catalogue-series-panel[data-open="false"] > .catalogue-series-clip { overflow: hidden; }
-.catalogue-series-panel[data-open="true"] > .catalogue-series-clip { animation: catalogue-clip-opening 180ms; }
-.catalogue-volume-list {
-  border-top: 1px solid #ead8c5;
-  box-shadow: inset 3px 0 #dfc4a3;
-  background: #fcf8f2;
+.catalogue-detail {
+  position: fixed;
+  inset: 0 0 0 auto;
+  z-index: 85;
+  width: min(27rem, 46vw);
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  overflow: hidden;
+  border-left: 1px solid #e0c9ae;
+  background: #fffdf9;
+  color: #4a321f;
+  box-shadow: -12px 0 45px #32190c33;
 }
-.catalogue-volume-list .catalogue-row > :first-child { padding-inline-start: .65rem; }
-@keyframes catalogue-clip-opening {
-  from, to { overflow: hidden; }
-}
-
-@container catalogue (min-width: 34rem) and (max-width: 53.99rem) {
-  .catalogue-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .catalogue-row > :first-child { grid-column: 1 / -1; }
-}
-
-@container catalogue (min-width: 54rem) {
-  .catalogue-row {
-    grid-template-columns: minmax(0, 1.25fr) minmax(0, .75fr) minmax(0, 1.2fr) 4rem 5.5rem;
-    align-items: center;
-    column-gap: 1rem;
-  }
-  .catalogue-column-head { display: grid; }
-  .catalogue-field-label { display: none; }
-  .catalogue-reads { justify-content: center; }
-  .catalogue-series-row { padding-right: 1.25rem; }
-  .catalogue-series-chevron { position: static; }
-  .catalogue-volume-list .catalogue-row > :first-child { padding-inline-start: 1rem; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .catalogue-series-chevron svg,
-  .catalogue-series-panel { transition: none; }
-  .catalogue-series-panel[data-open="true"] > .catalogue-series-clip { animation: none; }
+.catalogue-detail[open] { display: flex; flex-direction: column; }
+.catalogue-detail::backdrop { background: #2d190c70; }
+.catalogue-detail :is(button, a):focus-visible,
+.catalogue-copy-edit :is(button, input, select, textarea):focus-visible { outline: 2px solid #a65b32; outline-offset: 2px; }
+body:has(.catalogue-detail:modal, .catalogue-copy-edit:modal) { overflow: hidden; }
+@media (max-width: 767px) {
+  .catalogue-detail { width: 100%; max-width: none; }
+  .catalogue-table th, .catalogue-table td { padding-inline: .5rem; }
 }

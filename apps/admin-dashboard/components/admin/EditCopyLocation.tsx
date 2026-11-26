@@ -1,22 +1,84 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckSquare, Filter, Search, SlidersHorizontal, X } from "lucide-react";
 import { database } from "../../lib/supabase";
 import type { Book, Copy } from "./dashboard-data";
-import { statusLabel, statusStyle } from "./CatalogueEditor";
+import { statusLabel, statusStyle } from "./catalogue-workspace-data";
 
 const statuses = [["In-Shelf", "In Shelf"], ["On Hold", "On Hold (Reserved)"], ["In Return Cart", "Return Cart"], ["Damaged", "Damaged"]];
 type Scope = "selected" | "filtered" | "quantity" | "range";
 const field = "mt-1.5 min-h-11 w-full rounded-lg border border-[#d9c8b7] bg-white px-3 text-sm outline-none focus:border-[#c4800c] focus:ring-2 focus:ring-[#f3d793]/50";
 
-export function EditCopyLocation({ book, copies, close, run }: { book: Book; copies: Copy[]; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean> }) {
+export function EditCopyLocation({ book, copies, close, run, onPrint }: { book: Book; copies: Copy[]; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean>; onPrint?: () => void }) {
   if (!copies.length) return <RegisterCopy book={book} close={close} run={run} />;
-  return <BulkInventoryManager book={book} copies={copies} close={close} run={run} />;
+  return <BulkInventoryManager book={book} copies={copies} close={close} run={run} onPrint={onPrint} />;
 }
 
-function RegisterCopy({ book, close, run }: { book: Book; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean> }) {
+export function EditOneCopy({ copy, title, close, run }: {
+  copy: Copy; title: string; close: () => void;
+  run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean>;
+}) {
+  const [shelf, setShelf] = useState(copy.shelf_location ?? "");
+  const original = ({ IN_SHELF: "In-Shelf", WITH_READER: "With Reader", RETURN_CART: "In Return Cart" })[copy.status] ?? copy.status;
+  const [status, setStatus] = useState(original);
+  const [notes, setNotes] = useState(copy.condition_notes ?? "");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const element = dialog.current;
+    const trigger = document.activeElement;
+    element?.showModal();
+    return () => {
+      element?.close();
+      if (trigger instanceof HTMLElement) trigger.focus({ preventScroll: true });
+    };
+  }, []);
+
+  return createPortal(<dialog ref={dialog} aria-labelledby="single-copy-title" className="catalogue-copy-edit m-auto max-h-[90dvh] w-[calc(100%-2rem)] max-w-lg overflow-y-auto rounded-2xl border border-[#d9c8b7] bg-[#fffdf9] p-5 text-[#4a321f] backdrop:bg-black/50"
+    onCancel={event => { event.preventDefault(); if (!busy) close(); }}>
+    <form onSubmit={async event => {
+      event.preventDefault();
+      if (busy || !shelf) return;
+      setBusy(true);
+      setError("");
+      try {
+        const ok = await run(() => database().schema("sora_v2").rpc("admin_update_copy_location", {
+          p_copy_id: copy.copy_id, p_shelf_location: shelf, p_status: status,
+          p_condition_notes: notes.trim() || null,
+        }), "Physical copy updated");
+        if (ok) close();
+        else setError("The copy was not saved. Check its current shelf and status before trying again.");
+      } finally {
+        setBusy(false);
+      }
+    }}>
+      <h2 id="single-copy-title" className="font-serif text-xl font-semibold">Edit physical copy</h2>
+      <p className="mt-1 break-words text-sm">{title} · {copy.identifier_value}</p>
+      {error && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-2 text-sm text-rose-800">{error}</p>}
+      <div className="mt-4 space-y-3">
+        <ShelfField value={shelf} setValue={setShelf} />
+        <label className="block text-xs font-bold">Inventory status
+          <select value={status} onChange={event => setStatus(event.target.value)} className={field}>
+            {original === "With Reader" && <option>With Reader</option>}
+            {statuses.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+        </label>
+        <label className="block text-xs font-bold">Condition notes
+          <textarea rows={3} value={notes} onChange={event => setNotes(event.target.value)} className={`${field} py-2`} />
+        </label>
+      </div>
+      <div className="mt-4 flex flex-wrap justify-end gap-2">
+        <button type="button" onClick={close} disabled={busy} className="catalogue-control">Cancel</button>
+        <button type="submit" disabled={!shelf || busy} className="catalogue-control catalogue-primary">{busy ? "Saving…" : "Save copy"}</button>
+      </div>
+    </form>
+  </dialog>, document.body);
+}
+
+export function RegisterCopy({ book, close, run }: { book: Book; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean> }) {
   const [shelf, setShelf] = useState(""); const [notes, setNotes] = useState(""); const [barcode, setBarcode] = useState(""); const [busy, setBusy] = useState(false);
   return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-[#2d190c]/45 p-3 backdrop-blur-sm"><form role="dialog" aria-modal="true" aria-labelledby="copy-location-title" className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-[#B59A6A] bg-[#FAF6EE] p-5 text-[#4A321F] shadow-2xl sm:p-7" onSubmit={async event => { event.preventDefault(); if (busy || !barcode.trim()) return; setBusy(true); try { const ok = await run(() => database().schema("sora_v2").rpc("admin_add_located_copy", { p_book_id: book.book_id, p_shelf_location: shelf, p_barcode: barcode.trim(), p_condition_notes: notes.trim() || null }), "Physical copy added to the catalogue"); if (ok) close(); } finally { setBusy(false); } }}>
     <div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">New physical copy</p><h2 id="copy-location-title" className="mt-2 font-serif text-2xl">Register inventory</h2><p className="mt-1 text-sm text-[#80654f]">{book.title}</p></div><button type="button" onClick={close} aria-label="Close" className="grid h-10 w-10 place-items-center rounded-full border bg-white"><X size={18} /></button></div>
@@ -25,7 +87,7 @@ function RegisterCopy({ book, close, run }: { book: Book; close: () => void; run
   </form></div>, document.body);
 }
 
-function BulkInventoryManager({ book, copies, close, run }: { book: Book; copies: Copy[]; close: () => void; run: (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean> }) {
+function BulkInventoryManager({ book, copies, close, run, onPrint }: Parameters<typeof EditCopyLocation>[0]) {
   const [shelf, setShelf] = useState(copies[0]?.shelf_location ?? ""); const [status, setStatus] = useState("In-Shelf"); const [notes, setNotes] = useState("");
   const [query, setQuery] = useState(""); const [statusFilter, setStatusFilter] = useState("All statuses"); const [shelfFilter, setShelfFilter] = useState("All shelves");
   const [scope, setScope] = useState<Scope>("selected"); const [selected, setSelected] = useState<Set<number>>(() => new Set(copies[0] ? [copies[0].copy_id] : []));
@@ -37,7 +99,7 @@ function BulkInventoryManager({ book, copies, close, run }: { book: Book; copies
   const toggle = (id: number) => setSelected(current => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-[#2d190c]/45 p-2 backdrop-blur-sm sm:p-5"><form role="dialog" aria-modal="true" aria-labelledby="copy-location-title" className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#B59A6A] bg-[#fffdf9] text-[#4A321F] shadow-2xl sm:max-h-[calc(100dvh-2.5rem)]" onSubmit={async event => { event.preventDefault(); if (busy || !targets.length || !shelf) return; setBusy(true); try { const ok = await run(() => database().schema("sora_v2").rpc("admin_bulk_update_copy_locations", { p_copy_ids: targets.map(copy => copy.copy_id), p_shelf_location: shelf, p_status: status, p_condition_notes: notes.trim() || null }), `${targets.length.toLocaleString()} ${targets.length === 1 ? "copy" : "copies"} updated`); if (ok) close(); } finally { setBusy(false); } }}>
-    <header className="shrink-0 border-b border-[#e8dbce] bg-[#fcf7ef] px-4 py-4 sm:px-7"><div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">High-volume inventory</p><h2 id="copy-location-title" className="mt-1 font-serif text-xl sm:text-2xl">Shelf &amp; status manager</h2><p className="mt-1 line-clamp-1 text-xs text-[#80654f]">{book.title} · {copies.length.toLocaleString()} copies</p></div><button type="button" onClick={close} aria-label="Close inventory manager" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#dfd0c2] bg-white"><X size={18} /></button></div></header>
+    <header className="shrink-0 border-b border-[#e8dbce] bg-[#fcf7ef] px-4 py-4 sm:px-7"><div className="flex items-start justify-between gap-4"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">High-volume inventory</p><h2 id="copy-location-title" className="mt-1 font-serif text-xl sm:text-2xl">Shelf &amp; status manager</h2><p className="mt-1 line-clamp-1 text-xs text-[#80654f]">{book.title} · {copies.length.toLocaleString()} copies</p></div><div className="flex shrink-0 items-center gap-2">{onPrint && <button type="button" onClick={onPrint} className="catalogue-control">Print all labels</button>}<button type="button" onClick={close} aria-label="Close inventory manager" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#dfd0c2] bg-white"><X size={18} /></button></div></div></header>
     <div className="grid min-h-0 flex-1 lg:grid-cols-[1.2fr_.8fr]"><section className="min-h-0 overflow-y-auto border-b border-[#e8dbce] p-4 lg:border-b-0 lg:border-r sm:p-6">
       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px_170px]"><label className="flex min-h-11 items-center gap-2 rounded-lg border border-[#d9c8b7] bg-white px-3"><Search size={15} /><input aria-label="Search copies" value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 text-xs outline-none" placeholder="Search barcode, copy number, or ID" /></label><select aria-label="Filter by status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)} className="min-h-11 rounded-lg border bg-white px-3 text-xs"><option>All statuses</option>{filterStatuses.map(value => <option key={value}>{value}</option>)}</select><select aria-label="Filter by shelf" value={shelfFilter} onChange={event => setShelfFilter(event.target.value)} className="min-h-11 rounded-lg border bg-white px-3 text-xs"><option>All shelves</option>{shelves.map(value => <option key={value}>{value}</option>)}{copies.some(copy => !copy.shelf_location) && <option>Unassigned</option>}</select></div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2"><p className="text-xs text-[#80654f]"><strong>{filtered.length.toLocaleString()}</strong> filtered</p><button type="button" onClick={() => { setScope("selected"); setSelected(new Set(filtered.map(copy => copy.copy_id))); }} className="inline-flex min-h-9 items-center gap-2 rounded-lg border border-[#cdb18c] bg-white px-3 text-[10px] font-bold"><CheckSquare size={14} />Select all filtered</button></div>

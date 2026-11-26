@@ -35,6 +35,7 @@ import {
 import {
   emptyDashboardData,
   loadDashboardData,
+  dashboardShelves,
   type Book,
   type DashboardData,
   type Visit,
@@ -42,8 +43,6 @@ import {
 import { AdminBonChat } from "./AdminBonChat";
 import { CompleteAddVolume } from "./CompleteAddVolume";
 import { BulkAddBooks } from "./BulkAddBooks";
-import { EditBookCover } from "./EditBookCover";
-import { EditCopyLocation } from "./EditCopyLocation";
 import { CatalogueEditor } from "./CatalogueEditor";
 import { ReaderCheckIn } from "./ReaderCheckIn";
 import { AdminMetricGrid } from "./AdminMetricGrid";
@@ -103,15 +102,13 @@ export function AdminDashboard() {
   const [data, setData] = useState<Data>(emptyDashboardData);
   const [page, setPage] = useState<Page>("Overview");
   const [navOpen, setNavOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [drawer, setDrawer] = useState(false);
   const [bulkDrawer, setBulkDrawer] = useState(false);
-  const [editingCover, setEditingCover] = useState<Book | null>(null);
-  const [editingLocation, setEditingLocation] = useState<Book | null>(null);
+  const [catalogueRevision, setCatalogueRevision] = useState(0);
   const generation = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -130,6 +127,11 @@ export function AdminDashboard() {
     }
   }, []);
   useEffect(() => {
+    if (page === "Catalogue") {
+      generation.current++;
+      setError("");
+      return;
+    }
     void refresh();
     const refreshInterval = page === "Top-up terminal" || page === "Readers" ? 3000 : 30000;
     const timer = window.setInterval(() => void refresh(), refreshInterval);
@@ -150,7 +152,8 @@ export function AdminDashboard() {
     try {
       const result = await action();
       if (result.error) throw result.error;
-      await refresh();
+      if (page === "Catalogue") setCatalogueRevision(value => value + 1);
+      else await refresh();
       notify(success);
       return true;
     } catch (cause) {
@@ -180,15 +183,11 @@ export function AdminDashboard() {
       <AnalyticsWorkspace data={data} />
     ) : page === "Catalogue" ? (
       <CatalogueEditor
-        data={data}
-        query={query}
-        setQuery={setQuery}
+        revision={catalogueRevision}
+        run={run}
         setDrawer={setDrawer}
         setBulkDrawer={setBulkDrawer}
-        setEditingCover={setEditingCover}
-        setEditingLocation={setEditingLocation}
         shelveCopy={(copyId) => run(() => shelveCopy(copyId), "Copy returned to shelf")}
-        refreshData={refresh}
       />
     ) : page === "Challenges" ? (
       <QuestManagement data={data} name={name} run={run} />
@@ -313,21 +312,13 @@ export function AdminDashboard() {
         </section>
         {drawer && (
           <CompleteAddVolume
-            data={data}
+            data={{ ...data, shelves: dashboardShelves }}
             close={() => setDrawer(false)}
             run={run}
           />
         )}{" "}
-        {bulkDrawer && <BulkAddBooks data={data} close={() => setBulkDrawer(false)} run={run} />}
-        {editingCover && (
-          <EditBookCover
-            book={editingCover}
-            close={() => setEditingCover(null)}
-            run={run}
-          />
-        )}
-        {editingLocation && <EditCopyLocation book={editingLocation} copies={data.copies.filter(copy => copy.book_id === editingLocation.book_id)} close={() => setEditingLocation(null)} run={run} />}
-        <AdminBonChat data={data} onOpenAnalytics={() => setPage("Analytics")} />
+        {bulkDrawer && <BulkAddBooks data={{ ...data, shelves: dashboardShelves }} close={() => setBulkDrawer(false)} run={run} />}
+        <AdminBonChat data={data} onOpenAnalytics={() => setPage("Analytics")} onDataRequested={page === "Catalogue" ? refresh : undefined} />
       </div>
     </main>
   );

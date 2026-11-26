@@ -1,203 +1,411 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { BookOpen, Boxes, ChevronDown, ChevronRight, Edit3, LibraryBig, MapPin, PackageOpen, Plus, Printer, Search, SlidersHorizontal, X } from "lucide-react";
-import { AdminMetricGrid } from "./AdminMetricGrid";
+import { BookOpen, ChevronRight, PackageOpen, Plus, Search, X } from "lucide-react";
+import { errorMessage } from "../../lib/supabase";
 import { printBookLabels } from "./BookBarcodeLabels";
+import { EditCopyLocation, EditOneCopy, RegisterCopy } from "./EditCopyLocation";
+import { EditBookCover } from "./EditBookCover";
 import { InventoryAlerts } from "./InventoryAlerts";
 import { ReturnCartStation } from "./ReturnCartStation";
-import type { Book, Copy, DashboardData } from "./dashboard-data";
-import { groupCatalogue, searchCatalogue, volumeIdentity } from "./catalogue-series";
+import { projectCopy, type Book, type Copy } from "./dashboard-data";
+import {
+  catalogueViews, emptyFilters, inventoryStatuses, readCataloguePage, readCatalogueSummary,
+  readCatalogueVolumes, readReturnCart, readVolumeCopies, statusLabel, statusStyle,
+  type CatalogueFilters, type CatalogueRow, type CatalogueView, type CopyRow, type VolumeDetail,
+} from "./catalogue-workspace-data";
 
-type Props = { data: Pick<DashboardData, "books" | "copies" | "logs">; query: string; setQuery: (value: string) => void; setDrawer: (value: boolean) => void; setBulkDrawer: (value: boolean) => void; setEditingLocation: (book: Book) => void; setEditingCover: (book: Book) => void; shelveCopy: (copyId: number) => Promise<boolean>; refreshData: () => Promise<void> };
+type Run = Parameters<typeof EditCopyLocation>[0]["run"];
+type Props = {
+  revision: number;
+  run: Run;
+  setDrawer: (value: boolean) => void;
+  setBulkDrawer: (value: boolean) => void;
+  shelveCopy: (copyId: number) => Promise<boolean>;
+};
+type Selection = { group: string; title: string; bookId?: number };
+type Action = { kind: "edit" | "register" | "bulk"; book: Book } | { kind: "copy"; row: CopyRow };
 
-export const statusLabel = (status: string) => ({ IN_SHELF: "In Shelf", WITH_READER: "With Reader", RETURN_CART: "Return Cart", "In-Shelf": "In Shelf", "In Return Cart": "Return Cart" })[status] ?? status;
-export const statusStyle = (status: string) => ({ "In Shelf": "border-emerald-200 bg-emerald-50 text-emerald-700", "With Reader": "border-amber-200 bg-amber-50 text-amber-800", "Return Cart": "border-orange-200 bg-orange-50 text-orange-800", Damaged: "border-rose-200 bg-rose-50 text-rose-700", "On Hold": "border-violet-200 bg-violet-50 text-violet-700" })[status] ?? "border-stone-200 bg-stone-50 text-stone-700";
-const labelsFor = (book: Book, copies: Copy[]) => copies.map(copy => ({ book_id: book.book_id, copy_id: copy.copy_id, copy_number: copy.copy_number, barcode: copy.identifier_value, title: book.title }));
-const genresFor = (book: Book) => book.book_genres.flatMap(item => item.genre.split(",")).map(genre => genre.trim()).filter(Boolean).filter((genre, index, genres) => genres.indexOf(genre) === index);
-
-function GenreDisclosure({ genres }: { genres: string[] }) {
-  if (!genres.length) return <span className="text-xs text-[#a98b70]">No genre assigned</span>;
-  return <div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="max-w-full truncate rounded-full border border-[#ead8c5] bg-[#fff8ee] px-2.5 py-1 text-[10px] font-semibold text-[#77563e]" title={genres[0]}>{genres[0]}</span>{genres.length > 1 && <details className="group relative"><summary className="cursor-pointer list-none rounded-full border border-[#dfcdb9] bg-[#f3eadf] px-2.5 py-1 text-[10px] font-bold text-[#7d5d45] transition hover:border-[#c59d71] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4800c]">+{genres.length - 1}</summary><div className="absolute left-0 top-[calc(100%+.45rem)] z-30 flex w-56 flex-wrap gap-1.5 rounded-xl border border-[#dbc6ad] bg-white p-3 shadow-[0_16px_40px_rgba(64,35,18,.18)]"><p className="w-full text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">More genres</p>{genres.slice(1).map(genre => <span key={genre} className="max-w-full truncate rounded-full border border-[#ead8c5] bg-[#fff8ee] px-2 py-1 text-[10px] text-[#77563e]" title={genre}>{genre}</span>)}</div></details>}</div>;
-}
-
-function CatalogueCover({ book }: { book: Book }) {
-  const frame = "h-16 w-11 shrink-0 rounded border border-[#e6d8c8]";
-  return book.cover_image_url
-    ? <img src={book.cover_image_url} alt="" loading="lazy" className={`${frame} object-cover shadow-sm`} />
-    : <span className={`${frame} grid place-items-center border-dashed bg-[#faf5ee] text-[#b3977c]`}><BookOpen size={16} aria-hidden="true" /></span>;
-}
-
-function StatusPills({ breakdown }: { breakdown: Iterable<[string, number]> }) {
-  return <span className="mt-2 flex flex-wrap gap-1.5">{Array.from(breakdown, ([label, count]) =>
-    <span key={label} className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${statusStyle(label)}`}>
-      {count.toLocaleString()} {label}
-    </span>
-  )}</span>;
-}
-
-function SeriesVolumes({ id, open, renderVolumes }: { id: string; open: boolean; renderVolumes: () => ReactNode }) {
-  const [retained, setRetained] = useState(false);
-
-  useEffect(() => {
-    if (open) {
-      setRetained(true);
-      return;
+function useResource<T>(load: (signal: AbortSignal) => Promise<T>) {
+  const [state, setState] = useState<{ data?: T; error?: string; loading: boolean }>({ loading: true });
+  const request = useRef<AbortController | null>(null);
+  const retry = useCallback(async () => {
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    setState(previous => ({ data: previous.data, loading: true }));
+    try {
+      const data = await load(controller.signal);
+      if (controller.signal.aborted) return false;
+      setState({ data, loading: false });
+      return true;
+    } catch (cause) {
+      if (!controller.signal.aborted) setState({ error: errorMessage(cause), loading: false });
+      return false;
     }
-    if (!retained) return;
-    const timer = window.setTimeout(() => setRetained(false), 180);
-    return () => window.clearTimeout(timer);
-  }, [open, retained]);
+  }, [load]);
+  useEffect(() => {
+    void retry();
+    return () => request.current?.abort();
+  }, [retry]);
+  return { ...state, retry };
+}
 
-  return <div id={id} inert={!open} aria-hidden={!open} className="catalogue-series-panel" data-open={open}>
-    {(open || retained) && <div className="catalogue-series-clip">
-      <div className="catalogue-volume-list divide-y divide-[#f0e9e1]">{renderVolumes()}</div>
-    </div>}
+function RequestFeedback({ loading, error, retry }: { loading: boolean; error?: string; retry: () => void }) {
+  if (error) return <div role="alert" className="flex flex-wrap items-center gap-3 px-4 py-4 text-sm text-rose-800">
+    <span>{error}</span><button type="button" className="catalogue-control" onClick={retry}>Retry</button>
+  </div>;
+  return loading ? <p role="status" className="px-4 py-3 text-sm text-[#745842]">Loading records…</p> : null;
+}
+
+function Pagination({ page, size, count, setPage, setSize, busy }: {
+  page: number; size: number; count: number; setPage: (value: number) => void;
+  setSize?: (value: number) => void; busy?: boolean;
+}) {
+  const pages = Math.max(1, Math.ceil(count / size));
+  return <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e8dbce] px-4 py-3 text-xs">
+    <span aria-live="polite">{count ? `${Math.min((page - 1) * size + 1, count).toLocaleString()}–${Math.min(page * size, count).toLocaleString()} of ${count.toLocaleString()}` : "0 results"}</span>
+    <div className="flex flex-wrap items-center gap-2">
+      {setSize && <label className="flex items-center gap-2">Rows per page
+        <select className="catalogue-control" value={size} onChange={event => setSize(Number(event.target.value))}>
+          {[25, 50, 100].map(value => <option key={value}>{value}</option>)}
+        </select>
+      </label>}
+      <button type="button" className="catalogue-control" disabled={busy || page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
+      <button type="button" className="catalogue-control" disabled={busy || page >= pages} onClick={() => setPage(page + 1)}>Next</button>
+    </div>
   </div>;
 }
 
-export function CatalogueEditor({ data, query, setQuery, setDrawer, setBulkDrawer, setEditingCover, setEditingLocation, shelveCopy, refreshData }: Props) {
-  const [copyBook, setCopyBook] = useState<Book | null>(null);
-  const [returnCartOpen, setReturnCartOpen] = useState(false);
-  const [activeSeries, setActiveSeries] = useState<string | null>(null);
-  const groups = useMemo(() => groupCatalogue(data.books), [data.books]);
-  const matches = useMemo(() => searchCatalogue(groups, query), [groups, query]);
-  const copiesByBook = useMemo(() => {
-    const grouped = new Map<number, Copy[]>();
-    for (const copy of data.copies) {
-      const copies = grouped.get(copy.book_id);
-      if (copies) copies.push(copy);
-      else grouped.set(copy.book_id, [copy]);
-    }
-    return grouped;
-  }, [data.copies]);
-  const statusByBook = useMemo(() => {
-    const grouped = new Map<number, Map<string, number>>();
-    for (const [bookId, copies] of copiesByBook) {
-      const counts = new Map<string, number>();
-      for (const copy of copies) {
-        const label = statusLabel(copy.status);
-        counts.set(label, (counts.get(label) ?? 0) + 1);
-      }
-      grouped.set(bookId, counts);
-    }
-    return grouped;
-  }, [copiesByBook]);
-  const readsByBook = useMemo(() => { const grouped = new Map<number, number>(); data.logs.forEach(log => grouped.set(log.book_id, (grouped.get(log.book_id) ?? 0) + 1)); return grouped; }, [data.logs]);
-  const summaries = useMemo(() => new Map(groups.map(group => {
-    const statuses = new Map<string, number>();
-    let copies = 0;
-    let reads = 0;
-    for (const { book_id } of group.volumes) {
-      copies += copiesByBook.get(book_id)?.length ?? 0;
-      reads += readsByBook.get(book_id) ?? 0;
-      for (const [label, count] of statusByBook.get(book_id) ?? []) {
-        statuses.set(label, (statuses.get(label) ?? 0) + count);
-      }
-    }
-    return [group.id, { statuses, copies, reads }] as const;
-  })), [groups, copiesByBook, readsByBook, statusByBook]);
-  const visibleCounts = useMemo(() => {
-    let volumes = 0;
-    let copies = 0;
-    for (const group of matches) {
-      volumes += group.matchingVolumes.length;
-      for (const book of group.matchingVolumes) copies += copiesByBook.get(book.book_id)?.length ?? 0;
-    }
-    return { volumes, copies };
-  }, [matches, copiesByBook]);
-  const returnCount = data.copies.filter(copy => statusLabel(copy.status) === "Return Cart").length;
-  function renderVolume(book: Book, nested = false) {
-    const copies = copiesByBook.get(book.book_id) ?? [];
-    const number = nested ? volumeIdentity(book).number : null;
-    return <article key={book.book_id} className="catalogue-row grid gap-3 px-4 py-4 transition hover:bg-[#fffbf5] sm:px-5">
-      <div className="flex min-w-0 items-center gap-3">
-        <CatalogueCover book={book} />
-        <div className="min-w-0">
-          {number !== null && <span className="block text-[10px] font-bold uppercase tracking-wider text-[#8d6548]">Volume {number}</span>}
-          <b className="block break-words text-[13px] leading-5 text-[#543822]">{book.title}</b>
-          <small className="mt-1 block break-words text-[#8d735e]">{book.author ?? "Unknown author"}</small>
-        </div>
-      </div>
-        <div><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-[.12em] text-[#a98b70] catalogue-field-label">Genre</span><GenreDisclosure genres={genresFor(book)} /></div>
-        <div>{copies.length ? <button type="button" onClick={() => setCopyBook(book)} className="group w-full rounded-xl border border-[#eadfd3] bg-white px-3 py-2.5 text-left transition hover:border-[#cdb18c] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[#c4800c]"><span className="flex min-w-0 items-center gap-2"><Boxes size={16} className="shrink-0 text-[#a83d12]" /><strong className="min-w-0 flex-1 break-words">{copies.length.toLocaleString()} physical {copies.length === 1 ? "copy" : "copies"}</strong><ChevronRight size={15} className="shrink-0 text-[#b3977c]" /></span><StatusPills breakdown={statusByBook.get(book.book_id) ?? []} /></button> : <button type="button" onClick={() => setEditingLocation(book)} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-[#dbcbbd] bg-[#fcf8f3] px-3 py-2.5 text-left text-[#927760]"><PackageOpen size={16} /><span><strong className="block text-[11px]">No physical copies</strong><small className="text-[9px]">Register the first copy</small></span></button>}</div>
-        <div className="flex items-center justify-between catalogue-reads"><span className="text-[9px] font-bold uppercase tracking-[.12em] text-[#a98b70] catalogue-field-label">Reads</span><strong className="inline-grid h-8 min-w-8 place-items-center rounded-full bg-[#f5ede3] px-2 text-xs">{(readsByBook.get(book.book_id) ?? 0).toLocaleString()}</strong></div>
-        <div className="flex justify-end gap-1.5"><button type="button" onClick={() => setEditingLocation(book)} aria-label={`Manage inventory for ${book.title}`} className="grid h-10 w-10 place-items-center rounded-lg border border-[#cdb18c] hover:bg-[#fff5e7]"><SlidersHorizontal size={15} /></button><button type="button" onClick={() => setEditingCover(book)} aria-label={`Edit information for ${book.title}`} className="grid h-10 w-10 place-items-center rounded-lg border border-[#e1c9af] text-[#a83d12] hover:bg-[#fff1df]"><Edit3 size={15} /></button></div>
-    </article>;
+export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelveCopy }: Props) {
+  const [view, setView] = useState<CatalogueView>("catalog");
+  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<CatalogueFilters>(emptyFilters);
+  const [sort, setSort] = useState("title");
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(25);
+  const [covers, setCovers] = useState(true);
+  const [selection, setSelection] = useState<Selection | null>(null);
+  const [action, setAction] = useState<Action | null>(null);
+  const [cartOpen, setCartOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => { setSearch(query.trim()); setPage(1); }, 280);
+    return () => window.clearTimeout(timer);
+  }, [query]);
+
+  const loadSummary = useCallback((signal: AbortSignal) => {
+    void revision;
+    return readCatalogueSummary(signal);
+  }, [revision]);
+  const loadPage = useCallback((signal: AbortSignal) => {
+    void revision;
+    return readCataloguePage({ view, query: search, filters, sort, page, size, signal });
+  }, [view, search, filters, sort, page, size, revision]);
+  const summary = useResource(loadSummary);
+  const result = useResource(loadPage);
+  const pending = result.loading || search !== query.trim();
+  const rows = result.data?.rows ?? [];
+  const count = result.data?.count ?? 0;
+
+  useEffect(() => {
+    if (!pending && result.data) setPage(current => Math.min(current, Math.max(1, Math.ceil(count / size))));
+  }, [pending, result.data, count, size]);
+
+  function changeView(next: CatalogueView) {
+    if (next === view) return;
+    setView(next);
+    setPage(1);
+    if (next === "inventory") setFilters(current => ({ ...current, registered: "" }));
+    setSelection(null);
   }
 
-  return <>
+  function openDetails(row: CatalogueRow, trigger: HTMLButtonElement) {
+    triggerRef.current = trigger;
+    if (row.kind === "copy") setAction({ kind: "copy", row });
+    else setSelection(row.kind === "group" ? { group: row.id, title: row.title }
+      : { group: row.group_id, title: row.title, bookId: row.book_id });
+  }
+
+  function closeDetails() {
+    setSelection(null);
+    const trigger = triggerRef.current;
+    requestAnimationFrame(() => trigger?.focus({ preventScroll: true }));
+  }
+
+  const stats = summary.data;
+  const filterCount = Object.values(filters).filter(Boolean).length;
+  return <div className="space-y-4">
     <InventoryAlerts />
-    <AdminMetricGrid className="mb-5" metrics={[
-      ["Unique titles", groups.length, LibraryBig],
-      ["Registered volumes", data.books.length, BookOpen],
-      ["Physical copies", data.copies.length, Boxes],
-    ]} />
-    <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 shadow-sm focus-within:border-[#c4800c] focus-within:ring-2 focus-within:ring-[#f3d793]/50"><Search size={16} className="text-[#9a806b]" /><span className="sr-only">Search catalogue</span><input value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" placeholder="Search series, volume, author, or genre" /></label><button onClick={() => setBulkDrawer(true)} className="min-h-12 rounded-xl border border-[#a83d12] px-4 py-2.5 text-xs font-bold text-[#a83d12] hover:bg-[#fff6e8]">Bulk Add</button><button onClick={() => setDrawer(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#8f320d]"><Plus size={15} />Add Book</button></div>
-    <section className="catalogue-records overflow-visible rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] shadow-sm"><div className="flex flex-col gap-2 border-b border-[#eee5dc] px-5 py-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-serif text-xl font-semibold">Catalog by title and series</h2><p className="mt-1 text-xs text-[#8d735e]">{matches.length.toLocaleString()} {query.trim() ? "matching" : "unique"} titles · {visibleCounts.volumes.toLocaleString()} volumes · {visibleCounts.copies.toLocaleString()} physical copies</p></div><button type="button" onClick={() => { setReturnCartOpen(true); void refreshData(); }} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-lg border border-[#e2ba81] bg-[#fff6e8] px-3 text-xs font-bold text-[#8f3c12] transition hover:border-[#a83d12] hover:bg-[#ffeed4] sm:self-auto"><PackageOpen size={15} aria-hidden="true" />Return cart <span className="rounded-full bg-[#f8dfb7] px-2 py-0.5 text-[10px]">{returnCount.toLocaleString()}</span><ChevronRight size={14} aria-hidden="true" /></button></div>
-      <div className="catalogue-row catalogue-column-head gap-4 border-b border-[#eee5dc] bg-[#fcf8f2] px-5 py-3 text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]"><span>Title / series</span><span>Primary genre</span><span>Copies / status</span><span className="text-center">Reads</span><span className="text-right">Actions</span></div>
-      <div className="divide-y divide-[#f0e9e1]">
-        {matches.map(group => {
-          if (group.volumes.length === 1) return renderVolume(group.volumes[0]);
-          const first = group.volumes[0];
-          const cover = group.volumes.find(book => book.cover_image_url) ?? first;
-          const primaryGenre = genresFor(first).find(genre => !/^(series|franchise):/i.test(genre));
-          const summary = summaries.get(group.id)!;
-          const open = activeSeries === group.id;
-          const panelId = `catalogue-series-${first.book_id}`;
-          return <div key={group.id}>
-            <button type="button" aria-expanded={open} aria-controls={panelId}
-              onClick={() => setActiveSeries(current => current === group.id ? null : group.id)}
-              className="catalogue-row catalogue-series-row grid w-full gap-3 px-4 py-4 text-left sm:px-5">
-              <span className="flex min-w-0 items-center gap-3">
-                <CatalogueCover book={cover} />
-                <span className="min-w-0">
-                  <strong className="block break-words font-serif text-lg leading-tight text-[#543822]">{group.title}</strong>
-                  <small className="mt-1 block break-words text-[#8d735e]">{first.author ?? "Unknown author"}</small>
-                  <span className="mt-1 block text-xs font-semibold text-[#8d6548]">
-                    {group.volumes.length.toLocaleString()} volumes
-                    {group.matchingVolumes.length < group.volumes.length && ` · ${group.matchingVolumes.length.toLocaleString()} matching`}
-                  </span>
-                </span>
-              </span>
-              <span className="min-w-0">
-                <span className="catalogue-field-label mb-1 block text-[9px] font-bold uppercase tracking-wider text-[#8d735e]">Genre</span>
-                {primaryGenre ? <span className="inline-block max-w-full break-words rounded-full border border-[#ead8c5] bg-[#fff8ee] px-2.5 py-1 text-[10px] font-semibold text-[#77563e]">{primaryGenre}</span> : <span className="text-xs text-[#8d735e]">No genre assigned</span>}
-              </span>
-              <span className="min-w-0">
-                <span className="flex items-center gap-2 text-xs font-bold"><Boxes size={16} className="shrink-0 text-[#a83d12]" aria-hidden="true" />{summary.copies.toLocaleString()} physical {summary.copies === 1 ? "copy" : "copies"}</span>
-                <StatusPills breakdown={summary.statuses} />
-              </span>
-              <span className="catalogue-reads flex items-center justify-between">
-                <span className="catalogue-field-label text-[9px] font-bold uppercase tracking-wider text-[#8d735e]">Reads</span>
-                <strong className="inline-grid h-8 min-w-8 place-items-center rounded-full bg-[#f5ede3] px-2 text-xs">{summary.reads.toLocaleString()}</strong>
-              </span>
-              <span className="catalogue-series-chevron grid h-10 w-10 place-items-center self-center justify-self-end rounded-lg border border-[#dfcbb3] bg-[#fff8ee] text-[#8f3c12]">
-                <ChevronDown size={17} aria-hidden="true" />
-              </span>
-            </button>
-            <SeriesVolumes id={panelId} open={open} renderVolumes={() => group.matchingVolumes.map(book => renderVolume(book, true))} />
-          </div>;
-        })}
+    <section aria-label="Book management workspace" className="catalogue-workspace rounded-2xl border bg-[#fffdf9]">
+      <div className="catalogue-summary">
+        {stats && <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+          {([["Unique titles", stats.titles], ["Registered volumes", stats.volumes], ["Physical copies", stats.copies]] as const).map(([label, value]) =>
+            <div key={label} className="flex items-baseline gap-1.5"><dt>{label}</dt><dd className="text-sm font-bold tabular-nums">{value.toLocaleString()}</dd></div>)}
+        </dl>}
+        <div className="ml-auto flex flex-wrap gap-2">
+          <button type="button" className="catalogue-control" onClick={() => { summary.retry(); result.retry(); }}>Refresh</button>
+          <button type="button" className="catalogue-control" onClick={() => setCartOpen(true)}>
+            <PackageOpen size={15} aria-hidden="true" /> Return Cart{stats ? ` (${stats.returns.toLocaleString()})` : ""}
+          </button>
+          <button type="button" className="catalogue-control" onClick={() => setBulkDrawer(true)}>Bulk Add</button>
+          <button type="button" className="catalogue-control catalogue-primary" onClick={() => setDrawer(true)}><Plus size={15} aria-hidden="true" /> Add Book</button>
+        </div>
       </div>
-      {!matches.length && <div className="grid min-h-56 place-items-center p-6 text-center"><div><Search className="mx-auto text-[#c8ad92]" aria-hidden="true" /><h3 className="mt-3 font-serif text-lg font-semibold">No matching titles or volumes</h3></div></div>}
-    </section>{copyBook && <CopyDrawer book={copyBook} copies={copiesByBook.get(copyBook.book_id) ?? []} close={() => setCopyBook(null)} manage={() => { setCopyBook(null); setEditingLocation(copyBook); }} />}{returnCartOpen && <ReturnCartStation books={data.books} copies={data.copies} onShelve={shelveCopy} refresh={refreshData} close={() => setReturnCartOpen(false)} />}
-  </>;
+      <RequestFeedback loading={summary.loading && !stats} error={summary.error} retry={summary.retry} />
+      <nav aria-label="Book Management views" className="flex flex-wrap gap-1 border-b border-[#e8dbce] px-3 pt-1">
+        {(Object.keys(catalogueViews) as CatalogueView[]).map(key =>
+          <button key={key} type="button" aria-pressed={view === key} onClick={() => changeView(key)} className="catalogue-tab">
+            {catalogueViews[key]}
+            {key === "attention" && stats && <span className="catalogue-attention-count">{(stats.unregistered + stats.damaged + stats.returns).toLocaleString()}</span>}
+          </button>)}
+      </nav>
+      {view === "attention" && stats && <p className="border-b border-[#e8dbce] px-4 py-2 text-xs text-[#795339]">
+        {stats.unregistered.toLocaleString()} volumes without copies · {stats.damaged.toLocaleString()} marked damaged · {stats.returns.toLocaleString()} in Return Cart
+      </p>}
+      <div className="catalogue-toolbar">
+        <label className="catalogue-search">
+          <Search size={16} aria-hidden="true" /><span className="sr-only">Search books and copies</span>
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Title, series, author, ISBN, or barcode" />
+        </label>
+        <FilterSelect label="Genre" value={filters.genre} items={(stats?.genres ?? []).map(value => [value, value])} onChange={value => updateFilter("genre", value)} />
+        <FilterSelect label="Status" value={filters.status} items={inventoryStatuses.map(value => [value, statusLabel(value)])} onChange={value => updateFilter("status", value)} />
+        <FilterSelect label="Condition" value={filters.condition} items={[["noted", "Has condition notes"], ["blank", "No condition notes"]]} onChange={value => updateFilter("condition", value)} />
+        <FilterSelect label="Location" value={filters.shelf} items={[["unassigned", "Unassigned"], ...(stats?.shelves ?? []).map(value => [value, value] as const)]} onChange={value => updateFilter("shelf", value)} />
+        {view !== "inventory" && <FilterSelect label="Registration" value={filters.registered} items={[["yes", "Has physical copies"], ["no", "No physical copies"]]} onChange={value => updateFilter("registered", value)} />}
+        <label className="flex items-center gap-1.5 text-xs">Sort by
+          <select className="catalogue-control" value={sort} onChange={event => { setSort(event.target.value); setPage(1); }}><option value="title">Title</option><option value="author">Author</option></select>
+        </label>
+        {view === "catalog" && <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={covers} onChange={event => setCovers(event.target.checked)} /> Show covers</label>}
+        {(Boolean(query) || filterCount > 0) && <button type="button" className="catalogue-control" onClick={() => {
+          setQuery(""); setSearch(""); setFilters(emptyFilters); setPage(1);
+        }}>Clear all{filterCount ? ` (${filterCount})` : ""}</button>}
+      </div>
+      <RequestFeedback loading={pending} error={result.error} retry={result.retry} />
+      <div className="catalogue-table-wrap" aria-busy={pending} tabIndex={0} role="region" aria-label={`${catalogueViews[view]} results`}>
+        <table className="catalogue-table">
+          <thead><tr>
+            <th scope="col">Title / author</th>
+            {view === "catalog" ? <><th scope="col">Volumes</th><th scope="col">Copies</th><th scope="col">Inventory summary</th></>
+              : <><th scope="col">Copy barcode</th><th scope="col">Status</th><th scope="col">Condition notes</th><th scope="col">Location</th></>}
+            <th scope="col"><span className="sr-only">Details</span></th>
+          </tr></thead>
+          <tbody>
+            {rows.filter(row => view === "catalog" ? row.kind === "group" : row.kind !== "group").map(row =>
+              <RecordRow key={`${row.kind}-${row.id}`} row={row} covers={covers} selected={row.kind === "group" ? row.id === selection?.group : row.kind === "unregistered" && row.book_id === selection?.bookId} pending={pending} onOpen={openDetails} />)}
+          </tbody>
+        </table>
+      </div>
+      {!pending && !result.error && !rows.length && <p className="px-4 py-8 text-center text-sm text-[#745842]">No records match this view and its filters.</p>}
+      <Pagination page={page} size={size} count={count} setPage={setPage} busy={pending} setSize={value => { setSize(value); setPage(1); }} />
+    </section>
+    {selection && !action && <DetailsDrawer key={selection.bookId ?? selection.group} selection={selection} revision={revision} close={closeDetails} onAction={setAction} />}
+    {action?.kind === "edit" && <EditBookCover book={action.book} close={closeAction} run={run} />}
+    {action?.kind === "register" && <RegisterCopy book={action.book} close={closeAction} run={run} />}
+    {action?.kind === "bulk" && <BulkCopies book={action.book} close={closeAction} run={run} />}
+    {action?.kind === "copy" && <EditOneCopy key={action.row.copy_id} copy={projectCopy(action.row)} title={action.row.title} close={closeAction} run={run} />}
+    {cartOpen && <ReturnCart revision={revision} close={() => setCartOpen(false)} onShelve={shelveCopy} />}
+  </div>;
+
+  function updateFilter(key: keyof CatalogueFilters, value: string) {
+    setFilters(current => ({ ...current, [key]: value }));
+    setPage(1);
+  }
+
+  function closeAction() {
+    setAction(null);
+    if (!selection) triggerRef.current?.focus({ preventScroll: true });
+  }
 }
 
-function CopyDrawer({ book, copies, close, manage }: { book: Book; copies: Copy[]; close: () => void; manage: () => void }) {
-  const [query, setQuery] = useState(""); const [status, setStatus] = useState("All statuses"); const [shelf, setShelf] = useState("All shelves"); const [visible, setVisible] = useState(50);
-  const counts = useMemo(() => Array.from(copies.reduce((map, copy) => { const label = statusLabel(copy.status); map.set(label, (map.get(label) ?? 0) + 1); return map; }, new Map<string, number>())), [copies]);
-  const shelves = useMemo(() => [...new Set(copies.map(copy => copy.shelf_location).filter((value): value is string => Boolean(value)))].sort(), [copies]);
-  const filtered = useMemo(() => copies.filter(copy => { const needle = query.trim().toLowerCase(); return (!needle || copy.identifier_value.toLowerCase().includes(needle) || String(copy.copy_number).includes(needle) || String(copy.copy_id).includes(needle)) && (status === "All statuses" || statusLabel(copy.status) === status) && (shelf === "All shelves" || (copy.shelf_location ?? "Unassigned") === shelf); }), [copies, query, shelf, status]);
-  useEffect(() => setVisible(50), [query, shelf, status]);
-  useEffect(() => { const key = (event: KeyboardEvent) => { if (event.key === "Escape") close(); }; const overflow = document.body.style.overflow; document.body.style.overflow = "hidden"; window.addEventListener("keydown", key); return () => { document.body.style.overflow = overflow; window.removeEventListener("keydown", key); }; }, [close]);
-  return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-[#2d190c]/45 p-2 backdrop-blur-[3px] sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}><section role="dialog" aria-modal="true" aria-labelledby="copy-drawer-title" className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] shadow-[0_30px_100px_rgba(50,27,13,.35)] sm:max-h-[calc(100dvh-2.5rem)]">
-    <header className="shrink-0 border-b border-[#eadfd3] bg-[#fcf7ef] px-4 py-4 sm:px-7"><div className="flex items-start justify-between gap-4"><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#a83d12]">Physical inventory</p><h2 id="copy-drawer-title" className="mt-1 line-clamp-2 font-serif text-xl font-semibold sm:text-2xl">{book.title}</h2><p className="mt-1 text-xs text-[#8d735e]">{copies.length.toLocaleString()} registered copies</p></div><button type="button" onClick={close} aria-label="Close" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border bg-white"><X size={18} /></button></div><div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => printBookLabels(labelsFor(book, copies))} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#543822] px-4 text-xs font-bold text-white"><Printer size={14} />Print all labels</button><button type="button" onClick={manage} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#a83d12] bg-white px-4 text-xs font-bold text-[#8f320d]"><SlidersHorizontal size={14} />Bulk update inventory</button></div></header>
-    <div className="min-h-0 flex-1 overflow-y-auto p-4 sm:p-7"><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">{counts.map(([label, count]) => <button key={label} type="button" onClick={() => setStatus(current => current === label ? "All statuses" : label)} className={`rounded-xl border p-3 text-left ${status === label ? "border-[#a83d12] bg-[#fff5e8]" : "border-[#eadfd3] bg-white"}`}><span className={`inline-flex rounded-full border px-2 py-0.5 text-[9px] font-bold ${statusStyle(label)}`}>{label}</span><strong className="mt-2 block font-serif text-2xl">{count.toLocaleString()}</strong></button>)}</div>
-      <div className="sticky top-0 z-20 mt-4 grid gap-2 border-y border-[#eadfd3] bg-[#fffdf9]/95 py-3 backdrop-blur sm:grid-cols-[minmax(0,1fr)_180px_180px]"><label className="flex min-h-11 items-center gap-2 rounded-lg border bg-white px-3"><Search size={15} /><input aria-label="Search copies" value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 text-xs outline-none" placeholder="Barcode, copy number, or ID" /></label><select aria-label="Filter by status" value={status} onChange={event => setStatus(event.target.value)} className="min-h-11 rounded-lg border bg-white px-3 text-xs"><option>All statuses</option>{counts.map(([label]) => <option key={label}>{label}</option>)}</select><select aria-label="Filter by shelf" value={shelf} onChange={event => setShelf(event.target.value)} className="min-h-11 rounded-lg border bg-white px-3 text-xs"><option>All shelves</option>{shelves.map(value => <option key={value}>{value}</option>)}</select></div>
-      <p className="mt-4 text-xs text-[#8d735e]"><strong>{filtered.length.toLocaleString()}</strong> matching copies{filtered.length > visible && ` · Showing ${visible.toLocaleString()}`}</p><div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">{filtered.slice(0, visible).map(copy => { const label = statusLabel(copy.status); return <article key={copy.copy_id} className="min-w-0 rounded-xl border border-[#eadfd3] bg-white p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.15em] text-[#a68a72]">Copy {copy.copy_number}</p><p className="mt-1 truncate font-mono text-xs font-bold" title={copy.identifier_value}>{copy.identifier_value}</p></div><span className={`shrink-0 rounded-full border px-2 py-1 text-[9px] font-bold ${statusStyle(label)}`}>{label}</span></div><div className="mt-4 flex items-center justify-between gap-2 border-t pt-3"><span className="flex min-w-0 items-center gap-2 text-xs"><MapPin size={14} className="shrink-0 text-[#c4800c]" /><span className="truncate">{copy.shelf_location || "Unassigned"}</span></span><button type="button" onClick={() => printBookLabels(labelsFor(book, [copy]))} className="shrink-0 text-[#a83d12]"><Printer size={14} /></button></div></article>; })}</div>{!filtered.length && <div className="grid min-h-40 place-items-center text-sm text-[#927760]">No copies match these filters.</div>}{visible < filtered.length && <button type="button" onClick={() => setVisible(value => value + 50)} className="mx-auto mt-5 flex min-h-11 items-center gap-2 rounded-xl border bg-white px-5 text-xs font-bold">Show 50 more <ChevronDown size={15} /></button>}
-    </div><footer className="shrink-0 border-t bg-[#fcf8f2] px-5 py-3 text-[10px] text-[#8b705b]">Summary and progressive loading keep large inventories responsive.</footer>
-  </section></div>, document.body);
+function FilterSelect({ label, value, items, onChange }: {
+  label: string; value: string; items: ReadonlyArray<readonly [string, string]>; onChange: (value: string) => void;
+}) {
+  return <select className="catalogue-control" aria-label={label} data-active={Boolean(value)} value={value} onChange={event => onChange(event.target.value)}>
+    <option value="">{label}: All</option>
+    {value && !items.some(([key]) => key === value) && <option value={value}>{label}: {value}</option>}
+    {items.map(([key, text]) => <option key={key} value={key}>{text}</option>)}
+  </select>;
+}
+
+function RecordRow({ row, covers, selected, pending, onOpen }: {
+  row: CatalogueRow; covers: boolean; selected: boolean; pending: boolean;
+  onOpen: (row: CatalogueRow, trigger: HTMLButtonElement) => void;
+}) {
+  const button = useRef<HTMLButtonElement>(null);
+  return <tr data-selected={selected} className="cursor-pointer" onClick={event => {
+    if (!pending && event.target instanceof Element && !event.target.closest("button")) button.current?.click();
+  }}>
+    <th scope="row">
+      <button ref={button} type="button" className="catalogue-title-button" disabled={pending} aria-haspopup="dialog"
+        aria-expanded={row.kind === "copy" ? undefined : selected}
+        onClick={event => onOpen(row, event.currentTarget)}>
+        {row.kind === "group" && covers && (row.cover ? <img src={row.cover} alt="" loading="lazy" className="catalogue-thumb" /> : <span className="catalogue-thumb"><BookOpen size={14} aria-hidden="true" /></span>)}
+        <span className="min-w-0"><strong className="block truncate" title={row.title}>{row.title}</strong>
+          <small className="block truncate text-[#735843]">{row.author || "Unknown author"}{row.kind === "copy" && row.volume !== null ? ` · Vol. ${row.volume}` : ""}</small></span>
+      </button>
+    </th>
+    {row.kind === "group" ? <>
+      <td className="tabular-nums">{row.volumes.toLocaleString()}</td><td className="tabular-nums">{row.copies.toLocaleString()}</td>
+      <td>{row.copies ? <span className="flex flex-wrap gap-x-3 gap-y-1">{Object.entries(row.statuses).map(([status, total]) =>
+        <span key={status} className={status === "Damaged" || status === "In Return Cart" ? "font-semibold text-[#943916]" : ""}>{total.toLocaleString()} {statusLabel(status)}</span>)}</span> : "No copies"}</td>
+    </> : row.kind === "copy" ? <>
+      <td className="font-mono">{row.barcode}</td>
+      <td><CopyStatus status={row.copy_status} /></td>
+      <td><span className="block max-w-48 truncate" title={row.condition_notes ?? undefined}>{row.condition_notes || "—"}</span></td>
+      <td>{row.shelf_location || "Unassigned"}</td>
+    </> : <><td>—</td><td className="font-semibold text-[#943916]">No physical copies</td><td>—</td><td>—</td></>}
+    <td><ChevronRight size={17} className="text-[#a65b32]" aria-hidden="true" /></td>
+  </tr>;
+}
+
+function CopyStatus({ status }: { status: string }) {
+  const label = statusLabel(status);
+  return <span className={`inline-flex rounded-full border px-2.5 py-0.5 font-semibold ${statusStyle(label)}`}>{label}</span>;
+}
+
+function DetailsDrawer({ selection, revision, close, onAction }: {
+  selection: Selection; revision: number; close: () => void; onAction: (action: Action) => void;
+}) {
+  const [page, setPage] = useState(1);
+  const [currentVolume, setCurrentVolume] = useState<number | null>(null);
+  const load = useCallback((signal: AbortSignal) => {
+    void revision;
+    return readCatalogueVolumes(selection.group, page, signal, selection.bookId);
+  }, [selection.group, selection.bookId, page, revision]);
+  const result = useResource(load);
+  const rows = result.data?.rows ?? [];
+  return <CatalogueDialog title={selection.title} close={close}>
+    <RequestFeedback {...result} />
+    {!result.loading && !result.error && !rows.length && <p className="p-4 text-sm">This title is no longer in the catalog.</p>}
+    {rows.map(volume => <VolumeRow key={volume.book.book_id} volume={volume}
+      open={currentVolume === volume.book.book_id || result.data?.count === 1}
+      onToggle={() => setCurrentVolume(current => current === volume.book.book_id ? null : volume.book.book_id)}
+      single={result.data?.count === 1} onAction={onAction} revision={revision} />)}
+    {(result.data?.count ?? 0) > 25 && <Pagination page={page} size={25} count={result.data!.count} setPage={setPage} busy={result.loading} />}
+  </CatalogueDialog>;
+}
+
+function CatalogueDialog({ title, close, children }: { title: string; close: () => void; children: ReactNode }) {
+  const ref = useRef<HTMLDialogElement>(null);
+  function dismiss() {
+    ref.current?.close();
+    close();
+  }
+  useEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    const compact = window.matchMedia("(max-width: 767px)");
+    const position = () => {
+      const previousFocus = document.activeElement;
+      if (dialog.open) dialog.close();
+      if (compact.matches) dialog.showModal();
+      else dialog.show();
+      if (previousFocus instanceof HTMLElement && dialog.contains(previousFocus)) previousFocus.focus({ preventScroll: true });
+      else dialog.querySelector("button")?.focus({ preventScroll: true });
+    };
+    position();
+    compact.addEventListener("change", position);
+    return () => { compact.removeEventListener("change", position); dialog.close(); };
+  }, []);
+  return createPortal(<dialog ref={ref} className="catalogue-detail" aria-labelledby="catalogue-detail-title"
+    onCancel={event => { event.preventDefault(); dismiss(); }}
+    onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); dismiss(); } }}>
+    <header className="flex items-start justify-between gap-3 border-b border-[#e8dbce] bg-[#fcf6ed] px-4 py-3">
+      <h2 id="catalogue-detail-title" className="min-w-0 break-words font-serif text-xl font-semibold">{title}</h2>
+      <button type="button" aria-label="Close title details" onClick={dismiss} className="catalogue-control"><X size={17} /></button>
+    </header>
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">{children}</div>
+  </dialog>, document.body);
+}
+
+function VolumeRow({ volume, open, onToggle, single, onAction, revision }: {
+  volume: VolumeDetail; open: boolean; onToggle: () => void;
+  single: boolean; onAction: (action: Action) => void; revision: number;
+}) {
+  const { book, copies, reads, number } = volume;
+  const detailsId = `catalogue-volume-${book.book_id}`;
+  const fields = [
+    ["ISBN", book.isbn], ["Series", book.series_name], ["Original title", book.original_title], ["Romanized title", book.romanized_title],
+    ["Genre", book.book_genres.map(item => item.genre).join(", ")], ["Publisher", book.publisher],
+    ["Publication date", book.publication_date], ["Imprint", book.imprint], ["Type", book.book_type],
+    ["Age rating", book.age_rating], ["Demographic", book.demographic], ["Themes", book.themes],
+    ["Contributors", volume.contributors], ["Format", volume.format],
+  ] as const;
+  return <article className="border-b border-[#e8dbce] p-4">
+    {single ? <h3 className="text-sm font-semibold">{book.title}</h3> :
+      <button type="button" aria-expanded={open} aria-controls={detailsId} onClick={onToggle} className="flex w-full items-start justify-between gap-2 text-left text-sm font-semibold">
+        <span>{number !== null ? `Vol. ${number} · ` : ""}{book.title}</span><ChevronRight size={16} className={`shrink-0 ${open ? "rotate-90" : ""}`} aria-hidden="true" />
+      </button>}
+    <p className="mt-1 text-xs text-[#735843]">{book.author || "Unknown author"} · {copies.toLocaleString()} copies · {reads.toLocaleString()} reads</p>
+    <div id={detailsId} hidden={!open}>
+      {open && <>
+        <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 break-words text-xs">
+          {fields.filter(([, value]) => value !== null && value !== "").map(([label, value]) => <div key={label}><dt className="font-semibold">{label}</dt><dd>{value}</dd></div>)}
+        </dl>
+        {book.description && <p className="mt-3 break-words text-xs leading-5">{book.description}</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button type="button" className="catalogue-control" onClick={() => onAction({ kind: "edit", book })}>Edit volume</button>
+          <button type="button" className="catalogue-control catalogue-primary" onClick={() => onAction({ kind: "register", book })}>Register copy</button>
+          {copies > 0 && <button type="button" className="catalogue-control" onClick={() => onAction({ kind: "bulk", book })}>Manage copies</button>}
+        </div>
+        {copies > 0 && <CopyDetails book={book} onAction={onAction} revision={revision} />}
+      </>}
+    </div>
+  </article>;
+}
+
+function CopyDetails({ book, onAction, revision }: { book: Book; onAction: (action: Action) => void; revision: number }) {
+  const [open, setOpen] = useState(false);
+  return <div className="mt-3">
+    <button type="button" className="catalogue-control" aria-expanded={open} onClick={() => setOpen(value => !value)}>{open ? "Hide physical copies" : "View physical copies"}</button>
+    {open && <VolumeCopies book={book} onAction={onAction} revision={revision} />}
+  </div>;
+}
+
+function VolumeCopies({ book, onAction, revision }: { book: Book; onAction: (action: Action) => void; revision: number }) {
+  const [page, setPage] = useState(1);
+  const load = useCallback((signal: AbortSignal) => {
+    void revision;
+    return readCataloguePage({ view: "inventory", page, size: 25, bookId: book.book_id, signal });
+  }, [book.book_id, page, revision]);
+  const result = useResource(load);
+  return <div className="mt-2 border-y border-[#e8dbce]">
+    <RequestFeedback {...result} />
+    {result.data?.rows.map(row => row.kind === "copy" && <div key={row.copy_id} className="border-b border-[#f0e6da] py-2 text-xs">
+      <div className="flex flex-wrap items-center gap-1.5"><strong className="break-all font-mono">{row.barcode}</strong><CopyStatus status={row.copy_status} /></div>
+      <p className="mt-1 break-words">{row.shelf_location ?? "Unassigned"} · {row.condition_notes || "No condition notes"}</p>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        <button type="button" className="catalogue-control" onClick={() => onAction({ kind: "copy", row })}>Edit copy</button>
+        <button type="button" className="catalogue-control" onClick={() => printBookLabels([copyLabel(book, projectCopy(row))])}>Print label</button>
+      </div>
+    </div>)}
+    <Pagination page={page} size={25} count={result.data?.count ?? 0} setPage={setPage} busy={result.loading} />
+  </div>;
+}
+
+const copyLabel = (book: Book, copy: Copy) => ({
+  book_id: book.book_id, copy_id: copy.copy_id, copy_number: copy.copy_number, barcode: copy.identifier_value, title: book.title,
+});
+
+function BulkCopies({ book, close, run }: { book: Book; close: () => void; run: Run }) {
+  const load = useCallback((signal: AbortSignal) => readVolumeCopies(book.book_id, signal), [book.book_id]);
+  const result = useResource(load);
+  const copies = result.data;
+  if (copies) return <EditCopyLocation book={book} copies={copies} close={close} run={run}
+    onPrint={() => printBookLabels(copies.map(copy => copyLabel(book, copy)))} />;
+  return <CatalogueDialog title="Manage copies" close={close}><RequestFeedback {...result} /></CatalogueDialog>;
+}
+
+function ReturnCart({ revision, close, onShelve }: { revision: number; close: () => void; onShelve: Props["shelveCopy"] }) {
+  const load = useCallback((signal: AbortSignal) => {
+    void revision;
+    return readReturnCart(signal);
+  }, [revision]);
+  const result = useResource(load);
+  if (result.data) return <ReturnCartStation {...result.data} close={close} onShelve={onShelve} refresh={result.retry} />;
+  return <CatalogueDialog title="Return Cart" close={close}><RequestFeedback {...result} /></CatalogueDialog>;
 }
