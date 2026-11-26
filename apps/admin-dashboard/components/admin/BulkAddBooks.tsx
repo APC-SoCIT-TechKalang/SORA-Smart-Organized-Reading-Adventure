@@ -6,7 +6,7 @@ import { BookOpen, Download, LoaderCircle, Pencil, Plus, Printer, ScanLine, Tras
 import { database } from "../../lib/supabase";
 import type { Shelf } from "./dashboard-data";
 import { printBookLabels, type BookLabel } from "./BookBarcodeLabels";
-import { bookImportTemplate, bulkRowError, emptyBulkRow, expandBookQuantities, fillRepeatedBooks, normalizeBookIsbn, parseBookBatch, validBookIsbn, type BulkBookRow } from "./book-batch";
+import { bookImportTemplate, bulkRowError, catalogGenreSummary, cleanBookGenres, emptyBulkRow, expandBookQuantities, fillRepeatedBooks, normalizeBookIsbn, parseBookBatch, validBookIsbn, type BulkBookRow } from "./book-batch";
 
 type Mode = "collection" | "new";
 type ExistingBook = { book_id:number; isbn:string; title:string; book_genre:string|null; book_type:string; age_rating:number; coverimage_url:string|null; authors:{author_firstname:string;author_lastname:string}|null };
@@ -62,7 +62,7 @@ export function BulkAddBooks({ data, close, run }:Props) {
       const result=await response.json() as LookupResponse;
       if(!response.ok)throw new Error(result.error||"No metadata was found.");
       const meta=result.metadata||{};
-      const next:BulkBookRow={...emptyBulkRow(),isbn,title:meta.title||"",author:meta.author||"",original_title:meta.original_title||"",romanized_title:meta.romanized_title||"",contributors:meta.contributors||"",series_name:meta.series_name||"",volume_number:meta.volume_number||"",publisher:meta.publisher||"",publication_date:meta.publication_date||"",imprint:meta.imprint||"",genre:meta.genres||meta.genre||"",tags:meta.themes||"",demographic:meta.demographic||"",description:meta.description||"",format:meta.format||"Physical",book_type:meta.book_type||"Manga",age_rating:meta.age_rating||"",shelf_location:shelves[0]||"",cover_image_url:result.coverCandidates?.[0]||meta.cover_image_url,existingBookId:result.existingBookId??undefined};
+      const next:BulkBookRow={...emptyBulkRow(),isbn,title:meta.title||"",author:meta.author||"",original_title:meta.original_title||"",romanized_title:meta.romanized_title||"",contributors:meta.contributors||"",series_name:meta.series_name||"",volume_number:meta.volume_number||"",publisher:meta.publisher||"",publication_date:meta.publication_date||"",imprint:meta.imprint||"",genre:cleanBookGenres(meta.genres||meta.genre||"").join(", "),tags:meta.themes||"",demographic:meta.demographic||"",description:meta.description||"",format:meta.format||"Physical",book_type:meta.book_type||"Manga",age_rating:meta.age_rating||"",shelf_location:shelves[0]||"",cover_image_url:result.coverCandidates?.[0]||meta.cover_image_url,existingBookId:result.existingBookId??undefined};
       setRows(current=>fillRepeatedBooks([...current,next]));setScan("");
     }catch(cause){setRows(current=>[...current,{...emptyBulkRow(),isbn,shelf_location:shelves[0]||""}]);setScan("");setError(`${cause instanceof Error?cause.message:"Lookup failed"} The ISBN was added for review.`);}finally{setBusy(false);}
   };
@@ -82,7 +82,7 @@ export function BulkAddBooks({ data, close, run }:Props) {
       const ok=await run(async()=>{
         for(let i=0;i<chunks.length;i++){
           setProgress(`Registering batch ${i+1} of ${chunks.length}...`);
-          const result=await database().schema("sora_v2").rpc("admin_register_books_idempotent",{p_request_id:requestIds.current[i],p_entries:chunks[i].map(row=>({isbn:normalizeBookIsbn(row.isbn),title:row.title,author:row.author,genre:row.genre,book_type:row.book_type,age_rating:row.age_rating,shelf_location:row.shelf_location,condition_notes:row.condition_notes||null,acquisition_date:row.acquisition_date||null,cover_image_url:row.cover_image_url||null,metadata:{original_title:row.original_title||null,romanized_title:row.romanized_title||null,contributors:row.contributors||null,series_name:row.series_name||null,volume_number:row.volume_number||null,publisher:row.publisher||null,publication_date:row.publication_date||null,imprint:row.imprint||null,themes:row.tags.trim()||null,demographic:row.demographic||null,description:row.description||null,format:row.format||"Physical",genres:row.genre.split(",").map(value=>value.trim()).filter(Boolean)}}))});
+          const result=await database().schema("sora_v2").rpc("admin_register_books_idempotent",{p_request_id:requestIds.current[i],p_entries:chunks[i].map(row=>({isbn:normalizeBookIsbn(row.isbn),title:row.title,author:row.author,genre:catalogGenreSummary(row.genre),book_type:row.book_type,age_rating:row.age_rating,shelf_location:row.shelf_location,condition_notes:row.condition_notes||null,acquisition_date:row.acquisition_date||null,cover_image_url:row.cover_image_url||null,metadata:{original_title:row.original_title||null,romanized_title:row.romanized_title||null,contributors:row.contributors||null,series_name:row.series_name||null,volume_number:row.volume_number||null,publisher:row.publisher||null,publication_date:row.publication_date||null,imprint:row.imprint||null,themes:row.tags.trim()||null,demographic:row.demographic||null,description:row.description||null,format:row.format||"Physical",genres:cleanBookGenres(row.genre)}}))});
           if(result.error){setError(result.error.message);return result;}saved.push(...result.data as BookLabel[]);
         }
         return {error:null};

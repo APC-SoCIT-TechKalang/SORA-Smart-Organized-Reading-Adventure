@@ -118,6 +118,22 @@ export function normalizeBookIsbn(input: string) {
   return input.toUpperCase().replace(/[\s-]/g, "");
 }
 
+export function cleanBookGenres(input: string) {
+  return [...new Set(input.split(",")
+    .map(value => value.trim())
+    .filter(value => value && !/^(collectionid|subjectid|source):/i.test(value)))];
+}
+
+export function catalogGenreSummary(input: string, limit = 100) {
+  const selected: string[] = [];
+  for (const genre of cleanBookGenres(input)) {
+    const candidate = [...selected, genre].join(", ");
+    if (candidate.length > limit) break;
+    selected.push(genre);
+  }
+  return selected.join(", ") || "General";
+}
+
 export function expandBookQuantities(rows: BulkBookRow[]) {
   return rows.flatMap(row => Array.from({ length: row.quantity }, () => ({ ...row, quantity: 1 })));
 }
