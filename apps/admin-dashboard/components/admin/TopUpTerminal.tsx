@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import type { IScannerControls } from "@zxing/browser";
 import { CheckCircle2, Clock3, LoaderCircle, Nfc, QrCode, ShieldCheck, WalletCards, X } from "lucide-react";
 import { database, errorMessage } from "../../lib/supabase";
-import { isDigitalCardPayload, parseDigitalCardPayload, sanitizeCardPayload, subscribeToCardScanner } from "../../lib/card-scanner";
+import { isDigitalCardPayload, normalizePhysicalCardUid, parseDigitalCardPayload, sanitizeCardPayload, subscribeToCardScanner } from "../../lib/card-scanner";
+import { subscribeToCardDirectory } from "../../lib/card-directory-sync";
 import type { DashboardData } from "./dashboard-data";
 
 type TopUpReader = {
@@ -27,8 +29,6 @@ type UserRow = {
   remaining_minutes: number | null;
 };
 
-type BarcodeDetectorInstance = { detect: (source: HTMLVideoElement) => Promise<Array<{ rawValue?: string }>> };
-type BarcodeDetectorConstructor = new (options: { formats: string[] }) => BarcodeDetectorInstance;
 const api = () => database().schema("sora_v2");
 const PESO_PRESETS = [50, 100, 200, 500];
 type RateTier = "Adult" | "Minor";
@@ -101,12 +101,14 @@ export function TopUpTerminal({ data, name, run }: {
       let userId = digitalUserId;
       let cardUid = "";
       if (!userId) {
+        const physicalUid = normalizePhysicalCardUid(payload);
+        if (physicalUid.length < 4) throw new Error("The card reader returned an invalid UID.");
         const cardResult = await api().from("librarycard").select("user_id,librarycard_rfid")
-          .eq("librarycard_rfid", payload).eq("is_active", true).is("deactivated_at", null).maybeSingle();
+          .eq("librarycard_rfid", physicalUid).eq("is_active", true).is("deactivated_at", null).maybeSingle();
         if (cardResult.error) throw cardResult.error;
         if (!cardResult.data) throw new Error("Card not recognized. Confirm that it is assigned and active.");
         userId = cardResult.data.user_id as string;
-        cardUid = String(cardResult.data.librarycard_rfid ?? payload);
+        cardUid = String(cardResult.data.librarycard_rfid ?? physicalUid);
       }
 
       const userResult = await api().from("users")
@@ -146,6 +148,10 @@ export function TopUpTerminal({ data, name, run }: {
     return subscribeToCardScanner(payload => void verifyPayload(payload));
   }, [reader, verifyPayload]);
 
+  useEffect(() => subscribeToCardDirectory(() => {
+    if (!verificationLock.current && !reader) setMessage("");
+  }), [reader]);
+
   useEffect(() => {
     if (!reader) return;
     const overflow = document.body.style.overflow;
@@ -158,33 +164,38 @@ export function TopUpTerminal({ data, name, run }: {
   useEffect(() => {
     if (!cameraOpen) return;
     let disposed = false;
-    let stream: MediaStream | null = null;
-    let timer = 0;
-    let detecting = false;
+    let controls: IScannerControls | null = null;
     const stop = () => {
       disposed = true;
-      window.clearInterval(timer);
-      stream?.getTracks().forEach(track => track.stop());
+      controls?.stop();
       if (videoRef.current) videoRef.current.srcObject = null;
     };
     const start = async () => {
       try {
-        const Detector = (window as Window & { BarcodeDetector?: BarcodeDetectorConstructor }).BarcodeDetector;
-        if (!Detector) throw new Error("Camera QR scanning is unavailable in this browser. Use the connected 2D scanner instead.");
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-        if (!videoRef.current || disposed) return;
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        const detector = new Detector({ formats: ["qr_code"] });
-        timer = window.setInterval(async () => {
-          if (disposed || detecting || !videoRef.current || videoRef.current.readyState < 2) return;
-          detecting = true;
-          try {
-            const result = (await detector.detect(videoRef.current))[0]?.rawValue;
-            if (result) { stop(); setCameraOpen(false); void verifyPayload(result); }
-          } catch { /* Keep scanning until the camera closes. */ }
-          finally { detecting = false; }
-        }, 250);
+        if (!navigator.mediaDevices?.getUserMedia) throw new Error("Camera scanning is unavailable. Open this secure page in Safari or Chrome and allow camera access.");
+        const { BrowserQRCodeReader } = await import("@zxing/browser");
+        const reader = new BrowserQRCodeReader(undefined, {
+          delayBetweenScanAttempts: 200,
+          delayBetweenScanSuccess: 750,
+        });
+        const video = videoRef.current;
+        if (!video) throw new Error("The QR camera could not be opened.");
+        controls = await reader.decodeFromConstraints(
+          { video: { facingMode: { ideal: "environment" } }, audio: false },
+          video,
+          result => {
+            if (disposed || !result) return;
+            const payload = sanitizeCardPayload(result.getText());
+            if (!parseDigitalCardPayload(payload)) {
+              setMessage("That QR code is not a valid Tankobonbon Digital ID.");
+              return;
+            }
+            controls?.stop();
+            setCameraOpen(false);
+            void verifyPayload(payload);
+          },
+        );
+        if (disposed) controls.stop();
       } catch (cause) {
         stop();
         setCameraOpen(false);
@@ -234,7 +245,20 @@ export function TopUpTerminal({ data, name, run }: {
       </section>
     </div>
 
-    {cameraOpen && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/75 p-2 backdrop-blur-sm sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) setCameraOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="camera-scan-title" className="terminal-modal-panel flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] shadow-2xl"><header className="flex items-center justify-between border-b border-[#eadfd3] p-4 sm:p-5"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">Digital card</p><h2 id="camera-scan-title" className="mt-1 font-serif text-2xl">Scan QR code</h2></div><button type="button" onClick={() => setCameraOpen(false)} aria-label="Close camera" className="grid h-10 w-10 place-items-center rounded-full border border-[#d8c3ad]"><X size={18} /></button></header><div className="min-h-0 overflow-y-auto p-3 sm:p-5"><div className="relative aspect-video overflow-hidden rounded-xl bg-[#21130c]"><video ref={videoRef} muted playsInline className="h-full w-full object-cover" /><div className="pointer-events-none absolute inset-[14%] rounded-xl border-2 border-white shadow-[0_0_0_999px_rgba(45,25,12,.45)]" /><div className="pointer-events-none absolute left-[18%] right-[18%] top-1/2 h-0.5 bg-[#f9d219] shadow-[0_0_14px_#f9d219]" /></div><p className="mt-4 text-center text-sm text-[#806b59]">Hold the Digital ID QR code inside the frame.</p></div></section></div>, document.body)}
+    {cameraOpen && createPortal(
+      <div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/75 p-2 backdrop-blur-sm sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget) { setCameraOpen(false); setMessage(""); } }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="camera-scan-title" className="terminal-modal-panel flex max-h-[90dvh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] shadow-2xl">
+          <header className="flex items-center justify-between border-b border-[#eadfd3] p-4 sm:p-5">
+            <div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">Digital card</p><h2 id="camera-scan-title" className="mt-1 font-serif text-2xl">Scan QR code</h2></div>
+            <button type="button" onClick={() => { setCameraOpen(false); setMessage(""); }} aria-label="Close camera" className="grid h-10 w-10 place-items-center rounded-full border border-[#d8c3ad]"><X size={18} /></button>
+          </header>
+          <div className="min-h-0 overflow-y-auto p-3 sm:p-5">
+            <div className="relative aspect-video overflow-hidden rounded-xl bg-[#21130c]"><video ref={videoRef} muted playsInline aria-label="Digital card QR camera preview" className="h-full w-full object-cover" /><div className="pointer-events-none absolute inset-[14%] rounded-xl border-2 border-white shadow-[0_0_0_999px_rgba(45,25,12,.45)]" /><div className="pointer-events-none absolute left-[18%] right-[18%] top-1/2 h-0.5 bg-[#f9d219] shadow-[0_0_14px_#f9d219]" /></div>
+            <p className="mt-4 text-center text-sm text-[#806b59]">Hold the Digital ID QR code inside the frame.</p>
+            {message && <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-center text-sm text-rose-800">{message}</p>}
+          </div>
+        </section>
+      </div>, document.body)}
 
     {reader && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/55 p-2 backdrop-blur-sm sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) reset(); }}><form role="dialog" aria-modal="true" aria-labelledby="top-up-menu-title" className="terminal-modal-panel flex max-h-[90dvh] min-h-0 w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.38)]" onSubmit={async event => {
       event.preventDefault();

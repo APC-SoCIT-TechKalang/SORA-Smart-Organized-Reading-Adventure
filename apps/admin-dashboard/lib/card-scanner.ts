@@ -1,4 +1,4 @@
-const MAX_KEY_INTERVAL_MS = 50;
+const MAX_KEY_INTERVAL_MS = 100;
 const DUPLICATE_COOLDOWN_MS = 1_250;
 const MAX_PAYLOAD_LENGTH = 512;
 const DIGITAL_CARD_PREFIX = "tankobonbon:kiosk-user:";
@@ -11,6 +11,10 @@ export function sanitizeCardPayload(payload: string) {
     .trim()
     .replace(/^][a-z]\d/i, "")
     .trim();
+}
+
+export function normalizePhysicalCardUid(payload: string) {
+  return sanitizeCardPayload(payload).replace(/[^a-z0-9]/gi, "").toUpperCase();
 }
 
 export function parseDigitalCardPayload(payload: string) {

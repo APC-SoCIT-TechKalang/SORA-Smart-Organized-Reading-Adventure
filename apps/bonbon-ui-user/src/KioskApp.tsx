@@ -15,8 +15,9 @@ import {
 import type { IScannerControls } from '@zxing/browser';
 import { database, errorMessage } from './lib/supabase';
 import { requireReaderAccount } from './lib/replacement-library';
-import { startWebNfcScan, subscribeToHidScanner, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
+import { normalizePhysicalCardUid, startWebNfcScan, subscribeToHidScanner, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
 import { parseKioskQrPayload } from './lib/kioskQr';
+import { subscribeToCardDirectory } from './lib/cardDirectorySync';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'error';
 const SESSION_STARTED_KEY = 'sora.kiosk.session-started-at';
@@ -61,7 +62,10 @@ export function KioskApp() {
     finally { authenticating.current = false; }
   }, [establishSession]);
 
-  const authenticateUid = useCallback((rfidUid: string) => authenticate({ rfidUid }), [authenticate]);
+  const authenticateUid = useCallback((rawUid: string) => {
+    const rfidUid = normalizePhysicalCardUid(rawUid);
+    if (rfidUid.length >= 4) void authenticate({ rfidUid });
+  }, [authenticate]);
   const authenticateUser = useCallback((userId: string) => authenticate({ userId }), [authenticate]);
   const authenticateScannerPayload = useCallback((payload: string) => {
     if (authenticating.current) return;
@@ -143,6 +147,10 @@ export function KioskApp() {
 
   useEffect(() => subscribeToReaderBridge(authentication => void establishSession(authentication)), [establishSession]);
   useEffect(() => subscribeToHidScanner(authenticateScannerPayload), [authenticateScannerPayload]);
+  useEffect(() => subscribeToCardDirectory(() => {
+    // Clear a stale rejection as soon as staff changes a card or reader record.
+    if (!authenticating.current) { setMessage(''); setStatus('ready'); }
+  }), []);
   useEffect(() => { void clearSession(); }, [clearSession]);
 
   return <main className="tb-field tb-world-shell min-h-screen overflow-hidden text-umber"><KioskHeader />

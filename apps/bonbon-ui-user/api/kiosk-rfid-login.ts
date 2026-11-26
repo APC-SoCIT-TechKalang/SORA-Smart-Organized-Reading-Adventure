@@ -60,6 +60,16 @@ function allowed(id: string) {
   return true;
 }
 
+function normalizePhysicalCardUid(value: string) {
+  return value
+    .normalize('NFKC')
+    .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200d\u2060\ufeff]/g, '')
+    .trim()
+    .replace(/^][a-z]\d/i, '')
+    .replace(/[^a-z0-9]/gi, '')
+    .toUpperCase();
+}
+
 function credential(body: unknown) {
   let parsed = body;
   if (typeof body === 'string') {
@@ -68,7 +78,10 @@ function credential(body: unknown) {
   if (!parsed || typeof parsed !== 'object') return null;
   const values = parsed as Record<string, unknown>;
   const uid = values.rfidUid;
-  if (typeof uid === 'string' && /^[a-zA-Z0-9-]{4,128}$/.test(uid)) return { rfidUid: uid } as const;
+  if (typeof uid === 'string' && uid.length <= 128) {
+    const normalizedUid = normalizePhysicalCardUid(uid);
+    if (/^[A-Z0-9]{4,128}$/.test(normalizedUid)) return { rfidUid: normalizedUid } as const;
+  }
   const userId = values.userId;
   if (typeof userId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return { userId } as const;
   return null;

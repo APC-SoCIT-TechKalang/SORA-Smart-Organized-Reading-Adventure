@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { BookOpenIcon, CheckCircle2Icon, CreditCardIcon, RadioIcon, RotateCcwIcon } from 'lucide-react';
 import { database, errorMessage } from './lib/supabase';
 import { replacementApi, requireReaderAccount } from './lib/replacement-library';
-import { startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
+import { normalizePhysicalCardUid, startWebNfcScan, subscribeToKeyboardReader, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
+import { subscribeToCardDirectory } from './lib/cardDirectorySync';
 
 type CheckoutState = {
   session_id: number; session_status: string; borrow_date: string; return_date: string | null;
@@ -71,8 +72,10 @@ export function CheckoutKioskApp() {
     setMessage('');
   }, [signOut]);
 
-  const authenticateUid = useCallback(async (rfidUid: string) => {
+  const authenticateUid = useCallback(async (rawUid: string) => {
     if (!ready.current || authenticating.current) return;
+    const rfidUid = normalizePhysicalCardUid(rawUid);
+    if (rfidUid.length < 4) return;
     authenticating.current = true;
     setStatus('authorizing'); setMessage('');
     try {
@@ -92,6 +95,9 @@ export function CheckoutKioskApp() {
 
   useEffect(() => { void reset(); }, [reset]);
   useEffect(() => subscribeToKeyboardReader(uid => void authenticateUid(uid)), [authenticateUid]);
+  useEffect(() => subscribeToCardDirectory(() => {
+    if (ready.current && !authenticating.current && !checkout) { setMessage(''); setStatus('ready'); }
+  }), [checkout]);
   useEffect(() => subscribeToReaderBridge(authentication => {
     if (!ready.current || authenticating.current) return;
     authenticating.current = true; setStatus('authorizing'); setMessage('');

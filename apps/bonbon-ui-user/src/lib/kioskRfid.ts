@@ -11,7 +11,9 @@ export function supportsWebNfc() { return typeof window !== 'undefined' && Boole
 export async function startWebNfcScan(onUid: (uid: string) => void) { if (!window.NDEFReader) throw new Error('This browser cannot read NFC cards directly. Use the connected library card reader.'); const reader = new window.NDEFReader(); reader.addEventListener('reading', event => { const uid = event.message.records.map(readText).find((value): value is string => Boolean(value)); if (uid) onUid(uid); }, { once: true }); await reader.scan(); }
 export function subscribeToReaderBridge(onAuthentication: (authentication: BridgeAuthentication) => void) { const receive = (event: CustomEvent<BridgeAuthentication>) => { if (event.detail?.tokenHash && event.detail?.account) onAuthentication(event.detail); }; window.addEventListener('sora:rfid-auth', receive); return () => window.removeEventListener('sora:rfid-auth', receive); }
 
-const SCANNER_MAX_KEY_INTERVAL_MS = 50;
+// Some inexpensive RFID keyboard wedges emit more slowly than 2D scanners.
+// 100ms still rejects ordinary typing while avoiding a truncated UID.
+const SCANNER_MAX_KEY_INTERVAL_MS = 100;
 const SCANNER_COOLDOWN_MS = 1_250;
 const SCANNER_MAX_PAYLOAD_LENGTH = 512;
 
@@ -23,6 +25,15 @@ export function sanitizeScannerPayload(payload: string) {
     .trim()
     .replace(/^][a-z]\d/i, '')
     .trim();
+}
+
+/** Canonical form used by assignment, lookup, and checkout.
+ * Leading zeroes are intentionally preserved because card UIDs are identifiers,
+ * not numbers. Separators emitted by some readers (spaces, colons, dashes) are
+ * ignored and hexadecimal letters are compared case-insensitively.
+ */
+export function normalizePhysicalCardUid(payload: string) {
+  return sanitizeScannerPayload(payload).replace(/[^a-z0-9]/gi, '').toUpperCase();
 }
 
 /** USB HID scanners in keyboard-wedge mode send a rapid burst followed by Enter.

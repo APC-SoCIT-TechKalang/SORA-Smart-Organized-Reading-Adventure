@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
 import { database, errorMessage } from "../../lib/supabase";
+import { normalizePhysicalCardUid } from "../../lib/card-scanner";
 
 type ReaderCard = { users: { first_name: string; last_name: string; username: string; birthdate: string; is_active: boolean; user_role: string; membership_status: string; membership_expires_at: string | null } };
 type Alert = { log_id: number; details: string; created_at: string };
@@ -68,7 +69,7 @@ export function ReaderCheckIn() {
       setCard(null); setVerified(false);
       const result = await api().from("librarycard")
         .select("users(first_name,last_name,username,birthdate,is_active,user_role,membership_status,membership_expires_at)")
-        .eq("librarycard_rfid", rfid.trim()).eq("is_active", true).is("deactivated_at", null).maybeSingle();
+        .eq("librarycard_rfid", normalizePhysicalCardUid(rfid)).eq("is_active", true).is("deactivated_at", null).maybeSingle();
       if (result.error) throw result.error;
       if (!result.data) throw new Error("No active library card found. Register or activate the card first.");
       setCard(result.data as unknown as ReaderCard);
@@ -85,7 +86,7 @@ export function ReaderCheckIn() {
       {!eligible && <p role="alert" className="text-sm text-red-800">Activate the reader account and an unexpired membership before check-in.</p>}
       <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={verified} disabled={busy || !eligible} onChange={event => setVerified(event.target.checked)} />I verified this reader's identity</label>
       <button className={button} disabled={busy || !verified || !eligible} onClick={() => void run(async () => {
-        const result = await api().rpc("approve_kiosk_checkin", { p_rfid: rfid.trim() });
+        const result = await api().rpc("approve_kiosk_checkin", { p_rfid: normalizePhysicalCardUid(rfid) });
         if (result.error) throw result.error;
         setMessage(`Check-in approved for ${reader.first_name} ${reader.last_name}. They can now choose a seat and scan a book at the kiosk.`);
         setCard(null); setVerified(false); setRfid("");

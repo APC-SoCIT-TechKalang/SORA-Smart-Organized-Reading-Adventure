@@ -48,6 +48,7 @@ import { AnalyticsWorkspace } from "./AnalyticsWorkspace";
 import { CheckoutQueue } from "./CheckoutQueue";
 import { QuestManagement } from "./QuestManagement";
 import { TopUpTerminal } from "./TopUpTerminal";
+import { normalizePhysicalCardUid } from "../../lib/card-scanner";
 
 type Page =
   "Overview" | "Analytics" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
@@ -1203,7 +1204,7 @@ function Readers({
                         p_membership_rank: "F",
                         p_remaining_minutes: 0,
                         p_expires_at: new Date(expiresAt).toISOString(),
-                        p_rfid: rfid.trim() || null,
+                        p_rfid: normalizePhysicalCardUid(rfid) || null,
                       })
                     : database().rpc("admin_activate_member", {
                         p_user_id: readerId,
@@ -1396,6 +1397,7 @@ function ReaderDetailsDrawer({ entry, close, run }: {
   const [firstName, setFirstName] = useState(reader.first_name);
   const [lastName, setLastName] = useState(reader.last_name);
   const [birthday, setBirthday] = useState(reader.birthday ?? "");
+  const [cardUid, setCardUid] = useState(libraryCard?.librarycard_rfid ?? "");
   const [saving, setSaving] = useState(false);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") close(); };
@@ -1421,7 +1423,22 @@ function ReaderDetailsDrawer({ entry, close, run }: {
 
   const initials = `${reader.first_name.charAt(0)}${reader.last_name.charAt(0)}`.toUpperCase();
   return createPortal(<div className="fixed inset-0 z-[100] grid place-items-center overflow-hidden bg-[#2d190c]/45 p-2 backdrop-blur-[3px] sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
-    <form role="dialog" aria-modal="true" aria-labelledby="reader-details-title" className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.32)] sm:max-h-[calc(100dvh-2.5rem)]" onSubmit={async event => { event.preventDefault(); if (saving) return; setSaving(true); try { const ok = await run(() => replacementDb().rpc("admin_update_reader_profile", { p_user_id: reader.user_id, p_first_name: firstName.trim(), p_last_name: lastName.trim(), p_birthdate: birthday }), "Reader profile updated"); if (ok) close(); } finally { setSaving(false); } }}>
+    <form role="dialog" aria-modal="true" aria-labelledby="reader-details-title" className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.32)] sm:max-h-[calc(100dvh-2.5rem)]" onSubmit={async event => {
+      event.preventDefault();
+      if (saving) return;
+      setSaving(true);
+      try {
+        const normalizedCardUid = normalizePhysicalCardUid(cardUid);
+        const previousCardUid = normalizePhysicalCardUid(libraryCard?.librarycard_rfid ?? "");
+        const cardChanged = Boolean(normalizedCardUid && normalizedCardUid !== previousCardUid);
+        const ok = await run(async () => {
+          const profileResult = await replacementDb().rpc("admin_update_reader_profile", { p_user_id: reader.user_id, p_first_name: firstName.trim(), p_last_name: lastName.trim(), p_birthdate: birthday });
+          if (profileResult.error || !cardChanged) return profileResult;
+          return replacementDb().rpc("admin_assign_library_card", { p_user_id: reader.user_id, p_rfid: normalizedCardUid });
+        }, cardChanged ? "Reader profile and library card updated" : "Reader profile updated");
+        if (ok) close();
+      } finally { setSaving(false); }
+    }}>
       <header className="relative shrink-0 overflow-hidden border-b border-[#eadfd3] bg-[#543822] px-5 py-5 text-white sm:px-8 sm:py-7"><div aria-hidden="true" className="absolute -right-16 -top-16 h-48 w-48 rounded-full border border-[#f3d793]/15" /><div aria-hidden="true" className="absolute -right-7 -top-7 h-28 w-28 rounded-full border border-[#f3d793]/10" /><div className="relative flex items-start justify-between gap-4"><div className="flex min-w-0 items-center gap-4"><span className="grid h-14 w-14 shrink-0 place-items-center rounded-full border border-[#f3d793]/25 bg-white/10 font-serif text-lg font-semibold text-[#f3d793] sm:h-16 sm:w-16">{initials}</span><div className="min-w-0"><p className="text-[9px] font-bold uppercase tracking-[.2em] text-[#f3d793]">Reader profile</p><h2 id="reader-details-title" className="mt-1 truncate font-serif text-xl font-semibold sm:text-2xl">{reader.first_name} {reader.last_name}</h2><span className={`mt-2 inline-flex rounded-full border px-2.5 py-1 text-[10px] font-bold ${statusClass}`}>{statusText}</span></div></div><button type="button" onClick={close} aria-label="Close reader details" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f3d793]"><X size={18} aria-hidden="true" /></button></div></header>
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-8 sm:py-7">
         <div className="grid gap-3 sm:grid-cols-2">
@@ -1436,9 +1453,10 @@ function ReaderDetailsDrawer({ entry, close, run }: {
             <h3 id="library-card-information-title" className="font-serif text-lg font-semibold text-[#543822]">Library Card Information</h3>
             {libraryCard && <span className={`rounded-full border px-2.5 py-1 text-[10px] font-bold ${libraryCard.is_active && !libraryCard.deactivated_at ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-stone-200 bg-stone-100 text-stone-600"}`}>{libraryCard.is_active && !libraryCard.deactivated_at ? "Active card" : "Inactive card"}</span>}
           </div>
-          {libraryCard?.librarycard_rfid ? <div className="mt-4">
-            <div className="min-w-0 rounded-lg border border-[#eadfd3] bg-white p-3"><p className="text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">Assigned card UID</p><p className="mt-2 break-all font-mono text-sm font-semibold text-[#543822]">{libraryCard.librarycard_rfid}</p></div>
-          </div> : <p className="mt-3 text-sm text-[#806b59]">No library card has been assigned to this reader.</p>}
+          <label className="mt-4 block text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">Assigned card UID
+            <input value={cardUid} onChange={event => setCardUid(event.target.value)} disabled={saving} maxLength={100} autoComplete="off" placeholder="Tap or enter the physical card UID" className="mt-2 min-h-11 w-full rounded-lg border border-[#d8c3ad] bg-white px-3 font-mono text-sm font-semibold normal-case tracking-normal text-[#543822]" />
+          </label>
+          <p className="mt-2 text-[10px] leading-4 text-[#8d735e]">Saved as text, so leading zeroes are preserved. Spaces and reader separators are normalized automatically.</p>
         </section>
         {visit && usesReplacementSchema && <p className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-800">This reader has an active session. Finish the session before deactivating the account.</p>}
       </div>
