@@ -179,6 +179,10 @@ atomic creation of a catalog edition plus its uniquely barcoded physical copy.
 Apply `supabase/replacement/026_admin_edit_catalog_metadata.sql` to enable the
 catalogue pencil action to update book information as well as cover art.
 
+Apply `supabase/replacement/027_prevent_duplicate_quest_definitions.sql` to
+reuse the shared fallback quest and reject new duplicate pending/approved quest
+definitions without removing historical reader assignments.
+
 Validation uses an isolated PostgreSQL engine and mocked browser requests:
 
 ```powershell
