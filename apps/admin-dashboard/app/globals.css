@@ -726,13 +726,13 @@ button, input, select, textarea { font-size: inherit; }
   isolation: isolate;
   display: flex;
   align-items: center;
-  gap: clamp(.75rem, 2vw, 1.25rem);
+  gap: clamp(.65rem, 1.4vw, .95rem);
   overflow: hidden;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.1rem;
   border: 1px solid #936136;
   border-radius: 1rem;
   background: radial-gradient(ellipse at top right, #774522, transparent 65%), linear-gradient(115deg, #382116, #502d1c);
-  padding: clamp(1rem, 2.5vw, 1.55rem);
+  padding: .75rem clamp(.85rem, 2vw, 1.15rem);
   color: #fff7e8;
   box-shadow: 0 10px 28px #43251035, inset 0 1px #f4c26c4d;
 }
@@ -759,7 +759,7 @@ button, input, select, textarea { font-size: inherit; }
 }
 .admin-page-heading-icon {
   display: grid;
-  width: clamp(2.4rem, 5vw, 3.2rem);
+  width: clamp(2.15rem, 4vw, 2.6rem);
   aspect-ratio: 1;
   flex: 0 0 auto;
   place-items: center;
@@ -769,22 +769,14 @@ button, input, select, textarea { font-size: inherit; }
   color: #ffdb83;
 }
 .admin-page-heading-copy { min-width: 0; }
-.admin-page-heading-label {
-  margin-bottom: .35rem;
-  color: #ffdb83;
-  font-size: .65rem;
-  font-weight: 800;
-  letter-spacing: .16em;
-  text-transform: uppercase;
-}
 .admin-content .admin-page-heading h1 {
-  font-size: clamp(1.6rem, 3.1vw, 2.65rem);
+  font-size: clamp(1.4rem, 2.5vw, 2.05rem);
   line-height: 1.1;
   text-wrap: balance;
   overflow-wrap: anywhere;
 }
 .admin-page-heading-description {
-  margin-top: .35rem;
+  margin-top: .25rem;
   color: #f0d7bd;
   font-size: .85rem;
   line-height: 1.5;

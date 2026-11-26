@@ -276,11 +276,10 @@ export function AdminDashboard() {
               </>
             )}
           </header>
-          <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
+          <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 sm:pt-4 lg:p-8 lg:pt-5">
             <header className="admin-page-heading">
-              <span className="admin-page-heading-icon" aria-hidden="true"><WorkspaceIcon size={23} strokeWidth={1.8} /></span>
+              <span className="admin-page-heading-icon" aria-hidden="true"><WorkspaceIcon size={19} strokeWidth={1.8} /></span>
               <div className="admin-page-heading-copy">
-                {page === "Overview" && <p className="admin-page-heading-label">Overview</p>}
                 <h1 className="font-serif font-semibold tracking-tight">
                   {page === "Overview" ? "Reading Room Today" : (currentWorkspace?.label ?? page)}
                 </h1>
