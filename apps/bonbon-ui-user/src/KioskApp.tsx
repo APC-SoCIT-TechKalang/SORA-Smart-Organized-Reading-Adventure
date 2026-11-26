@@ -15,6 +15,7 @@ import { requireReaderAccount } from './lib/replacement-library';
 import { normalizePhysicalCardUid, startWebNfcScan, subscribeToHidScanner, subscribeToReaderBridge, supportsWebNfc, type BridgeAuthentication } from './lib/kioskRfid';
 import { parseKioskQrPayload } from './lib/kioskQr';
 import { subscribeToCardDirectory } from './lib/cardDirectorySync';
+import { ReaderAtmosphere } from './components/ReaderAtmosphere';
 import './kiosk-entrance.css';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'entering' | 'error';
@@ -220,6 +221,7 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
   const busy = status === 'authorizing' || status === 'entering';
   return <section aria-labelledby="kiosk-welcome-title" className="kiosk-entrance-frame">
     <div className="kiosk-entrance-illustration">
+      <ReaderAtmosphere />
       <div className="kiosk-entrance-arch" aria-hidden="true" />
       <div className="kiosk-entrance-title">
         <h1 id="kiosk-welcome-title">Step into <em>the library.</em></h1>

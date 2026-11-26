@@ -1,4 +1,5 @@
 import type { CSSProperties } from 'react';
+import './reader-atmosphere.css';
 
 const motes = [
   [8, 78, 2, 13], [20, 46, 2, 16], [42, 68, 3, 19], [54, 35, 2, 14],

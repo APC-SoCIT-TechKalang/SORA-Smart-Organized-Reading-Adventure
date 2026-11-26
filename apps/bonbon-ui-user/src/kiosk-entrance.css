@@ -41,6 +41,8 @@
   box-shadow: 0 28px 75px #140801a7;
 }
 .kiosk-entrance-illustration {
+  --kiosk-illustration-shade: linear-gradient(0deg, #20110df5, #20110d32 88%);
+  --kiosk-illustration-position: right 56%;
   position: relative;
   isolation: isolate;
   display: flex;
@@ -49,9 +51,15 @@
   padding: clamp(1.4rem, 5vw, 3.5rem);
   overflow: clip;
   color: #fff2d9;
-  background:
-    linear-gradient(0deg, #20110df5, #20110d32 88%),
-    var(--kiosk-hall) right 56% / cover #3e2618;
+  background: #3e2618;
+}
+.kiosk-entrance-illustration::before {
+  position: absolute;
+  z-index: -2;
+  inset: 0;
+  background: var(--kiosk-illustration-shade), var(--kiosk-hall) var(--kiosk-illustration-position) / cover;
+  transform-origin: 75% 50%;
+  content: "";
 }
 .kiosk-entrance-arch {
   position: absolute;
@@ -192,6 +200,9 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  .kiosk-entrance-illustration::before {
+    animation: reader-hall-drift var(--kiosk-drift-duration, 19s) ease-in-out infinite alternate;
+  }
   .kiosk-door-leaf { animation: kiosk-open-door .56s cubic-bezier(.35,.08,.2,1) both; }
   @keyframes kiosk-open-door {
     from { transform: translateX(0) rotateY(0); }

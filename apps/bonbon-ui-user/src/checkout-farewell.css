@@ -1,10 +1,13 @@
 .checkout-farewell {
+  --atmosphere-glow-strength: .7;
+  --atmosphere-glow-duration: 12s;
+  --atmosphere-dust-opacity: .48;
+  --kiosk-drift-duration: 25s;
   background: radial-gradient(ellipse at 40% 65%, #87574168, transparent 70%), #241813;
 }
 .checkout-illustration {
-  background:
-    linear-gradient(0deg, #1d1413fa, #2d20234a 76%, #2d202355),
-    var(--kiosk-hall) right 64% / cover #302019;
+  --kiosk-illustration-shade: linear-gradient(0deg, #1d1413fa, #2d20234a 76%, #2d202355);
+  --kiosk-illustration-position: right 64%;
 }
 .checkout-illustration .kiosk-entrance-arch {
   inset-inline: 9%;
@@ -40,6 +43,8 @@
   text-align: center;
 }
 .checkout-completion-scene {
+  position: relative;
+  isolation: isolate;
   display: grid;
   min-height: clamp(9rem, 24vw, 13rem);
   place-items: center;

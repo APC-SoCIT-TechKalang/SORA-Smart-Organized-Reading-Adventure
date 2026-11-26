@@ -13,6 +13,7 @@ import {
 } from './lib/kioskRfid';
 import { parseKioskQrPayload } from './lib/kioskQr';
 import { subscribeToCardDirectory } from './lib/cardDirectorySync';
+import { ReaderAtmosphere } from './components/ReaderAtmosphere';
 import './kiosk-entrance.css';
 import './checkout-farewell.css';
 
@@ -267,6 +268,7 @@ function Welcome({ status, message, onPhysical, onQr }: { status: Status; messag
 
   return <section aria-labelledby="checkout-title" className="kiosk-entrance-frame checkout-welcome">
     <div className="kiosk-entrance-illustration checkout-illustration">
+      <ReaderAtmosphere />
       <div className="kiosk-entrance-arch" aria-hidden="true" />
       <div className="kiosk-entrance-title">
         <p className="checkout-kicker"><BookMarkedIcon aria-hidden="true" /> Check-out</p>
@@ -320,6 +322,7 @@ function Detail({ label, value }: { label: string; value: string }) { return <di
 function Completion({ receipt, checkinOnly, onReset }: { receipt: Receipt | null; checkinOnly: CheckinOnlyResult | null; onReset: () => void }) {
   return <section className="checkout-completion" aria-labelledby="checkout-complete-title">
     <div className="checkout-completion-scene" aria-hidden="true">
+      <ReaderAtmosphere />
       <div className="checkout-closing-book">
         <span className="checkout-book-pages" />
         <span className="checkout-book-cover"><BookMarkedIcon /></span>
