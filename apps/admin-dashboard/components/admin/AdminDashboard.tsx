@@ -72,6 +72,19 @@ const statusTone: Record<string, string> = {
   "Return Cart": "bg-rose-50 text-rose-700 ring-rose-100",
 };
 const replacementDb = () => database().schema("sora_v2");
+const liveReadingSeconds = (balance: number, visit: Visit | undefined, now = Date.now()) => {
+  if (!visit || visit.session_status !== "READING") return Math.max(0, balance * 60);
+  const startedAt = new Date(visit.checked_in_at).getTime();
+  if (!Number.isFinite(startedAt)) return Math.max(0, balance * 60);
+  return Math.max(0, balance * 60 - Math.max(0, (now - startedAt) / 1000));
+};
+const formatReadingClock = (seconds: number) => {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  const remainingSeconds = safe % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remainingSeconds).padStart(2, "0")}`;
+};
 const shelveCopy = (copyId: number) =>
   usesReplacementSchema
     ? replacementDb().rpc("admin_shelve", { p_copy_id: copyId })
@@ -115,11 +128,12 @@ export function AdminDashboard() {
   }, []);
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 30000);
+    const refreshInterval = page === "Top-up terminal" || page === "Readers" ? 3000 : 30000;
+    const timer = window.setInterval(() => void refresh(), refreshInterval);
     const changed = () => void refresh();
     window.addEventListener("quest-data-changed", changed);
     return () => { clearInterval(timer); window.removeEventListener("quest-data-changed", changed); };
-  }, [refresh]);
+  }, [page, refresh]);
   const notify = (message: string) => {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 3500);
@@ -1025,6 +1039,7 @@ function Readers({
   const [membershipNumber, setMembershipNumber] = useState("");
   const [rfid, setRfid] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
+  const [now, setNow] = useState(Date.now());
   const [newReader, setNewReader] = useState({
     email: "",
     password: "",
@@ -1076,6 +1091,10 @@ function Readers({
   const selectedReader = readerDirectory.find(item => item.reader.user_id === selectedReaderId) ?? null;
   useEffect(() => { setReaderPage(1); }, [search, readerFilter]);
   useEffect(() => { setReaderPage(page => Math.min(page, readerPages)); }, [readerPages]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   return (
     <>
       {usesReplacementSchema && <ReaderCheckIn />}
@@ -1326,9 +1345,9 @@ function Readers({
           </div>
         </div>
         <div className="grid gap-3 p-4 md:hidden">
-          {pagedReaders.map(({ reader, member, status }) => <article key={reader.user_id} className="rounded-xl border border-[#eadfd3] bg-white p-4 shadow-[0_4px_14px_rgba(84,56,34,.05)]">
+          {pagedReaders.map(({ reader, member, visit, status }) => <article key={reader.user_id} className="rounded-xl border border-[#eadfd3] bg-white p-4 shadow-[0_4px_14px_rgba(84,56,34,.05)]">
             <div className="flex items-start justify-between gap-3"><div className="min-w-0"><h3 className="truncate text-sm font-bold text-[#543822]">{reader.first_name} {reader.last_name}</h3><p className="mt-1 truncate text-[11px] text-[#80634c]">{member?.membership_label ?? "Awaiting activation"}</p></div><span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-1 text-[9px] font-bold ${status === "READING" ? "border-amber-200 bg-amber-50 text-amber-800" : status === "AVAILABLE" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : status === "DEACTIVATED" ? "border-stone-200 bg-stone-100 text-stone-600" : "border-orange-200 bg-orange-50 text-orange-800"}`}><span className={`h-1.5 w-1.5 rounded-full ${status === "READING" ? "animate-pulse bg-amber-500" : status === "AVAILABLE" ? "bg-emerald-500" : status === "DEACTIVATED" ? "bg-stone-400" : "bg-orange-400"}`} />{status === "READING" ? "Reading" : status === "AVAILABLE" ? "Available" : status === "DEACTIVATED" ? "Deactivated" : "Pending"}</span></div>
-            <div className="mt-4 flex items-center justify-between border-t border-[#f0e9e1] pt-3"><div><p className="text-[9px] font-bold uppercase tracking-[.12em] text-[#9a806b]">Time balance</p><strong className="mt-1 block text-xs">{member?.remaining_minutes == null ? "—" : `${member.remaining_minutes} min`}</strong></div><button type="button" onClick={() => setSelectedReaderId(reader.user_id)} className="group inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#d8c3ad] bg-white px-3 py-2 text-[10px] font-bold text-[#704d34]">View details<ChevronRight size={14} /></button></div>
+            <div className="mt-4 flex items-center justify-between border-t border-[#f0e9e1] pt-3"><div><p className="text-[9px] font-bold uppercase tracking-[.12em] text-[#9a806b]">Time balance</p><strong className="mt-1 block text-xs">{member?.remaining_minutes == null ? "—" : status === "READING" ? `${formatReadingClock(liveReadingSeconds(member.remaining_minutes, visit, now))} left` : `${member.remaining_minutes} min`}</strong></div><button type="button" onClick={() => setSelectedReaderId(reader.user_id)} className="group inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-[#d8c3ad] bg-white px-3 py-2 text-[10px] font-bold text-[#704d34]">View details<ChevronRight size={14} /></button></div>
           </article>)}
         </div>
         <div className="hidden overflow-x-auto md:block">
@@ -1365,7 +1384,9 @@ function Readers({
                       <td className="px-4 py-4 font-bold">
                         {member?.remaining_minutes == null
                           ? "—"
-                          : `${member.remaining_minutes} min`}
+                          : status === "READING"
+                            ? `${formatReadingClock(liveReadingSeconds(member.remaining_minutes, visit, now))} left`
+                            : `${member.remaining_minutes} min`}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <button type="button" onClick={() => setSelectedReaderId(reader.user_id)} className="group inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-[#d8c3ad] bg-white px-3 py-2 text-[10px] font-bold text-[#704d34] transition hover:border-[#a83d12] hover:bg-[#fff5e8] hover:text-[#a83d12] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4800c]">View details<ChevronRight size={14} aria-hidden="true" className="transition group-hover:translate-x-0.5" /></button>

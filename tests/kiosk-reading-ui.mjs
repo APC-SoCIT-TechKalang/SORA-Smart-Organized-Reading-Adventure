@@ -22,6 +22,8 @@ try {
     else if (table === 'current_user_id') data = id;
     else if (table === 'points_balance') data = 0;
     else if (table === 'is_librarian') data = role === 'Librarian';
+    else if (table === 'reader_quest_dashboard') data = { rank: 'F', membership_tier: 'Guild Member', points: 0, last_updated: new Date().toISOString(), next_rank: null, quests: [] };
+    else if (table === 'reader_book_activity') data = [];
     else if (table === 'books') data = [{ book_id: 1, title: 'Test Manga', authors: { author_firstname: 'A', author_lastname: 'Writer' }, book_copies: [] }];
     else if (table === 'users') data = { id, first_name: 'Test', last_name: 'Reader', birthdate: '2000-01-01', is_active: true, user_role: role, membership_rank: 'F', membership_type: 'Guild Member', membership_status: 'ACTIVE', membership_expires_at: '2099-01-01T00:00:00Z', remaining_minutes: minutes };
     else if (table === 'seats') data = seats();
@@ -71,9 +73,8 @@ try {
     }
     return true;
   }), 'Seat content stays visible when animation frames are suspended');
-  await page.goto('http://127.0.0.1:5174/?reading=1');
   emptySeats = true;
-  await page.reload();
+  await page.goto('http://127.0.0.1:5174/?reading=1');
   await panel.getByText('The layout is ready. Library staff need to load the 20 seat records before booking opens.').waitFor();
   assert.equal(await panel.getByRole('button', { name: /Not configured/ }).count(), 20);
   emptySeats = false; stateError = true;
@@ -96,6 +97,11 @@ try {
   console.log('PASS: zero-minute balance explains the block; admin top-up automatically enables scanning');
   await panel.getByRole('button', { name: 'Scan & start session' }).click();
   await panel.getByText(/Session #1/).waitFor();
+  const liveBalance = panel.getByLabel('Reading time balance').locator('strong');
+  const firstCountdown = await liveBalance.textContent();
+  assert.match(firstCountdown ?? '', /^\d{2}:\d{2}:\d{2} remaining$/, 'Active sessions show a live countdown');
+  await page.waitForTimeout(1100);
+  assert.notEqual(await liveBalance.textContent(), firstCountdown, 'Active countdown advances in real time');
   const started = active.borrow_date;
   await panel.getByLabel('Book ISBN or copy barcode').fill('COPY2');
   await panel.getByRole('button', { name: 'Scan & add book' }).click();
