@@ -1,12 +1,13 @@
 # Print and link reader RFID cards
 
 Open **Readers → Print and link RFID cards**, below the account activation form.
-Both actions list active reader accounts, including readers awaiting membership
-activation. Inactive accounts must be reactivated first.
+Printing lists active reader accounts, including readers awaiting membership
+activation. Linking lists only active readers without an active card with a
+saved RFID UID. Inactive accounts must be reactivated first.
 
 Membership activation requires the reader, membership plan, and expiry date.
 It preserves existing card records and does not ask staff to enter an RFID UID.
-Use **Link RFID UID** separately when issuing or replacing a physical card.
+Use **Link RFID UID** separately when issuing a physical card.
 
 ## Print RFID card
 
@@ -32,12 +33,17 @@ or confirm that a physical card was printed.
 4. Wait for **Card linked** and the saved UID. Select **Done**, or choose another
    reader to issue another card.
 
+Readers who already have an active linked UID are hidden from this dropdown.
+A reader disappears from the list as soon as their card is saved. If everyone
+has a linked card, the dialog displays an empty state. A card record without a
+UID, or a deactivated card, does not prevent a reader from appearing.
+
 This reads the card's built-in UID and associates it with the selected reader
 in `sora_v2.librarycard`; it does not rewrite the chip's UID. Leading zeroes are
-preserved. A card already assigned to another reader is rejected. Linking a
-replacement deactivates the reader's previous card. Membership activation
-remains a separate action, and an unexpired membership is required for kiosk
-access.
+preserved. A card already assigned to another reader is rejected. To replace an
+existing linked card, open that reader's **View details**, update **Assigned card
+UID**, and select **Save changes**. Membership activation remains a separate
+action, and an unexpired membership is required for kiosk access.
 
 **Cancel waiting**, closing the dialog, or leaving Readers stops listening.
 No account is changed until a reader is selected and a valid tap is received.

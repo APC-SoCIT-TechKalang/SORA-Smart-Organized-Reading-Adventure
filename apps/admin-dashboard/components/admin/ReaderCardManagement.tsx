@@ -46,12 +46,17 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
   const [error, setError] = useState("");
   const [linkedUid, setLinkedUid] = useState("");
   const [printOpened, setPrintOpened] = useState(false);
+  const printing = action === "print";
   const readers = data.readers.filter(reader => reader.roles?.name === "reader" && reader.is_active)
     .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`));
-  const reader = readers.find(item => item.user_id === readerId);
-  const currentCard = data.libraryCards.find(card => card.user_id === readerId && card.is_active && !card.deactivated_at);
-  const fullName = reader ? `${reader.first_name} ${reader.last_name}`.trim() : "";
-  const printing = action === "print";
+  const linkedReaderIds = new Set(data.libraryCards
+    .filter(card => card.is_active && !card.deactivated_at && normalizePhysicalCardUid(card.librarycard_rfid ?? ""))
+    .map(card => card.user_id));
+  const readerOptions = printing ? readers : readers.filter(reader => !linkedReaderIds.has(reader.user_id));
+  const reader = readerOptions.find(item => item.user_id === readerId);
+  // Keep the confirmation name after a saved reader disappears from the options.
+  const selectedReader = readers.find(item => item.user_id === readerId);
+  const fullName = selectedReader ? `${selectedReader.first_name} ${selectedReader.last_name}`.trim() : "";
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -135,31 +140,31 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
       <button type="button" disabled={saving} onClick={close} aria-label="Close card action" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-[#d8c3ad] hover:bg-[#fff5e8] disabled:opacity-45"><X size={18} aria-hidden="true" /></button>
     </div>
     <div className="space-y-4 p-5 sm:p-6">
-      <p id="reader-card-action-description" className="text-sm leading-6 text-[#795a42]">{printing ? "Choose a reader to open their personalized card in the print dialog automatically." : "Choose a reader, then tap their physical RFID card on the connected USB reader. Its UID will be saved to their account automatically."}</p>
+      <p id="reader-card-action-description" className="text-sm leading-6 text-[#795a42]">{printing ? "Choose a reader to open their personalized card in the print dialog automatically." : "Choose a reader without a linked RFID card, then tap their physical card on the connected USB reader. Its UID will be saved to their account automatically."}</p>
       <label className="block text-[10px] font-bold uppercase tracking-[.12em] text-[#795a42]">Reader name
-        <select autoFocus value={readerId} disabled={saving} onChange={event => {
+        <select autoFocus value={reader ? readerId : ""} disabled={saving || !readerOptions.length} onChange={event => {
           const id = event.target.value;
           setReaderId(id); setLinkedUid(""); setError(""); setPrintOpened(false);
           if (printing && id) openPrint(id);
           else if (id) scannerTarget.current?.focus();
         }} className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal normal-case">
           <option value="">Select reader</option>
-          {readers.map(item => <option key={item.user_id} value={item.user_id}>{item.first_name} {item.last_name} · {item.user_id.slice(-6)}</option>)}
+          {readerOptions.map(item => <option key={item.user_id} value={item.user_id}>{item.first_name} {item.last_name} · {item.user_id.slice(-6)}</option>)}
         </select>
       </label>
+      {!printing && !readerOptions.length && <p role="status" className="rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 text-sm leading-6 text-[#795a42]">All active readers already have a linked RFID card.</p>}
       {error && <p role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
       {printing ? <>
         <div className="rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 text-xs leading-5 text-[#795a42]">Card size: 85.6 × 53.98 mm. Choose your card printer, use actual size (100%), and turn off headers and footers in the print dialog.</div>
         {printOpened && <p role="status" className="text-sm text-emerald-800">Print dialog opened for {fullName}.</p>}
         {readerId && <button type="button" onClick={() => openPrint(readerId)} className={primaryButton}><Printer size={16} aria-hidden="true" />Print again</button>}
       </> : <>
-        <div ref={scannerTarget} tabIndex={-1} role="status" aria-live="polite" className={`rounded-xl border p-5 text-center outline-none ${linkedUid ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-[#dfc9ad] bg-[#faf6ef]"}`}>
+        {(readerOptions.length > 0 || linkedUid || saving) && <div ref={scannerTarget} tabIndex={-1} role="status" aria-live="polite" className={`rounded-xl border p-5 text-center outline-none ${linkedUid ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-[#dfc9ad] bg-[#faf6ef]"}`}>
           {linkedUid ? <CheckCircle2 className="mx-auto" size={30} aria-hidden="true" /> : saving ? <LoaderCircle className="mx-auto animate-spin" size={30} aria-hidden="true" /> : <Nfc className="mx-auto text-[#a83d12]" size={30} aria-hidden="true" />}
           <p className="mt-3 text-sm font-bold">{linkedUid ? `Card linked to ${fullName}` : saving ? "Saving RFID UID…" : reader ? `Waiting for ${fullName}'s card` : "Select a reader to start"}</p>
           {linkedUid ? <p className="mt-2 break-all font-mono text-sm">UID: {linkedUid}</p> : reader && <p className="mt-2 text-xs leading-5 text-[#795a42]">Keep this window focused and tap one card. The scanner must send the UID followed by Enter.</p>}
-        </div>
-        {!linkedUid && currentCard?.librarycard_rfid && <p className="break-words text-xs leading-5 text-[#795a42]">Current UID: <span className="font-mono">{currentCard.librarycard_rfid}</span>. Tapping a different card will replace this reader’s current card.</p>}
-        {!linkedUid && readerId && <button type="button" disabled={saving} onClick={() => { setReaderId(""); setError(""); }} className="min-h-11 rounded-xl border border-[#d8c3ad] bg-white px-4 text-xs font-bold disabled:opacity-45">Cancel waiting</button>}
+        </div>}
+        {!linkedUid && reader && <button type="button" disabled={saving} onClick={() => { setReaderId(""); setError(""); }} className="min-h-11 rounded-xl border border-[#d8c3ad] bg-white px-4 text-xs font-bold disabled:opacity-45">Cancel waiting</button>}
       </>}
     </div>
     <footer className="flex justify-end border-t border-[#eadfd3] bg-[#fcf8f2] px-5 py-4 sm:px-6"><button type="button" disabled={saving} onClick={close} className="min-h-11 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold disabled:opacity-45">{linkedUid ? "Done" : "Close"}</button></footer>

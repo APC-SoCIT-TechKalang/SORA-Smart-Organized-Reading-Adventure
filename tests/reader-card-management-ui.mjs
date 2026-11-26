@@ -7,12 +7,21 @@ const origin = process.env.TEST_SUPABASE_URL || 'https://rfid-test.supabase.co';
 const url = process.env.TEST_ADMIN_URL || 'http://127.0.0.1:3001';
 const readerId = '00000000-0000-4000-8000-000000000001';
 const otherId = '00000000-0000-4000-8000-000000000002';
+const blankCardReaderId = '00000000-0000-4000-8000-000000000004';
+const previousCardReaderId = '00000000-0000-4000-8000-000000000005';
 const users = [
   { id: readerId, first_name: 'Jared Christian', last_name: 'Gatchalian', is_active: true },
   { id: otherId, first_name: 'Saimon', last_name: 'Lumod', is_active: true },
   { id: '00000000-0000-4000-8000-000000000003', first_name: 'Inactive', last_name: 'Reader', is_active: false },
+  { id: blankCardReaderId, first_name: 'Unassigned', last_name: 'Reader', is_active: true },
+  { id: previousCardReaderId, first_name: 'Previous', last_name: 'Reader', is_active: true },
 ].map(user => ({ ...user, user_role: 'Reader', birthdate: '2000-01-01', membership_type: 'Wanderer', membership_status: 'INACTIVE', membership_rank: 'F', remaining_minutes: 600, membership_expires_at: '2099-01-01T00:00:00Z' }));
-let cards = [{ librarycard_id: 'card-two', user_id: otherId, librarycard_rfid: '0099887766', is_active: true, deactivated_at: null }];
+let cards = [
+  { librarycard_id: 'card-two', user_id: otherId, librarycard_rfid: '0099887766', is_active: true, deactivated_at: null },
+  { librarycard_id: 'blank-card', user_id: blankCardReaderId, librarycard_rfid: null, is_active: true, deactivated_at: null },
+  { librarycard_id: 'previous-card', user_id: previousCardReaderId, librarycard_rfid: '00770077', is_active: true, deactivated_at: '2026-01-01T00:00:00Z' },
+  { librarycard_id: 'inactive-card', user_id: previousCardReaderId, librarycard_rfid: '00660066', is_active: false, deactivated_at: null },
+];
 const assignments = [];
 const activations = [];
 let rejectAssignment = false;
@@ -91,6 +100,9 @@ try {
   await activationForm.screenshot({ path: 'outputs/reader-activation-without-rfid.png' });
   await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
   assert.equal(await dialog.getByRole('option', { name: /Inactive/ }).count(), 0);
+  assert.equal(await dialog.locator(`option[value="${otherId}"]`).count(), 0);
+  assert.equal(await dialog.locator(`option[value="${blankCardReaderId}"]`).count(), 1);
+  assert.equal(await dialog.locator(`option[value="${previousCardReaderId}"]`).count(), 1);
   await scan('0000111122'); // Scanning before a reader is selected does nothing.
   assert.equal(assignments.length, 0);
   await dialog.getByLabel('Reader name').selectOption(readerId);
@@ -108,6 +120,8 @@ try {
   await scan('00:11:22:33:44');
   await dialog.getByText('Card linked to Jared Christian Gatchalian', { exact: true }).waitFor();
   assert.deepEqual(assignments, [{ p_user_id: readerId, p_rfid: '0011223344' }]);
+  assert.equal(await dialog.locator(`option[value="${readerId}"]`).count(), 0);
+  assert.equal(await dialog.getByLabel('Reader name').inputValue(), '');
   await scan('55667788'); // Success stops listening until another reader is chosen.
   assert.equal(assignments.length, 1);
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
@@ -116,6 +130,9 @@ try {
   assert.equal(assignments.length, 1);
 
   await page.getByRole('button', { name: 'Print RFID card', exact: true }).click();
+  // Linked readers remain available for printing.
+  assert.equal(await dialog.locator(`option[value="${otherId}"]`).count(), 1);
+  assert.equal(await dialog.locator(`option[value="${readerId}"]`).count(), 1);
   await page.evaluate(() => { window.__blockPrint = true; });
   await dialog.getByLabel('Reader name').selectOption(readerId);
   await dialog.getByRole('alert').filter({ hasText: /Allow pop-ups/ }).waitFor();
@@ -142,7 +159,8 @@ try {
 
   // A server rejection remains visible and permits another tap.
   await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
-  await dialog.getByLabel('Reader name').selectOption(readerId);
+  assert.equal(await dialog.locator(`option[value="${readerId}"]`).count(), 0);
+  await dialog.getByLabel('Reader name').selectOption(blankCardReaderId);
   rejectAssignment = true;
   await scan('00000077');
   await dialog.getByRole('alert').filter({ hasText: /already assigned/ }).waitFor();
@@ -150,15 +168,15 @@ try {
   await page.waitForFunction(() => !document.querySelector('dialog[open] select').disabled);
   rejectAssignment = false;
   await scan('00000088');
-  await dialog.getByText('Card linked to Jared Christian Gatchalian', { exact: true }).waitFor();
+  await dialog.getByText('Card linked to Unassigned Reader', { exact: true }).waitFor();
   assert.equal(assignments.at(-1).p_rfid, '00000088');
-  assert.ok(cards.some(card => card.librarycard_rfid === '0011223344' && !card.is_active));
+  assert.equal(await dialog.locator(`option[value="${blankCardReaderId}"]`).count(), 0);
   await dialog.getByRole('button', { name: 'Done', exact: true }).click();
 
   for (const width of [320, 390, 768]) {
     await page.setViewportSize({ width, height: 850 });
     await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
-    await dialog.getByLabel('Reader name').selectOption(otherId);
+    await dialog.getByLabel('Reader name').selectOption(previousCardReaderId);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
     const size = await dialog.boundingBox();
     assert.ok(size.x >= 0 && size.x + size.width <= width + 1);
@@ -167,8 +185,20 @@ try {
     await page.keyboard.press('Escape');
     await dialog.waitFor({ state: 'detached' });
   }
+  await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
+  await dialog.getByLabel('Reader name').selectOption(previousCardReaderId);
+  await scan('00000100');
+  await dialog.getByText('Card linked to Previous Reader', { exact: true }).waitFor();
+  await dialog.getByText('All active readers already have a linked RFID card.', { exact: true }).waitFor();
+  assert.ok(await dialog.getByLabel('Reader name').isDisabled());
+  assert.equal(await dialog.getByRole('option').count(), 1);
+  await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+  await page.getByRole('button', { name: 'Link RFID UID', exact: true }).click();
+  await dialog.getByText('All active readers already have a linked RFID card.', { exact: true }).waitFor();
+  await dialog.screenshot({ path: 'outputs/reader-card-no-unlinked-readers.png' });
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
   assert.deepEqual(errors, []);
-  console.log('PASS: activation without RFID preserves cards; selection, automatic print, blocked popup retry, UID normalization, duplicate protection, cancellation, server rejection/retry, replacement and mobile layouts.');
+  console.log('PASS: linked readers excluded from linking and retained for printing; saved readers removed immediately; blank/inactive cards eligible; empty state; activation, scanner, retry and mobile regressions.');
 } catch (cause) {
   await page.screenshot({ path: 'outputs/reader-card-test-failure.png', fullPage: true });
   console.error(await page.locator('body').innerText());
