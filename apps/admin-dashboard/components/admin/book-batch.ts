@@ -7,12 +7,17 @@ export type BulkBookRow = {
   book_type: string;
   age_rating: string;
   shelf_location: string;
+  quantity: number;
+  cover_image_url?: string;
+  condition_notes?: string;
+  acquisition_date?: string;
   existingBookId?: number;
 };
 
 export const emptyBulkRow = (): BulkBookRow => ({
   isbn: "", title: "", author: "", genre: "", tags: "",
   book_type: "Manga", age_rating: "", shelf_location: "",
+  quantity: 1,
 });
 
 export function validBookIsbn(input: string) {
@@ -52,21 +57,29 @@ export function parseBookBatch(text: string): BulkBookRow[] {
   const names = header.map(value => value.toLowerCase().replace(/[^a-z0-9]/g, ""));
   if (!names.includes("isbn")) throw new Error("The first row must contain an ISBN column.");
   const column = (record: string[], ...aliases: string[]) => record[names.findIndex(name => aliases.includes(name))] ?? "";
-  const rows = records.filter(record => record.some(Boolean)).map(record => ({
-    isbn: column(record, "isbn", "baseisbn"),
-    title: column(record, "title"), author: column(record, "author"),
-    genre: column(record, "genre"), tags: column(record, "tags", "themes"),
-    book_type: column(record, "booktype") || "Manga",
-    age_rating: column(record, "agerating"),
-    shelf_location: column(record, "shelf", "shelflocation"),
-  }));
+  const rows = records.filter(record => record.some(Boolean)).map(record => {
+    const quantity = column(record, "quantity", "copies", "copycount");
+    return {
+      isbn: column(record, "isbn", "baseisbn"),
+      title: column(record, "title"), author: column(record, "author"),
+      genre: column(record, "genre"), tags: column(record, "tags", "themes"),
+      book_type: column(record, "booktype") || "Manga",
+      age_rating: column(record, "agerating"),
+      shelf_location: column(record, "shelf", "shelflocation"),
+      quantity: quantity === "" ? 1 : Number(quantity),
+      cover_image_url: column(record, "coverimageurl", "coverurl"),
+      condition_notes: column(record, "condition", "conditionnotes"),
+      acquisition_date: column(record, "acquisitiondate", "dateacquired"),
+    };
+  });
   if (!rows.length) throw new Error("Add at least one book below the header row.");
-  if (rows.length > 100) throw new Error("A batch can contain at most 100 physical copies.");
+  if (rows.length > 5_000) throw new Error("An import can contain at most 5,000 source rows.");
   return rows;
 }
 
 export function bulkRowError(row: BulkBookRow) {
   if (!validBookIsbn(row.isbn)) return "Enter a valid ISBN-10 or ISBN-13.";
+  if (!Number.isInteger(row.quantity) || row.quantity < 1 || row.quantity > 100) return "Quantity must be between 1 and 100 copies per row.";
   if (!/^Shelf A[1-5]$/.test(row.shelf_location)) return "Select a shelf.";
   if (!row.existingBookId && !row.title.trim()) return "Title is required.";
   if (!row.existingBookId && row.author.trim().split(/\s+/).length < 2) return "Author first and last name are required.";
@@ -75,6 +88,19 @@ export function bulkRowError(row: BulkBookRow) {
   if (!row.existingBookId && !["Manga", "Light Novel", "Adult Manga"].includes(row.book_type)) return "Choose a book type.";
   return "";
 }
+
+export function normalizeBookIsbn(input: string) {
+  return input.toUpperCase().replace(/[\s-]/g, "");
+}
+
+export function expandBookQuantities(rows: BulkBookRow[]) {
+  return rows.flatMap(row => Array.from({ length: row.quantity }, () => ({ ...row, quantity: 1 })));
+}
+
+export const bookImportTemplate = [
+  "isbn,title,author,genre,tags,book_type,age_rating,quantity,shelf,condition,acquisition_date,cover_image_url",
+  '9781646516544,"Blue Lock, Vol. 1",Muneyuki Kaneshiro,Sports,"Competition,Football",Manga,13,1,Shelf A2,Good,2026-11-26,',
+].join("\r\n");
 
 export function fillRepeatedBooks(rows: BulkBookRow[]) {
   const firstByIsbn = new Map<string, BulkBookRow>();

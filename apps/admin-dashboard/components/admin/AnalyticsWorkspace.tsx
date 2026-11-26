@@ -3,8 +3,9 @@
 import { FormEvent, type ReactNode, useMemo, useState } from "react";
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Bot, CalendarDays, Download, FileText, LoaderCircle, Send } from "lucide-react";
-import { database, errorMessage } from "../../lib/supabase";
+import { database } from "../../lib/supabase";
 import type { DashboardData } from "./dashboard-data";
+import { friendlyAdminBonError } from "./AdminBonWidgets";
 
 type Tab = "Dashboard" | "Usage Reports";
 type Preset = "Today" | "7 days" | "30 days" | "Custom";
@@ -119,7 +120,7 @@ function InsightsView({ data, analytics, period }: { data: DashboardData; analyt
       const response = await fetch("/api/admin-bon-chat", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ message: question, history, context }) });
       const payload = await response.json() as { message?: string; error?: string }; if (!response.ok || !payload.message) throw new Error(payload.error || "BON could not answer.");
       setMessages(current => [...current, { id: Date.now() + 1, from: "bon", text: payload.message! }]);
-    } catch (cause) { setMessages(current => [...current, { id: Date.now() + 1, from: "bon", text: errorMessage(cause) }]); } finally { setBusy(false); }
+    } catch (cause) { setMessages(current => [...current, { id: Date.now() + 1, from: "bon", text: friendlyAdminBonError(cause) }]); } finally { setBusy(false); }
   }
   function submit(event: FormEvent) { event.preventDefault(); void ask(draft); }
   const suggestions = ["Which genre was most read?", "Show the least-used books", "Summarize this reporting period", "How is quest participation?"];

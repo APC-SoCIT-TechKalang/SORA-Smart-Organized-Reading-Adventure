@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { bulkRowError, fillRepeatedBooks, parseBookBatch, validBookIsbn } from "../components/admin/book-batch.ts";
+import { bookImportTemplate, bulkRowError, expandBookQuantities, fillRepeatedBooks, normalizeBookIsbn, parseBookBatch, validBookIsbn } from "../components/admin/book-batch.ts";
 
 test("bulk CSV accepts quoted fields and repeated ISBN copies", () => {
   const rows = parseBookBatch('isbn,title,author,genre,tags,book_type,age_rating,shelf\n9781646516544,"Blue Lock, Vol. 1",Muneyuki Kaneshiro,Sports,Teamwork,Manga,13,Shelf A2\n9781646516544,,,,,,,Shelf A3');
@@ -8,6 +8,21 @@ test("bulk CSV accepts quoted fields and repeated ISBN copies", () => {
   assert.equal(rows[0].title, "Blue Lock, Vol. 1");
   assert.equal(bulkRowError(rows[0]), "");
   assert.equal(bulkRowError(fillRepeatedBooks(rows)[1]), "");
+});
+
+test("quantity expands into separately registered physical copies", () => {
+  const row = parseBookBatch("isbn,title,author,genre,age_rating,quantity,shelf\n9781646516544,Blue Lock,Muneyuki Kaneshiro,Sports,13,3,Shelf A2")[0];
+  assert.equal(row.quantity, 3);
+  assert.equal(expandBookQuantities([row]).length, 3);
+  assert.equal(normalizeBookIsbn("978-1-64651-654-4"), "9781646516544");
+  const invalid = parseBookBatch("isbn,title,author,genre,age_rating,quantity,shelf\n9781646516544,Blue Lock,Muneyuki Kaneshiro,Sports,13,many,Shelf A2")[0];
+  assert.match(bulkRowError(invalid), /Quantity/);
+});
+
+test("downloadable import template remains parseable", () => {
+  const rows = parseBookBatch(bookImportTemplate);
+  assert.equal(rows.length, 1);
+  assert.equal(bulkRowError(rows[0]), "");
 });
 
 test("invalid ISBN and missing required fields stop a batch", () => {

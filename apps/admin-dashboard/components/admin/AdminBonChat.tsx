@@ -2,17 +2,19 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Check, Edit3, LoaderCircle, MessageCircle, RefreshCw, Send, Trash2, X } from "lucide-react";
-import { database, errorMessage } from "../../lib/supabase";
+import { database } from "../../lib/supabase";
 import type { DashboardData } from "./dashboard-data";
+import { AdminBonWidgets, friendlyAdminBonError, isAdminBonWidget, type AdminBonWidget } from "./AdminBonWidgets";
 
 type ChatData = Pick<DashboardData, "books" | "copies" | "readers" | "memberAccounts" | "visits" | "logs" | "quests" | "enrollments">;
 type QuestDraft = { title: string; description: string; requirement: string; difficulty: "Easy" | "Medium" | "Hard"; objectiveType: "BOOKS_READ"; targetValue: number; targetGenre: string; points: number; timeLimitDays: number; rationale: string; selected?: boolean; editing?: boolean; status?: "draft" | "approved" | "discarded" };
-type Message = { id: number; from: "bon" | "admin"; text: string; drafts?: QuestDraft[]; source?: "ai" | "template"; ranking?: RankingMode; rankingShown?: number };
+type Message = { id: number; from: "bon" | "admin"; text: string; drafts?: QuestDraft[]; source?: "ai" | "template"; ranking?: RankingMode; rankingShown?: number; widgets?: AdminBonWidget[] };
 type RankingMode = "most" | "least";
 type RankedBook = { id: number; title: string; sessions: number; hasCopies: boolean };
 
 const BUTTON = 62;
 const MARGIN = 10;
+const manilaDateKey = (value: string | Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
 const questStarters = [
   "Generate balanced Easy, Medium, and Hard quests using our available catalog.",
   "Create quests that encourage readers to explore less popular available genres.",
@@ -30,10 +32,11 @@ export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpen
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [rankingBusy, setRankingBusy] = useState(false);
+  const [loadingMode, setLoadingMode] = useState<"books" | "analytics" | null>(null);
   const [messages, setMessages] = useState<Message[]>([{ id: 1, from: "bon", text: "Hi, librarian! Ask me about Tankobonbon analytics, catalog activity, readers, memberships, sessions, or quests." }]);
   const logRef = useRef<HTMLDivElement>(null);
   const pendingScrollMessageId = useRef<number | null>(null);
+  const requestLockRef = useRef(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const dragState = useRef({ startX: 0, startY: 0, baseX: 0, baseY: 0, moved: false });
@@ -45,7 +48,8 @@ export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpen
     data.logs.forEach(log => counts.set(log.book_id, (counts.get(log.book_id) || 0) + 1));
     const completed = data.logs.filter(log => Boolean(log.returned_at));
     const totalMinutes = completed.reduce((sum, log) => sum + (log.total_reading_minutes ?? 0), 0);
-    const titleFor = (bookId: number) => data.books.find(item => item.book_id === bookId);
+    const booksById = new Map(data.books.map(book => [book.book_id, book]));
+    const titleFor = (bookId: number) => booksById.get(bookId);
     const leastUsedBooks = data.books.map(book => ({ title: book.title, sessions: counts.get(book.book_id) ?? 0 })).sort((a, b) => a.sessions - b.sessions || a.title.localeCompare(b.title)).slice(0, 5);
     const genreCounts = new Map<string, { genre: string; sessions: number }>();
     data.logs.forEach(log => {
@@ -76,7 +80,7 @@ export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpen
       activeQuests: data.quests.filter(quest => quest.status === "ACTIVE").length,
       questEnrollments: data.enrollments.length,
       topBooks: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5).flatMap(([bookId, sessions]) => {
-        const book = data.books.find(item => item.book_id === bookId);
+        const book = booksById.get(bookId);
         return book ? [{ title: book.title, sessions }] : [];
       }),
       leastUsedBooks,
@@ -114,7 +118,7 @@ export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpen
     if (busy || !indexes.length) return; const message = messages.find(item => item.id === messageId); if (!message?.drafts) return;
     setBusy(true);
     try { for (const index of indexes) await saveQuest(message.drafts[index], true, message.source ?? "ai"); setMessages(current => current.map(item => item.id === messageId ? { ...item, drafts:item.drafts?.map((draft,index)=>indexes.includes(index)?{...draft,status:"approved",selected:false}:draft) } : item)); window.dispatchEvent(new Event("quest-data-changed")); append({ id:Date.now(),from:"bon",text:`Approved ${indexes.length} quest${indexes.length===1?"":"s"} into the level-based quest pool.` }); }
-    catch (cause) { append({ id:Date.now(),from:"bon",text:errorMessage(cause) }); } finally { setBusy(false); }
+    catch (cause) { append({ id:Date.now(),from:"bon",text:friendlyAdminBonError(cause) }); } finally { setBusy(false); }
   }
 
   useEffect(() => {
@@ -136,28 +140,79 @@ export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpen
   }, [messages.length, busy, open]);
 
   async function answer(question: string, refinementDrafts?: QuestDraft[]) {
-    if (busy) return;
+    if (busy || requestLockRef.current) return;
+    requestLockRef.current = true;
     const isRegeneration = Boolean(refinementDrafts?.length) && /\b(?:regenerate|alternative)\b/i.test(question);
     const effectiveQuestion = isRegeneration ? regenerationPrompts[regenerationIndex.current++ % regenerationPrompts.length] : question;
     const normalizedQuestion = effectiveQuestion.toLowerCase();
+    const currentDrafts = refinementDrafts ?? latestDrafts();
+    const questRequest = (/\b(?:quests?|challenges?)\b/i.test(effectiveQuestion) && /\b(?:generate|create|draft|regenerate|refine|increase|decrease|adjust|change|make|read|reading|replace)\b/i.test(effectiveQuestion)) || Boolean(currentDrafts.length && /\b(?:regenerate|alternative|refine|increase|decrease|adjust|change|make it|same difficulty|replace|different|distinct)\b/i.test(effectiveQuestion));
     const isBookRanking = /\b(?:books?|titles?|catalog(?:ue)?)\b/.test(normalizedQuestion);
     const isZeroSessionBookQuery = /\b(?:zero|no) reading sessions?\b/.test(normalizedQuestion) && /\b(?:books?|titles?|physical copies)\b/.test(normalizedQuestion);
     const requestedRanking: RankingMode | undefined = isZeroSessionBookQuery || (isBookRanking && /\b(?:least[- ]used|least read|underused)\b/.test(normalizedQuestion))
       ? "least"
       : isBookRanking && /\b(?:most[- ]used|most[- ]read|most popular|top books?|popular books?)\b/.test(normalizedQuestion) ? "most" : undefined;
-    if (requestedRanking) {
+    if (requestedRanking && !questRequest) {
       const adminId = Date.now();
       const bonId = adminId + 1;
       const label = requestedRanking === "most" ? "most-used" : "least-used";
       setMessages(current => [...current, { id: adminId, from: "admin", text: effectiveQuestion }]);
       setDraft("");
-      setRankingBusy(true);
+      setLoadingMode("books");
       setBusy(true);
       await new Promise(resolve => window.setTimeout(resolve, 500));
       pendingScrollMessageId.current = bonId;
       setMessages(current => [...current, { id: bonId, from: "bon", text: `These are the ${label} books for current dashboard data, ranked by recorded reading sessions.`, ranking: requestedRanking, rankingShown: 5 }]);
-      setRankingBusy(false);
+      setLoadingMode(null);
       setBusy(false);
+      requestLockRef.current = false;
+      return;
+    }
+    const summaryRequest = /\b(?:analytics|activity|operations|dashboard) summary\b|\bsummar(?:y|ize)\b|\bhow are we doing\b/.test(normalizedQuestion);
+    const genreRequest = /\bgenre\b/.test(normalizedQuestion) && /\b(?:most|top|popular|read|activity)\b/.test(normalizedQuestion);
+    const questAnalyticsRequest = /\bquest\b/.test(normalizedQuestion) && /\b(?:participation|completion|analytics|progress|how)\b/.test(normalizedQuestion);
+    if (!questRequest && (summaryRequest || genreRequest || questAnalyticsRequest)) {
+      const adminId = Date.now();
+      const bonId = adminId + 1;
+      const todayRequest = /\btoday(?:'s|s)?\b/.test(normalizedQuestion);
+      const todayKey = manilaDateKey(new Date());
+      const periodLogs = todayRequest ? data.logs.filter(log => manilaDateKey(log.started_at) === todayKey) : data.logs;
+      const completedPeriodLogs = periodLogs.filter(log => Boolean(log.returned_at));
+      const periodMinutes = completedPeriodLogs.reduce((sum, log) => sum + (log.total_reading_minutes ?? 0), 0);
+      const summaryPeriod = todayRequest ? "Today, Philippine time" : context.reportingPeriod;
+      const periodGenreStats = todayRequest ? (() => {
+        const books = new Map(data.books.map(book => [book.book_id, book]));
+        const counts = new Map<string, { label: string; sessions: number }>();
+        periodLogs.forEach(log => {
+          const genres = books.get(log.book_id)?.book_genres.flatMap(item => item.genre.split(/[,;/|]+/)).map(item => item.trim()).filter(Boolean) ?? [];
+          (genres.length ? genres : ["Uncategorized"]).forEach(label => {
+            const key = label.toLocaleLowerCase();
+            const current = counts.get(key) ?? { label, sessions: 0 };
+            counts.set(key, { ...current, sessions: current.sessions + 1 });
+          });
+        });
+        return [...counts.values()].sort((a, b) => b.sessions - a.sessions || a.label.localeCompare(b.label)).slice(0, 5);
+      })() : context.genreStats.slice(0, 5).map(item => ({ label: item.genre, sessions: item.sessions }));
+      const widgets: AdminBonWidget[] = summaryRequest
+        ? [{ type: "summary", period: summaryPeriod, completedSessions: todayRequest ? completedPeriodLogs.length : context.completedSessions, activeSessions: context.activeSessions, totalMinutes: todayRequest ? periodMinutes : context.totalReadingMinutes, averageMinutes: todayRequest && completedPeriodLogs.length ? Math.round(periodMinutes / completedPeriodLogs.length) : todayRequest ? 0 : context.averageReadingMinutes, availableCopies: context.availableCopies, activeReaders: context.activeReaderAccounts, totalReaders: context.readerProfiles, questCompletionRate: context.questCompletionRate }]
+        : genreRequest
+          ? [{ type: "genres", period: summaryPeriod, items: periodGenreStats }]
+          : [{ type: "quests", activeQuests: context.activeQuests, enrollments: context.questEnrollments, completionRate: context.questCompletionRate }];
+      const text = summaryRequest
+        ? "Here is a verified overview of the library's recorded activity."
+        : genreRequest
+          ? (periodGenreStats.length ? "Here are the most active genres based on recorded reading sessions." : "No genre activity is recorded for this period.")
+          : todayRequest ? "Quest records do not include dated completion history, so this card shows the current participation overview." : "Here is the current quest participation overview.";
+      setMessages(current => [...current, { id: adminId, from: "admin", text: effectiveQuestion }]);
+      setDraft("");
+      setLoadingMode("analytics");
+      setBusy(true);
+      await new Promise(resolve => window.setTimeout(resolve, 450));
+      pendingScrollMessageId.current = bonId;
+      setMessages(current => [...current, { id: bonId, from: "bon", text, widgets }]);
+      setLoadingMode(null);
+      setBusy(false);
+      requestLockRef.current = false;
       return;
     }
     const prior = messages.slice(-4).map(message => ({ role: message.from === "admin" ? "user" : "assistant", content: message.text }));
@@ -168,19 +223,18 @@ export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpen
       const { data: sessionData } = await database().auth.getSession();
       const token = sessionData.session?.access_token;
       if (!token) throw new Error("Librarian sign-in is required.");
-      const currentDrafts = refinementDrafts ?? latestDrafts();
-      const questRequest = (/\b(?:quests?|challenges?)\b/i.test(effectiveQuestion) && /\b(?:generate|create|draft|regenerate|refine|increase|decrease|adjust|change|make|read|reading|replace)\b/i.test(effectiveQuestion)) || Boolean(currentDrafts.length && /\b(?:regenerate|alternative|refine|increase|decrease|adjust|change|make it|same difficulty|replace|different|distinct)\b/i.test(effectiveQuestion));
       const response = await fetch(questRequest ? "/api/quest-suggestion" : "/api/admin-bon-chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify(questRequest ? { prompt:effectiveQuestion,existingDrafts:currentDrafts } : { message: effectiveQuestion, history: prior, context }),
       });
-      const payload = await response.json() as { message?: string; drafts?: QuestDraft[]; source?: "ai"|"template"; error?: string };
+      const payload = await response.json() as { message?: string; drafts?: QuestDraft[]; source?: "ai"|"template"; widgets?: unknown; error?: string };
       if (!response.ok || !payload.message) throw new Error(payload.error || "BON could not answer right now.");
-      append({ id: Date.now() + 1, from: "bon", text: payload.message, drafts:payload.drafts?.map(item=>({...item,selected:true,status:"draft"})), source:payload.source, ranking: requestedRanking, rankingShown: requestedRanking ? 5 : undefined });
+      const widgets = Array.isArray(payload.widgets) ? payload.widgets.filter(isAdminBonWidget).slice(0, 3) : undefined;
+      append({ id: Date.now() + 1, from: "bon", text: payload.message, drafts:payload.drafts?.map(item=>({...item,selected:true,status:"draft"})), source:payload.source, widgets });
     } catch (cause) {
-      append({ id: Date.now() + 1, from: "bon", text: errorMessage(cause) });
-    } finally { setBusy(false); }
+      append({ id: Date.now() + 1, from: "bon", text: friendlyAdminBonError(cause) });
+    } finally { setBusy(false); requestLockRef.current = false; }
   }
 
   function submit(event: FormEvent) { event.preventDefault(); if (draft.trim() && !busy) void answer(draft.trim()); }
@@ -234,7 +288,7 @@ export function AdminBonChat({ data, onOpenAnalytics }: { data: ChatData; onOpen
   return <div ref={wrapRef} onPointerDown={startDrag} style={pos ? { left: pos.x, top: pos.y, right: "auto", bottom: "auto", width: BUTTON } : undefined} className={`assistive-wrap fixed bottom-5 right-5 z-50 ${dragging ? "is-dragging" : ""} ${panelBelow ? "" : "panel-below"}`}>
     {open && <section className={`analytics-panel assistive-panel flex h-[min(680px,calc(100dvh-5rem))] w-[min(560px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-2xl border border-[#e4d4c3] bg-[#fffdf9] shadow-[0_24px_70px_rgba(57,36,20,.25)] [&>div:first-of-type]:min-h-0 [&>form]:shrink-0 [&>header]:shrink-0 ${anchoredLeft ? "assistive-panel-left" : ""}`} role="dialog" aria-label="Chat with BON">
       <header className="flex items-center gap-3 bg-[#59351e] px-4 py-3.5 text-[#fff9ef]"><div className="insights-message-avatar h-10 w-10 rounded-xl border border-[#f5c822] bg-[#f8eddc]"><img src="/ai-mascot.png" alt="BON" /></div><div className="min-w-0"><b className="block text-sm">BON Analytics</b><small className="block truncate text-[11px] text-[#e8c9ad]">Library data assistant · online</small></div><button className="ml-auto grid h-8 w-8 shrink-0 place-items-center rounded-lg transition hover:bg-white/10" onClick={() => setOpen(false)} aria-label="Close chat"><X size={18}/></button></header>
-      <div ref={logRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3.5 text-[13px]">{messages.map(message => <div key={message.id} data-message-id={message.id} className={message.from==="admin"?"ml-auto w-fit max-w-[86%]":"max-w-full"}><p className={`w-fit max-w-full rounded-2xl px-3.5 py-2.5 leading-5 shadow-sm ${message.from === "bon" ? "border border-[#eadfd3] bg-[#fff7eb] text-[#59351e]" : "ml-auto bg-[#a83d12] text-white"}`}>{message.text}</p>{message.drafts?.length ? <div className="mt-2 space-y-2">{message.drafts.map((item,index)=><article key={`${message.id}-${index}`} className={`rounded-xl border p-3 ${item.status==="approved"?"border-emerald-300 bg-emerald-50":item.status==="discarded"?"hidden":"border-[#dfc49d] bg-white"}`}><div className="flex items-start gap-2"><input type="checkbox" checked={Boolean(item.selected)} onChange={event=>updateCard(message.id,index,{selected:event.target.checked})} aria-label={`Select ${item.title}`}/><div className="min-w-0 flex-1">{item.editing?<div className="space-y-2"><label className="block"><span className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-[#59351e]">Quest title</span><input value={item.title} onChange={event=>updateCard(message.id,index,{title:event.target.value})} className="w-full rounded border p-2 font-bold"/></label><label className="block"><span className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-[#59351e]">Quest description</span><textarea value={item.description} onChange={event=>updateCard(message.id,index,{description:event.target.value})} className="w-full rounded border p-2"/></label><div className="grid grid-cols-2 gap-2"><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Difficulty</span><select value={item.difficulty} onChange={event=>updateCard(message.id,index,{difficulty:event.target.value as QuestDraft["difficulty"]})} className="w-full rounded border p-2"><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Books required</span><input value={item.targetValue} type="number" min="1" onChange={event=>updateCard(message.id,index,{targetValue:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Reward points</span><input value={item.points} type="number" min="1" onChange={event=>updateCard(message.id,index,{points:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Time limit (days)</span><input value={item.timeLimitDays} type="number" min="1" onChange={event=>updateCard(message.id,index,{timeLimitDays:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label></div><label className="block"><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Genre</span><input value={item.targetGenre} onChange={event=>updateCard(message.id,index,{targetGenre:event.target.value})} placeholder="Leave blank for any genre" className="w-full rounded border p-2"/></label></div>:<><b className="block text-[#59351e]">{item.title}</b><span className="text-[10px] font-bold uppercase text-[#a65b1e]">{item.difficulty} · {item.targetValue} books · {item.points} points · {item.timeLimitDays} days</span><p className="mt-1 text-xs leading-4 text-[#71543d]">{item.description}</p><p className="mt-1 text-[10px] text-emerald-700">{item.rationale}</p></>}</div></div><div className="mt-2 flex flex-wrap gap-1"><button onClick={()=>void approveCards(message.id,[index])} className="rounded bg-[#a83d12] px-2 py-1 text-[10px] font-bold text-white"><Check size={11} className="inline"/> Approve</button><button onClick={()=>{updateCard(message.id,index,{editing:!item.editing});}} className="rounded border px-2 py-1 text-[10px]"><Edit3 size={11} className="inline"/> Edit manually</button><button onClick={()=>{setDraft(`Refine \"${item.title}\": `);}} className="rounded border px-2 py-1 text-[10px]">Refine</button><button onClick={()=>void answer(`Regenerate an alternative to \"${item.title}\" with the same difficulty.`,[item])} className="rounded border px-2 py-1 text-[10px]"><RefreshCw size={11} className="inline"/> Regenerate</button><button onClick={()=>updateCard(message.id,index,{status:"discarded",selected:false})} className="rounded border px-2 py-1 text-[10px] text-rose-700"><Trash2 size={11} className="inline"/> Discard</button></div></article>)}{message.drafts.some(item=>item.status==="draft")&&<button onClick={()=>void approveCards(message.id,message.drafts!.map((item,index)=>item.selected&&item.status==="draft"?index:-1).filter(index=>index>=0))} className="w-full rounded-lg bg-[#59351e] px-3 py-2 text-xs font-bold text-white">Approve selected</button>}</div>:null}{message.ranking ? <AdminRankingPanel mode={message.ranking} books={rankedBooks[message.ranking]} shown={message.rankingShown ?? 5} setShown={value => setMessages(current => current.map(item => item.id === message.id ? { ...item, rankingShown: value } : item))} onOpenAnalytics={onOpenAnalytics} /> : null}</div>)}{busy && <p role="status" className="flex w-fit items-center gap-2 rounded-2xl border border-[#eadfd3] bg-[#fff7eb] px-3.5 py-2.5 leading-5 text-[#59351e]"><LoaderCircle className="animate-spin" size={14}/>{rankingBusy ? "Loading book usage data..." : "Analyzing Tankobonbon data..."}</p>}</div>
+      <div ref={logRef} className="flex-1 space-y-3 overflow-y-auto px-4 py-3.5 text-[13px]">{messages.map(message => <div key={message.id} data-message-id={message.id} className={message.from==="admin"?"ml-auto w-fit max-w-[86%]":"max-w-full"}><p className={`w-fit max-w-full rounded-2xl px-3.5 py-2.5 leading-5 shadow-sm ${message.from === "bon" ? "border border-[#eadfd3] bg-[#fff7eb] text-[#59351e]" : "ml-auto bg-[#a83d12] text-white"}`}>{message.text}</p>{message.from === "bon" && message.widgets?.length ? <AdminBonWidgets widgets={message.widgets}/> : null}{message.drafts?.length ? <div className="mt-2 space-y-2">{message.drafts.map((item,index)=><article key={`${message.id}-${index}`} className={`rounded-xl border p-3 ${item.status==="approved"?"border-emerald-300 bg-emerald-50":item.status==="discarded"?"hidden":"border-[#dfc49d] bg-white"}`}><div className="flex items-start gap-2"><input type="checkbox" checked={Boolean(item.selected)} onChange={event=>updateCard(message.id,index,{selected:event.target.checked})} aria-label={`Select ${item.title}`}/><div className="min-w-0 flex-1">{item.editing?<div className="space-y-2"><label className="block"><span className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-[#59351e]">Quest title</span><input value={item.title} onChange={event=>updateCard(message.id,index,{title:event.target.value})} className="w-full rounded border p-2 font-bold"/></label><label className="block"><span className="mb-1 block text-[10px] font-extrabold uppercase tracking-wider text-[#59351e]">Quest description</span><textarea value={item.description} onChange={event=>updateCard(message.id,index,{description:event.target.value})} className="w-full rounded border p-2"/></label><div className="grid grid-cols-2 gap-2"><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Difficulty</span><select value={item.difficulty} onChange={event=>updateCard(message.id,index,{difficulty:event.target.value as QuestDraft["difficulty"]})} className="w-full rounded border p-2"><option>Easy</option><option>Medium</option><option>Hard</option></select></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Books required</span><input value={item.targetValue} type="number" min="1" onChange={event=>updateCard(message.id,index,{targetValue:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Reward points</span><input value={item.points} type="number" min="1" onChange={event=>updateCard(message.id,index,{points:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label><label><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Time limit (days)</span><input value={item.timeLimitDays} type="number" min="1" onChange={event=>updateCard(message.id,index,{timeLimitDays:Number(event.target.value)})} className="w-full min-w-0 rounded border p-2"/></label></div><label className="block"><span className="mb-1 block text-[9px] font-bold uppercase text-[#71543d]">Genre</span><input value={item.targetGenre} onChange={event=>updateCard(message.id,index,{targetGenre:event.target.value})} placeholder="Leave blank for any genre" className="w-full rounded border p-2"/></label></div>:<><b className="block text-[#59351e]">{item.title}</b><span className="text-[10px] font-bold uppercase text-[#a65b1e]">{item.difficulty} · {item.targetValue} books · {item.points} points · {item.timeLimitDays} days</span><p className="mt-1 text-xs leading-4 text-[#71543d]">{item.description}</p><p className="mt-1 text-[10px] text-emerald-700">{item.rationale}</p></>}</div></div><div className="mt-2 flex flex-wrap gap-1"><button onClick={()=>void approveCards(message.id,[index])} className="rounded bg-[#a83d12] px-2 py-1 text-[10px] font-bold text-white"><Check size={11} className="inline"/> Approve</button><button onClick={()=>{updateCard(message.id,index,{editing:!item.editing});}} className="rounded border px-2 py-1 text-[10px]"><Edit3 size={11} className="inline"/> Edit manually</button><button onClick={()=>{setDraft(`Refine \"${item.title}\": `);}} className="rounded border px-2 py-1 text-[10px]">Refine</button><button onClick={()=>void answer(`Regenerate an alternative to \"${item.title}\" with the same difficulty.`,[item])} className="rounded border px-2 py-1 text-[10px]"><RefreshCw size={11} className="inline"/> Regenerate</button><button onClick={()=>updateCard(message.id,index,{status:"discarded",selected:false})} className="rounded border px-2 py-1 text-[10px] text-rose-700"><Trash2 size={11} className="inline"/> Discard</button></div></article>)}{message.drafts.some(item=>item.status==="draft")&&<button onClick={()=>void approveCards(message.id,message.drafts!.map((item,index)=>item.selected&&item.status==="draft"?index:-1).filter(index=>index>=0))} className="w-full rounded-lg bg-[#59351e] px-3 py-2 text-xs font-bold text-white">Approve selected</button>}</div>:null}{message.ranking ? <AdminRankingPanel mode={message.ranking} books={rankedBooks[message.ranking]} shown={message.rankingShown ?? 5} setShown={value => setMessages(current => current.map(item => item.id === message.id ? { ...item, rankingShown: value } : item))} onOpenAnalytics={onOpenAnalytics} /> : null}</div>)}{busy && <p role="status" className="flex w-fit items-center gap-2 rounded-2xl border border-[#eadfd3] bg-[#fff7eb] px-3.5 py-2.5 leading-5 text-[#59351e]"><LoaderCircle className="animate-spin" size={14}/>{loadingMode === "books" ? "Loading book usage data..." : loadingMode === "analytics" ? "Preparing verified analytics..." : "Analyzing Tankobonbon data..."}</p>}</div>
       {messages.some(message=>message.drafts?.length)&&<div className="border-t border-[#eadfd3] bg-[#fffaf3] px-3 pt-2.5"><button type="button" disabled={busy} onClick={()=>{setDraft("");window.setTimeout(()=>inputRef.current?.focus(),0);}} className="w-full rounded-xl border border-[#a83d12] bg-white px-3 py-2 text-xs font-bold text-[#a83d12] transition hover:bg-[#fff4e8] disabled:opacity-50">Want a different quest? Write your own AI prompt</button></div>}
       <div className="flex gap-2 overflow-x-auto border-t border-[#eadfd3] bg-[#fffaf3] px-3 py-2.5">{suggestions.map(suggestion => <button key={suggestion} disabled={busy} onClick={() => void answer(suggestion)} className="max-w-[220px] shrink-0 whitespace-normal rounded-full border border-[#d6b58f] bg-white px-3 py-1.5 text-left text-[10px] font-semibold leading-4 text-[#804916] transition hover:bg-[#fff2df] disabled:opacity-50">{suggestion}</button>)}</div>
       <form onSubmit={submit} className="flex gap-2 border-t border-[#eadfd3] bg-white p-3"><input ref={inputRef} value={draft} onChange={event => setDraft(event.target.value)} maxLength={800} disabled={busy} placeholder={messages.some(message=>message.drafts?.length) ? "Ask BON to refine or create a quest..." : "Ask BON about library analytics..."} className="min-w-0 flex-1 rounded-xl border border-[#e2d5c8] bg-[#fffbf5] px-3 py-2.5 text-[13px] outline-none transition focus:border-[#a83d12] focus:ring-2 focus:ring-[#a83d12]/10 disabled:opacity-60"/><button disabled={busy || !draft.trim()} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#a83d12] text-white transition hover:bg-[#8f320d] disabled:opacity-50" aria-label="Send message"><Send size={16}/></button></form>
