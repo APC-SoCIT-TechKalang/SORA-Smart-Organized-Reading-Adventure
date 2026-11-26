@@ -3,8 +3,37 @@
   --reader-light: #fff5df;
   --reader-gold: #f5cb73;
   --reader-serif: Cinzel, Georgia, serif;
+  isolation: isolate;
   overflow-x: clip;
-  background-color: #f3e8d4;
+  background:
+    radial-gradient(ellipse at 15% 0%, #fff8e8, transparent min(70vw, 48rem)),
+    radial-gradient(ellipse at 100% 86%, #c99c7152, transparent min(75vw, 56rem)),
+    linear-gradient(150deg, #f5ead6, #ead6b8);
+}
+
+.reader-world::before,
+.reader-world::after {
+  position: fixed;
+  z-index: -1;
+  pointer-events: none;
+  content: "";
+}
+
+.reader-world::before {
+  inset: 0;
+  background:
+    repeating-linear-gradient(112deg, transparent 0 3px, #71421a04 3px 4px),
+    radial-gradient(ellipse 36rem 29rem at 103% 41%, transparent 98.7%, #9a64372b 99%, transparent 99.4%),
+    radial-gradient(ellipse 40rem 33rem at 103% 41%, transparent 98.7%, #9a64371a 99%, transparent 99.4%);
+}
+
+.reader-world::after {
+  top: -24vmin;
+  right: -14vmin;
+  width: min(110vmin, 65rem);
+  aspect-ratio: 1;
+  background: radial-gradient(ellipse at center, #ffc77b67, #e8ac611c 49%, transparent 72%);
+  opacity: .7;
 }
 
 .reader-brand-seal {
@@ -14,23 +43,6 @@
 }
 
 .reader-world .reader-account-button { border-radius: 12px; background: #fffaf1; }
-
-.reader-motion-toggle {
-  display: grid;
-  min-width: 44px;
-  min-height: 44px;
-  place-items: center;
-  border: 1px solid #ae7a454f;
-  border-radius: 12px;
-  color: #80522f;
-  background: #fffaf1;
-}
-.reader-motion-toggle[aria-pressed="true"] {
-  color: #ffe0a0;
-  background: linear-gradient(135deg, #6b3e25, #3c2014);
-  box-shadow: 0 3px 8px #4f2b2433;
-}
-.reader-motion-toggle:focus-visible { outline: 2px solid #9c4d13; outline-offset: 2px; }
 
 .reader-atmosphere {
   position: absolute;
@@ -60,17 +72,18 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  [data-reader-motion="on"] .reader-scene { animation: reader-scene-enter 320ms ease-out; }
-  [data-reader-motion="on"] .reader-archive .reader-atmosphere::before {
+  .reader-world::after { animation: reader-room-light 19s ease-in-out infinite alternate; }
+  .reader-world .reader-scene { animation: reader-scene-enter 320ms ease-out; }
+  .reader-world .reader-archive .reader-atmosphere::before {
     animation: reader-hall-drift 22s ease-in-out infinite alternate;
   }
-  [data-reader-motion="on"] .reader-atmosphere-glow {
+  .reader-world .reader-atmosphere-glow {
     animation: reader-lantern-light 8s ease-in-out infinite alternate;
   }
-  [data-reader-motion="on"] .reader-atmosphere-mote {
+  .reader-world .reader-atmosphere-mote {
     animation: reader-floating-dust var(--mote-duration) var(--mote-delay) linear infinite;
   }
-  [data-reader-motion="on"] .quest-rank-meter > span::after {
+  .reader-world .quest-rank-meter > span::after {
     position: absolute;
     inset-block: 0;
     left: 0;
@@ -79,6 +92,11 @@
     content: "";
     animation: reader-rank-glint 5s ease-in-out infinite;
   }
+}
+
+@keyframes reader-room-light {
+  from { opacity: .55; transform: translate3d(0, 0, 0); }
+  to { opacity: .85; transform: translate3d(-7%, 10%, 0); }
 }
 
 @keyframes reader-scene-enter { from { opacity: .72; } to { opacity: 1; } }
@@ -363,7 +381,6 @@ dialog[aria-labelledby="digital-card-title"] {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .reader-motion-toggle { display: none; }
   .reader-world :is(.reader-rail-item, .reader-tab, .reader-gold-button, .reader-ghost-button, .reader-archive-pick, .reader-stat-rank) {
     transition: none;
     transform: none;

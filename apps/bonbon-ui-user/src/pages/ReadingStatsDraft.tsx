@@ -16,7 +16,7 @@ export default function ReadingStatsDraft() {
   const { readerAccess } = useGame();
   if (readerAccess !== 'active') {
     const checking = readerAccess === 'checking';
-    return <main className="tb-field min-h-screen px-4 py-12 text-umber"><div className="tb-surface mx-auto max-w-lg rounded-xl border border-gold/30 p-6 text-center">
+    return <main className="reader-world min-h-screen px-4 py-12 text-umber"><div className="tb-surface mx-auto max-w-lg rounded-xl border border-gold/30 p-6 text-center">
       <h1 className="font-display text-2xl font-800">Reading stats</h1>
       <p role="status" className="mt-4 text-sm leading-6">{checking ? 'Checking your reader activation…' : readerAccess === 'signed-out' ? 'Sign in with an activated reader account to view reading stats.' : readerAccess === 'error' ? 'We couldn’t verify your activation. Please try again shortly.' : 'Please ask library staff to activate or renew your membership before viewing reading stats.'}</p>
       <a href="/" className="tb-button-secondary tb-cut-sm mt-6 inline-flex min-h-11 items-center px-4 py-2">Back to library</a>
@@ -37,7 +37,7 @@ function ActivatedReadingStatsDraft() {
   ];
 
   return (
-    <div className="reader-world reader-journal tb-field min-h-screen px-4 py-6 text-umber sm:px-8 sm:py-10">
+    <div className="reader-world min-h-screen px-4 py-6 text-umber sm:px-8 sm:py-10">
       <main className="mx-auto max-w-6xl space-y-6">
         <a className="inline-flex min-h-11 items-center gap-2 text-sm font-700 underline underline-offset-4" href="/"><ArrowLeftIcon aria-hidden="true" className="h-4 w-4" />Back to library</a>
 

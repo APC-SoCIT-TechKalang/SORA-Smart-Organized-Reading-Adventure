@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, SparklesIcon, UserRoundIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
 import { ReadingStatsDialog } from './ReadingStatsDialog';
 import { MyProfileDialog } from './MyProfileDialog';
 
-export function GameHUD({ ambientMotion, onToggleMotion }: { ambientMotion: boolean; onToggleMotion: () => void }) {
+export function GameHUD() {
   const [mode, setMode] = useState<'login' | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageAccountOpen, setManageAccountOpen] = useState(false);
@@ -50,10 +50,7 @@ export function GameHUD({ ambientMotion, onToggleMotion }: { ambientMotion: bool
             </span>
           </button>
 
-          <div className="flex min-w-0 items-center gap-1.5 justify-self-end sm:gap-2">
-            <button type="button" className="reader-motion-toggle" aria-label="Ambient motion" aria-pressed={ambientMotion} title={ambientMotion ? 'Pause ambient motion' : 'Resume ambient motion'} onClick={onToggleMotion}>
-              <SparklesIcon aria-hidden="true" size={18} />
-            </button>
+          <div className="min-w-0 justify-self-end">
             {session ? (
               <div className="relative">
                 <button type="button" aria-expanded={accountOpen} aria-haspopup="menu" aria-label={`${displayName}’s account`} onClick={() => setAccountOpen((value) => !value)} className="reader-account-button tb-button-secondary min-h-11 px-2.5 py-1.5 text-left">

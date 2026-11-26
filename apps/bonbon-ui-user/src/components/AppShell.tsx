@@ -23,7 +23,6 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
   const { section, setSection, error, refresh } = useGame();
   const [query, setQuery] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [ambientMotion, setAmbientMotion] = useState(true);
 
   useEffect(() => {
     // Navigation must reveal the new page even after scrolling the previous one.
@@ -42,10 +41,9 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
   }, [setSection]);
 
   return (
-    <div className="reader-world tb-field tb-world-shell relative min-h-full w-full" data-reader-motion={ambientMotion ? 'on' : 'off'}>
+    <div className="reader-world relative min-h-screen w-full">
       <a href="#main" className="skip-link">Skip to main content</a>
-      <div aria-hidden="true" className="tb-vignette pointer-events-none fixed inset-0 z-0" />
-      <GameHUD ambientMotion={ambientMotion} onToggleMotion={() => setAmbientMotion(value => !value)} />
+      <GameHUD />
       <main id="main" tabIndex={-1} className="reader-main tb-main-stage relative z-10 mx-auto flex max-w-[1440px] gap-5 px-3 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-4 min-[390px]:px-4 sm:px-6 sm:pt-6 lg:gap-6 lg:pb-24">
         <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} />
         <div className="min-w-0 flex-1">
