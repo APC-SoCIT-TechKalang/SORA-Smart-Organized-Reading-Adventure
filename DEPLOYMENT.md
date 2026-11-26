@@ -176,6 +176,9 @@ before deploying the improved Add Volume workflow. It adds reviewed metadata
 provenance, acquisition dates, checksum validation, duplicate-ISBN reuse, and
 atomic creation of a catalog edition plus its uniquely barcoded physical copy.
 
+Apply `supabase/replacement/026_admin_edit_catalog_metadata.sql` to enable the
+catalogue pencil action to update book information as well as cover art.
+
 Validation uses an isolated PostgreSQL engine and mocked browser requests:
 
 ```powershell

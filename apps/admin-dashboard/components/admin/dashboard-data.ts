@@ -1,6 +1,6 @@
 import { database, readReplacementRows } from "../../lib/supabase";
 
-export type Book = { book_id: number; title: string; author: string | null; cover_image_url: string | null; acquisition_status: string; book_genres: { genre: string }[]; book_copies: { copy_id: number; status: string; identifier_value: string }[] };
+export type Book = { book_id: number; title: string; author: string | null; author_firstname: string; author_lastname: string; original_title: string | null; romanized_title: string | null; isbn: string | null; volume_number: number | null; publisher: string | null; publication_date: string | null; imprint: string | null; book_type: string; description: string | null; age_rating: number; demographic: string | null; themes: string | null; cover_image_url: string | null; acquisition_status: string; book_genres: { genre: string }[]; book_copies: { copy_id: number; status: string; identifier_value: string }[] };
 export type Copy = { copy_id: number; book_id: number; copy_number: number; identifier_value: string; status: string; condition_notes: string | null; shelf_location: string | null; shelf_id: number | null };
 export type Reader = { user_id: string; first_name: string; last_name: string; birthday: string | null; is_active: boolean; roles: { name: string } | null };
 export type LibraryCard = { librarycard_id: string; user_id: string; librarycard_rfid: string | null; is_active: boolean; deactivated_at: string | null };
@@ -37,7 +37,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
   return loadFixedDashboardData();
 }
 
-type ReplacementBook = { book_id:number; title:string; coverimage_url:string|null; authors:{author_firstname:string;author_lastname:string}|null; book_genre:string|null; book_copies:{copy_id:number;copy_status:string;barcode:string}[] };
+type ReplacementBook = { book_id:number; title:string; original_title:string|null; romanized_title:string|null; isbn:string|null; volume_number:number|null; publisher:string|null; publication_date:string|null; imprint:string|null; book_type:string; book_description:string|null; age_rating:number; demographic:string|null; themes:string|null; coverimage_url:string|null; authors:{author_firstname:string;author_lastname:string}|null; book_genre:string|null; book_copies:{copy_id:number;copy_status:string;barcode:string}[] };
 type ReplacementCopy = { copy_id:number; book_id:number; copy_number:number; barcode:string; copy_status:string; shelf_location:string|null; condition_notes:string|null };
 type ReplacementUser = { id:string; first_name:string; last_name:string; birthdate:string; user_role:string; is_active:boolean; membership_type:string|null; membership_rank:string|null; remaining_minutes:number; membership_status:string; membership_expires_at:string|null };
 type ReplacementLibraryCard = { librarycard_id:string; user_id:string; librarycard_rfid:string|null; is_active:boolean; deactivated_at:string|null };
@@ -48,7 +48,7 @@ type ReplacementGeneration = { request_id:string; request_category:string; valid
 
 async function loadFixedDashboardData(): Promise<DashboardData> {
   const [rawBooks, rawCopies, rawReaders, rawLibraryCards, rawSessions, rawQuests, rawEnrollments, questGenerations] = await Promise.all([
-    readReplacementRows<ReplacementBook>("books", "book_id,title,coverimage_url,authors(author_firstname,author_lastname),book_genre,book_copies(copy_id,copy_status,barcode)", "book_id"),
+    readReplacementRows<ReplacementBook>("books", "book_id,title,original_title,romanized_title,isbn,volume_number,publisher,publication_date,imprint,book_type,book_description,age_rating,demographic,themes,coverimage_url,authors(author_firstname,author_lastname),book_genre,book_copies(copy_id,copy_status,barcode)", "book_id"),
     readReplacementRows<ReplacementCopy>("book_copies", "copy_id,book_id,copy_number,barcode,copy_status,shelf_location,condition_notes", "copy_id"),
     readReplacementRows<ReplacementUser>("users", "id,first_name,last_name,birthdate,user_role,is_active,membership_type,membership_rank,remaining_minutes,membership_status,membership_expires_at", "id"),
     readReplacementRows<ReplacementLibraryCard>("librarycard", "librarycard_id,user_id,librarycard_rfid,is_active,deactivated_at", "librarycard_id"),
@@ -62,6 +62,10 @@ async function loadFixedDashboardData(): Promise<DashboardData> {
   const books: Book[] = rawBooks.map(book => ({
     book_id: book.book_id, title: book.title,
     author: book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : null,
+    author_firstname: book.authors?.author_firstname ?? "", author_lastname: book.authors?.author_lastname ?? "",
+    original_title:book.original_title, romanized_title:book.romanized_title, isbn:book.isbn, volume_number:book.volume_number,
+    publisher:book.publisher, publication_date:book.publication_date, imprint:book.imprint, book_type:book.book_type,
+    description:book.book_description, age_rating:book.age_rating, demographic:book.demographic, themes:book.themes,
     cover_image_url: book.coverimage_url, acquisition_status: "IN_LIBRARY",
     book_genres: book.book_genre ? [{ genre: book.book_genre }] : [],
     book_copies: (book.book_copies ?? []).map(copy => ({ copy_id:copy.copy_id, status:status(copy.copy_status), identifier_value:copy.barcode })),

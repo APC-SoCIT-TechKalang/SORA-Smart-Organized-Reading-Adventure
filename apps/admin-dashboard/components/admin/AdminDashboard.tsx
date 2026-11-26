@@ -201,12 +201,24 @@ export function AdminDashboard() {
     );
   return (
     <main className="admin-shell min-h-screen text-[#543822]">
+      <div className="admin-atmosphere" aria-hidden="true">
+        <span className="admin-atmosphere-glow admin-atmosphere-glow-one" />
+        <span className="admin-atmosphere-glow admin-atmosphere-glow-two" />
+        <span className="admin-atmosphere-orbit admin-atmosphere-orbit-one" />
+        <span className="admin-atmosphere-orbit admin-atmosphere-orbit-two" />
+        <span className="admin-atmosphere-sweep" />
+        <span className="admin-atmosphere-star admin-atmosphere-star-one">✦</span>
+        <span className="admin-atmosphere-star admin-atmosphere-star-two">✦</span>
+        <span className="admin-atmosphere-star admin-atmosphere-star-three">✦</span>
+      </div>
       <div className="relative z-10 flex min-h-screen">
+        {navOpen && <button type="button" className="admin-nav-scrim" aria-label="Close navigation menu" onClick={() => setNavOpen(false)} />}
         <aside
           aria-hidden={!navOpen}
-          className={`admin-drawer sticky top-0 flex h-screen shrink-0 flex-col overflow-hidden text-[#f8eddc] transition-[width] duration-300 ease-in-out ${navOpen ? "w-[290px]" : "w-0"}`}
+          inert={!navOpen}
+          className={`admin-drawer sticky top-0 flex h-screen shrink-0 flex-col overflow-hidden text-[#f8eddc] transition-[width] duration-300 ease-in-out ${navOpen ? "w-[264px]" : "w-0"}`}
         >
-          <div className="flex h-16 w-[290px] shrink-0 items-center justify-between border-b border-white/10 px-4">
+          <div className="flex h-16 w-[264px] shrink-0 items-center justify-between border-b border-white/10 px-4">
             <Logo />
             <button
               onClick={() => setNavOpen(false)}
@@ -218,7 +230,7 @@ export function AdminDashboard() {
           </div>
           <nav
             className="flex-1 space-y-1.5 overflow-y-auto px-4 py-6"
-            style={{ width: 290 }}
+            style={{ width: 264 }}
           >
             <p className="mb-3 px-3 text-[9px] font-bold uppercase tracking-[.22em] text-[#c9a06f]">
               Workspace
@@ -226,7 +238,7 @@ export function AdminDashboard() {
             {nav.map(({ icon: Icon, page: itemPage, label }) => (
               <button
                 key={itemPage}
-                onClick={() => setPage(itemPage)}
+                onClick={() => { setPage(itemPage); if (window.innerWidth < 1024) setNavOpen(false); }}
                 className={`admin-nav-item group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-sm font-semibold transition ${page === itemPage ? "is-active bg-[#f9d219] text-[#543822] shadow-[0_6px_18px_rgba(249,210,25,.35)]" : "text-[#543822] hover:bg-white/60"}`}
               >
                 <span
@@ -238,7 +250,7 @@ export function AdminDashboard() {
               </button>
             ))}
           </nav>
-          <div className="w-[290px] border-t border-white/10 p-4">
+          <div className="w-[264px] border-t border-white/10 p-4">
             <button
               onClick={() =>
                 void run(() => database().auth.signOut(), "Signed out")
@@ -250,7 +262,7 @@ export function AdminDashboard() {
             </button>
           </div>
         </aside>
-        <section className="min-w-0 flex-1">
+        <section className="admin-workspace min-w-0 flex-1">
           <header className="admin-topbar sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-[#eadfd3] bg-[#fefefd]/85 px-4 backdrop-blur-xl sm:px-6">
             {!navOpen && (
               <>
@@ -265,10 +277,21 @@ export function AdminDashboard() {
                 <Logo />
               </>
             )}
+            <div className="admin-command-strip ml-auto flex min-w-0 items-center gap-3">
+              <span className="admin-command-copy hidden min-w-0 items-center gap-2 md:flex">
+                <Sparkles size={13} aria-hidden="true" />
+                <span className="truncate">Library operations</span>
+              </span>
+              <span className="admin-command-divider hidden md:block" aria-hidden="true" />
+              <span className="admin-live-status">
+                <span className="admin-live-dot" aria-hidden="true" />
+                System live
+              </span>
+            </div>
           </header>
           <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
-            <div className="mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">
-              <div>
+            <div className="admin-page-heading mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">
+              <div className="min-w-0">
                 <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.24em] text-[#953410]">
                   <span className="h-px w-6 bg-[#c4800c]" />
                   {page === "Catalogue" ? "Book Management" : page === "Challenges" ? "Quest" : page}
@@ -276,6 +299,7 @@ export function AdminDashboard() {
                 <h1 className="font-serif text-2xl font-semibold tracking-tight text-[#543822] sm:text-3xl">
                   {page === "Overview" ? "Reading Room Today" : page === "Challenges" ? "Quest" : page}
                 </h1>
+                <p className="mt-1 text-xs text-[#806b59]">{page === "Overview" ? "A clear view of today’s library activity." : page === "Analytics" ? "Explore reading trends and verified activity." : page === "Catalogue" ? "Manage titles, copies, and shelf locations." : page === "Challenges" ? "Review quests and reader progress." : page === "Readers" ? "Manage members and library cards." : "Verify cards and add reading time."}</p>
               </div>
             </div>
             {error && (
@@ -395,7 +419,7 @@ function Overview({
     .slice(0, 5);
   return (
     <>
-      <div className="grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
+      <div className="admin-overview-lead grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
         <section className="admin-hero-card relative overflow-hidden rounded-3xl p-5 text-[#fefefd] shadow-[0_20px_50px_rgba(84,56,34,.35)] sm:p-6">
           <div
             className="admin-hero-orb admin-hero-orb-one"
@@ -435,7 +459,7 @@ function Overview({
             ))}
           </div>
         </section>
-        <section className="admin-card rounded-2xl border border-[#eadfd3] bg-[#fefefd] p-5 shadow-[0_8px_24px_rgba(84,56,34,.07)] sm:p-6">
+        <section className="admin-card admin-overview-stats rounded-2xl border border-[#eadfd3] bg-[#fefefd] p-5 shadow-[0_8px_24px_rgba(84,56,34,.07)] sm:p-6">
           <div className="space-y-1">
             {[
               [
@@ -470,8 +494,8 @@ function Overview({
           </button>
         </section>
       </div>
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
-        <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+      <div className="admin-overview-secondary mt-8 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
+        <section className="admin-overview-panel rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
           <SectionTitle
             title="Most read this month"
             copy="Titles generating the most reading sessions."
@@ -479,7 +503,7 @@ function Overview({
           <div className="mt-6 space-y-4">
             {leaders.map(({ book, reads }, index) => (
               <div
-                className="grid grid-cols-[22px_minmax(0,1fr)_100px_35px] items-center gap-3 text-xs"
+                className="admin-reading-rank grid grid-cols-[22px_minmax(0,1fr)_100px_35px] items-center gap-3 text-xs"
                 key={book.book_id}
               >
                 <span className="font-serif text-[#b66a3c]">{index + 1}</span>
@@ -502,7 +526,7 @@ function Overview({
             ))}
           </div>
         </section>
-        <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+        <section className="admin-overview-panel rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
           <SectionTitle
             title="Needs shelving"
             copy="Returned titles awaiting inspection."
@@ -517,7 +541,7 @@ function Overview({
                     "Copy returned to shelf",
                   )
                 }
-                className="flex w-full items-center justify-between rounded-xl border border-[#eee2d6] p-3 text-left text-xs hover:border-[#cfac8d]"
+                className="admin-shelving-row flex w-full items-center justify-between rounded-xl border border-[#eee2d6] p-3 text-left text-xs hover:border-[#cfac8d]"
               >
                 <span>
                   <b className="block">
@@ -1100,7 +1124,7 @@ function Readers({
   return (
     <>
       {usesReplacementSchema && <ReaderCheckIn />}
-      <div className="mb-6 grid gap-4 sm:grid-cols-4">
+      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           [
             "Registered readers",
@@ -1115,7 +1139,7 @@ function Readers({
           ],
         ].map(([label, value]) => (
           <div
-            className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm"
+            className="admin-kpi rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm"
             key={String(label)}
           >
             <p className="text-[11px] font-semibold text-[#8d735e]">{label}</p>
