@@ -199,6 +199,16 @@ export function AdminDashboard() {
     );
   return (
     <main className="admin-shell min-h-screen text-[#543822]">
+      <div className="admin-atmosphere" aria-hidden="true">
+        <span className="admin-atmosphere-glow admin-atmosphere-glow-one" />
+        <span className="admin-atmosphere-glow admin-atmosphere-glow-two" />
+        <span className="admin-atmosphere-orbit admin-atmosphere-orbit-one" />
+        <span className="admin-atmosphere-orbit admin-atmosphere-orbit-two" />
+        <span className="admin-atmosphere-sweep" />
+        <span className="admin-atmosphere-star admin-atmosphere-star-one">✦</span>
+        <span className="admin-atmosphere-star admin-atmosphere-star-two">✦</span>
+        <span className="admin-atmosphere-star admin-atmosphere-star-three">✦</span>
+      </div>
       <div className="relative z-10 flex min-h-screen">
         {navOpen && <button type="button" className="admin-nav-scrim" aria-label="Close navigation menu" onClick={() => setNavOpen(false)} />}
         <aside
@@ -265,9 +275,20 @@ export function AdminDashboard() {
                 <Logo />
               </>
             )}
+            <div className="admin-command-strip ml-auto flex min-w-0 items-center gap-3">
+              <span className="admin-command-copy hidden min-w-0 items-center gap-2 md:flex">
+                <Sparkles size={13} aria-hidden="true" />
+                <span className="truncate">Library operations</span>
+              </span>
+              <span className="admin-command-divider hidden md:block" aria-hidden="true" />
+              <span className="admin-live-status">
+                <span className="admin-live-dot" aria-hidden="true" />
+                System live
+              </span>
+            </div>
           </header>
           <div className="admin-content mx-auto max-w-[1440px] p-4 sm:p-6 lg:p-8">
-            <div className="mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">
+            <div className="admin-page-heading mb-6 flex flex-col gap-3 border-b border-[#c4800c]/25 pb-5 sm:flex-row sm:items-end sm:justify-between">
               <div className="min-w-0">
                 <p className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[.24em] text-[#953410]">
                   <span className="h-px w-6 bg-[#c4800c]" />
@@ -396,7 +417,7 @@ function Overview({
     .slice(0, 5);
   return (
     <>
-      <div className="grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
+      <div className="admin-overview-lead grid gap-5 xl:grid-cols-[1.35fr_.95fr]">
         <section className="admin-hero-card relative overflow-hidden rounded-3xl p-5 text-[#fefefd] shadow-[0_20px_50px_rgba(84,56,34,.35)] sm:p-6">
           <div
             className="admin-hero-orb admin-hero-orb-one"
@@ -436,7 +457,7 @@ function Overview({
             ))}
           </div>
         </section>
-        <section className="admin-card rounded-2xl border border-[#eadfd3] bg-[#fefefd] p-5 shadow-[0_8px_24px_rgba(84,56,34,.07)] sm:p-6">
+        <section className="admin-card admin-overview-stats rounded-2xl border border-[#eadfd3] bg-[#fefefd] p-5 shadow-[0_8px_24px_rgba(84,56,34,.07)] sm:p-6">
           <div className="space-y-1">
             {[
               [
@@ -471,8 +492,8 @@ function Overview({
           </button>
         </section>
       </div>
-      <div className="mt-8 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
-        <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+      <div className="admin-overview-secondary mt-8 grid gap-6 xl:grid-cols-[1.2fr_.8fr]">
+        <section className="admin-overview-panel rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
           <SectionTitle
             title="Most read this month"
             copy="Titles generating the most reading sessions."
@@ -480,7 +501,7 @@ function Overview({
           <div className="mt-6 space-y-4">
             {leaders.map(({ book, reads }, index) => (
               <div
-                className="grid grid-cols-[22px_minmax(0,1fr)_100px_35px] items-center gap-3 text-xs"
+                className="admin-reading-rank grid grid-cols-[22px_minmax(0,1fr)_100px_35px] items-center gap-3 text-xs"
                 key={book.book_id}
               >
                 <span className="font-serif text-[#b66a3c]">{index + 1}</span>
@@ -503,7 +524,7 @@ function Overview({
             ))}
           </div>
         </section>
-        <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
+        <section className="admin-overview-panel rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
           <SectionTitle
             title="Needs shelving"
             copy="Returned titles awaiting inspection."
@@ -518,7 +539,7 @@ function Overview({
                     "Copy returned to shelf",
                   )
                 }
-                className="flex w-full items-center justify-between rounded-xl border border-[#eee2d6] p-3 text-left text-xs hover:border-[#cfac8d]"
+                className="admin-shelving-row flex w-full items-center justify-between rounded-xl border border-[#eee2d6] p-3 text-left text-xs hover:border-[#cfac8d]"
               >
                 <span>
                   <b className="block">

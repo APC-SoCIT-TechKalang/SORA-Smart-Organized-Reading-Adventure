@@ -2871,3 +2871,109 @@ textarea.tb-input:focus {
   .tb-quest-card,
   .tb-book-card { animation: none; transition: none; }
 }
+
+/* Essential Five: respond to available content width, not the browser viewport. */
+.top-five-showcase {
+  container: top-five / inline-size;
+  isolation: isolate;
+}
+
+.top-five-layout {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.top-five-support-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.top-five-featured,
+.top-five-support-card,
+.top-five-featured-grid,
+.top-five-support-inner,
+.top-five-featured-grid > *,
+.top-five-support-inner > * {
+  min-width: 0;
+}
+
+.top-five-support-card h3,
+.top-five-support-card p,
+.top-five-featured h3,
+.top-five-featured p {
+  overflow-wrap: anywhere;
+}
+
+@container top-five (min-width: 1160px) {
+  .top-five-layout {
+    grid-template-columns: minmax(0, 1.08fr) minmax(31rem, .92fr);
+  }
+}
+
+@container top-five (max-width: 760px) {
+  .top-five-support-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .top-five-support-card {
+    min-height: 148px;
+  }
+
+  .top-five-support-inner {
+    grid-template-columns: 82px minmax(0, 1fr);
+  }
+}
+
+@container top-five (max-width: 520px) {
+  .top-five-showcase {
+    border-radius: 22px;
+    padding: .75rem;
+  }
+
+  .top-five-header h2 {
+    font-size: clamp(1.75rem, 9cqi, 2.35rem);
+    line-height: 1.02;
+  }
+
+  .top-five-header p:last-child {
+    line-height: 1.55;
+  }
+
+  .top-five-featured {
+    min-height: 0;
+    border-radius: 18px;
+    padding: 1rem;
+  }
+
+  .top-five-featured-grid {
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 1rem;
+  }
+
+  .top-five-featured h3 {
+    font-size: clamp(1.35rem, 7.2cqi, 1.9rem);
+  }
+
+  .top-five-featured .mt-5 {
+    margin-top: .75rem;
+  }
+
+  .top-five-support-card {
+    border-radius: 16px;
+  }
+}
+
+@container top-five (max-width: 370px) {
+  .top-five-featured-grid {
+    grid-template-columns: 78px minmax(0, 1fr);
+    gap: .75rem;
+  }
+
+  .top-five-support-inner {
+    grid-template-columns: 70px minmax(0, 1fr);
+    gap: .75rem;
+  }
+
+  .top-five-support-inner > span:first-child {
+    width: 70px;
+    height: 98px;
+  }
+}

@@ -564,3 +564,306 @@ button, input, select, textarea { font-size: inherit; }
   .admin-drawer .admin-nav-item,
   .admin-shell .admin-kpi { transition: none; }
 }
+
+/* Living reading-room backdrop and command navigation. */
+.admin-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.admin-atmosphere::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: .26;
+  background:
+    linear-gradient(115deg, transparent 0 48%, rgba(245,200,34,.13) 48.15% 48.3%, transparent 48.45%),
+    linear-gradient(65deg, transparent 0 68%, rgba(168,61,18,.08) 68.15% 68.28%, transparent 68.4%);
+  background-size: 300px 300px, 380px 380px;
+  animation: admin-pattern-drift 34s linear infinite;
+}
+
+.admin-atmosphere-glow {
+  position: absolute;
+  border-radius: 999px;
+  filter: blur(10px);
+  opacity: .32;
+  will-change: transform;
+}
+
+.admin-atmosphere-glow-one {
+  right: -12rem;
+  top: -15rem;
+  width: 42rem;
+  height: 42rem;
+  background: radial-gradient(circle, rgba(245,200,34,.52), rgba(230,155,98,.12) 48%, transparent 70%);
+  animation: admin-glow-float 15s ease-in-out infinite;
+}
+
+.admin-atmosphere-glow-two {
+  bottom: -18rem;
+  left: -11rem;
+  width: 36rem;
+  height: 36rem;
+  background: radial-gradient(circle, rgba(168,61,18,.19), rgba(230,155,98,.09) 48%, transparent 72%);
+  animation: admin-glow-float 19s 2s ease-in-out infinite reverse;
+}
+
+.admin-atmosphere-orbit {
+  position: absolute;
+  border: 1px solid rgba(178,112,19,.12);
+  border-radius: 50%;
+  will-change: transform;
+}
+
+.admin-atmosphere-orbit-one {
+  right: -11rem;
+  top: 7rem;
+  width: 35rem;
+  height: 35rem;
+  box-shadow: 0 0 0 46px rgba(245,200,34,.025), 0 0 0 92px rgba(245,200,34,.018);
+  animation: admin-orbit-turn 45s linear infinite;
+}
+
+.admin-atmosphere-orbit-two {
+  bottom: -15rem;
+  left: 22%;
+  width: 31rem;
+  height: 20rem;
+  border-color: rgba(168,61,18,.09);
+  transform: rotate(-18deg);
+  animation: admin-orbit-drift 24s ease-in-out infinite;
+}
+
+.admin-atmosphere-sweep {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -26%;
+  width: 12%;
+  opacity: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,.3), transparent);
+  filter: blur(7px);
+  transform: skewX(-18deg);
+  animation: admin-light-sweep 14s ease-in-out infinite;
+}
+
+.admin-atmosphere-star {
+  position: absolute;
+  color: rgba(196,128,12,.32);
+  text-shadow: 0 0 14px rgba(245,200,34,.42);
+  animation: admin-star-pulse 5s ease-in-out infinite;
+}
+.admin-atmosphere-star-one { left: 18%; top: 25%; font-size: 12px; }
+.admin-atmosphere-star-two { right: 22%; top: 52%; font-size: 8px; animation-delay: -2.2s; }
+.admin-atmosphere-star-three { left: 54%; bottom: 13%; font-size: 10px; animation-delay: -3.4s; }
+
+@keyframes admin-pattern-drift {
+  to { background-position: 300px 300px, -380px 380px; }
+}
+@keyframes admin-glow-float {
+  0%, 100% { transform: translate3d(0,0,0) scale(.96); opacity: .24; }
+  50% { transform: translate3d(-3rem,2rem,0) scale(1.08); opacity: .4; }
+}
+@keyframes admin-orbit-turn { to { transform: rotate(360deg); } }
+@keyframes admin-orbit-drift {
+  0%, 100% { transform: rotate(-18deg) translate3d(0,0,0); }
+  50% { transform: rotate(-12deg) translate3d(3rem,-1rem,0); }
+}
+@keyframes admin-light-sweep {
+  0%, 58% { left: -26%; opacity: 0; }
+  68% { opacity: .55; }
+  88%, 100% { left: 118%; opacity: 0; }
+}
+@keyframes admin-star-pulse {
+  0%, 100% { opacity: .2; transform: scale(.78) rotate(0); }
+  50% { opacity: .78; transform: scale(1.18) rotate(45deg); }
+}
+
+.admin-topbar {
+  min-height: 4.5rem;
+  height: 4.5rem;
+  overflow: hidden;
+}
+
+.admin-topbar::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, #4b2717 0%, #a83d12 22%, #f5c822 50%, #a83d12 78%, #4b2717 100%);
+  box-shadow: 0 0 20px rgba(245,200,34,.35);
+}
+
+.admin-topbar::after {
+  content: "";
+  position: absolute;
+  right: 5%;
+  bottom: -34px;
+  width: 13rem;
+  height: 4.25rem;
+  border: 1px solid rgba(196,128,12,.11);
+  border-radius: 50%;
+  transform: rotate(-8deg);
+}
+
+.admin-topbar > * { position: relative; z-index: 1; }
+
+.admin-command-strip {
+  border: 1px solid rgba(155,96,25,.18);
+  border-radius: 999px;
+  background: linear-gradient(145deg, rgba(255,255,255,.74), rgba(245,200,34,.055));
+  padding: .38rem .5rem .38rem .75rem;
+  box-shadow: inset 0 1px rgba(255,255,255,.8), 0 7px 20px rgba(49,24,13,.06);
+}
+
+.admin-command-copy {
+  color: #7a5538;
+  font-size: .65rem;
+  font-weight: 800;
+  letter-spacing: .13em;
+  text-transform: uppercase;
+}
+.admin-command-copy svg { color: #b97814; }
+.admin-command-divider { width: 1px; height: 1.25rem; background: rgba(132,83,32,.16); }
+
+.admin-live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  border-radius: 999px;
+  background: #382016;
+  padding: .48rem .7rem;
+  color: #fff8ec;
+  font-size: .6rem;
+  font-weight: 800;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  box-shadow: 0 7px 18px rgba(42,20,13,.18), inset 0 1px rgba(255,255,255,.1);
+}
+
+.admin-live-dot {
+  position: relative;
+  width: .45rem;
+  height: .45rem;
+  border-radius: 50%;
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74,222,128,.12), 0 0 12px rgba(74,222,128,.65);
+}
+.admin-live-dot::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 1px solid rgba(74,222,128,.48);
+  border-radius: inherit;
+  animation: admin-live-ping 2.2s ease-out infinite;
+}
+@keyframes admin-live-ping {
+  0% { opacity: .8; transform: scale(.55); }
+  75%, 100% { opacity: 0; transform: scale(1.7); }
+}
+
+.admin-page-heading {
+  position: relative;
+  padding: .25rem 0 1.25rem 1rem;
+}
+.admin-page-heading::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: .3rem;
+  bottom: 1.25rem;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(#f5c822, #a83d12);
+  box-shadow: 0 0 13px rgba(245,200,34,.28);
+}
+
+.admin-overview-lead,
+.admin-overview-secondary { position: relative; }
+
+.admin-overview-lead::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -1rem;
+  border-radius: 2.25rem;
+  background: radial-gradient(circle at 23% 18%, rgba(245,200,34,.08), transparent 38%);
+}
+
+.admin-hero-card {
+  border: 1px solid rgba(245,200,34,.22);
+  min-height: 25rem;
+}
+.admin-hero-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .32;
+  background: repeating-linear-gradient(0deg, transparent 0 8px, rgba(255,255,255,.055) 8px 9px);
+}
+
+.admin-overview-stats {
+  position: relative;
+  overflow: hidden;
+}
+.admin-overview-stats::before,
+.admin-overview-panel::before {
+  content: "";
+  position: absolute;
+  right: -3rem;
+  top: -4rem;
+  width: 10rem;
+  height: 10rem;
+  border: 1px solid rgba(196,128,12,.11);
+  border-radius: 50%;
+  box-shadow: 0 0 0 24px rgba(245,200,34,.025);
+  pointer-events: none;
+}
+
+.admin-overview-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.admin-reading-rank {
+  border-radius: .8rem;
+  padding: .55rem .65rem;
+  transition: background-color .2s ease, transform .2s ease;
+}
+.admin-reading-rank:hover {
+  background: rgba(245,200,34,.075);
+  transform: translateX(3px);
+}
+
+.admin-shelving-row {
+  background: rgba(255,253,249,.56);
+  box-shadow: inset 0 1px rgba(255,255,255,.75);
+}
+.admin-shelving-row:hover {
+  background: rgba(255,247,229,.9);
+  box-shadow: 0 10px 24px rgba(49,24,13,.08), inset 0 1px rgba(255,255,255,.85);
+  transform: translateY(-2px);
+}
+
+@media (max-width: 639px) {
+  .admin-topbar { min-height: 4rem; height: 4rem; padding-inline: .75rem; }
+  .admin-command-strip { padding-left: .45rem; }
+  .admin-live-status { padding: .43rem .58rem; font-size: .54rem; }
+  .admin-page-heading { padding-left: .75rem; }
+  .admin-hero-card { min-height: 20rem; }
+  .admin-reading-rank { grid-template-columns: 18px minmax(0,1fr) 64px 24px; gap: .5rem; padding-inline: .2rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-atmosphere::before,
+  .admin-atmosphere-glow,
+  .admin-atmosphere-orbit,
+  .admin-atmosphere-sweep,
+  .admin-atmosphere-star,
+  .admin-live-dot::after { animation: none; }
+}

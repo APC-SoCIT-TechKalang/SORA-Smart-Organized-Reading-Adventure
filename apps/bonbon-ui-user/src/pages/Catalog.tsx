@@ -107,12 +107,12 @@ function TopFiveShowcase({ books, onSelect }: { books: Volume[]; onSelect: (book
   const [featured, ...supporting] = books;
   const featuredGenre = splitGenres(featured.genre)[0] || 'Library favorite';
 
-  return <section aria-labelledby="best-picks-title" className="relative overflow-hidden rounded-[30px] border border-umber/80 bg-umber p-3 text-cream shadow-[0_28px_70px_rgba(61,36,19,.25)] sm:p-5">
+  return <section aria-labelledby="best-picks-title" className="top-five-showcase relative overflow-hidden rounded-[30px] border border-umber/80 bg-umber p-3 text-cream shadow-[0_28px_70px_rgba(61,36,19,.25)] sm:p-5">
     <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full border border-sun/10" />
     <div aria-hidden="true" className="pointer-events-none absolute -right-8 -top-16 h-52 w-52 rounded-full border border-sun/10" />
 
-    <header className="relative flex flex-col gap-4 px-2 pb-5 pt-2 sm:flex-row sm:items-end sm:justify-between sm:px-3 sm:pb-6">
-      <div>
+    <header className="top-five-header relative flex flex-col gap-4 px-2 pb-5 pt-2 sm:flex-row sm:items-end sm:justify-between sm:px-3 sm:pb-6">
+      <div className="min-w-0">
         <p className="flex items-center gap-2 text-[10px] font-900 uppercase tracking-[.2em] text-sun sm:text-xs"><SparklesIcon className="h-4 w-4" /> Handpicked from the Bonbon collection</p>
         <h2 id="best-picks-title" className="mt-2 font-display text-3xl font-900 leading-none sm:text-4xl">The Bonbon Essential Five</h2>
         <p className="mt-3 max-w-2xl text-xs leading-5 text-cream/60 sm:text-sm">Five standout stories selected from reader ratings, collection quality, and books you can discover in the library today.</p>
@@ -120,13 +120,13 @@ function TopFiveShowcase({ books, onSelect }: { books: Volume[]; onSelect: (book
       <span className="inline-flex w-fit shrink-0 items-center gap-2 rounded-full border border-sun/25 bg-sun/10 px-3 py-2 text-[9px] font-900 uppercase tracking-[.16em] text-sun sm:text-[10px]"><CrownIcon className="h-3.5 w-3.5" /> Bonbon Top {books.length}</span>
     </header>
 
-    <div className="relative grid gap-3 lg:grid-cols-[1.12fr_.88fr]">
-      <button type="button" onClick={() => onSelect(featured)} className="group relative min-h-[300px] overflow-hidden rounded-[24px] border border-sun/30 bg-[linear-gradient(135deg,#9f3518_0%,#6e3e21_52%,#4a2e1c_100%)] p-5 text-left shadow-[0_22px_55px_rgba(22,11,5,.34)] transition duration-300 hover:-translate-y-1 hover:border-sun/60 hover:shadow-[0_28px_65px_rgba(22,11,5,.42)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sun sm:min-h-[360px] sm:p-7">
+    <div className="top-five-layout relative grid gap-3">
+      <button type="button" onClick={() => onSelect(featured)} className="top-five-featured group relative min-h-[300px] min-w-0 overflow-hidden rounded-[24px] border border-sun/30 bg-[linear-gradient(135deg,#9f3518_0%,#6e3e21_52%,#4a2e1c_100%)] p-5 text-left shadow-[0_22px_55px_rgba(22,11,5,.34)] transition duration-300 hover:-translate-y-1 hover:border-sun/60 hover:shadow-[0_28px_65px_rgba(22,11,5,.42)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sun sm:min-h-[360px] sm:p-7">
         {featured.coverImage && <img src={featured.coverImage} alt="" aria-hidden="true" className="absolute -right-12 -top-16 h-[130%] w-2/3 rotate-6 object-cover opacity-[.11] blur-2xl transition duration-700 group-hover:scale-110" />}
         <div aria-hidden="true" className="absolute -bottom-28 -right-20 h-72 w-72 rounded-full border border-sun/15" />
         <span className="absolute right-5 top-3 font-display text-[5.5rem] font-900 leading-none text-cream/[.055] sm:right-7 sm:text-[8rem]">01</span>
 
-        <div className="relative grid h-full grid-cols-[105px_minmax(0,1fr)] items-center gap-5 sm:grid-cols-[175px_minmax(0,1fr)] sm:gap-8">
+        <div className="top-five-featured-grid relative grid h-full grid-cols-[105px_minmax(0,1fr)] items-center gap-5 sm:grid-cols-[175px_minmax(0,1fr)] sm:gap-8">
           <div className="relative">
             <span className="absolute -left-2 -top-2 z-10 grid h-9 w-9 place-items-center rounded-full border-2 border-umber bg-sun text-umber shadow-lg"><CrownIcon className="h-4 w-4 fill-current" /></span>
             <DiscoveryCover volume={featured} />
@@ -142,10 +142,10 @@ function TopFiveShowcase({ books, onSelect }: { books: Volume[]; onSelect: (book
         </div>
       </button>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-        {supporting.map((book, index) => <button key={book.id} type="button" onClick={() => onSelect(book)} className="group relative min-h-[158px] overflow-hidden rounded-[20px] border border-gold/25 bg-[#fffaf0] p-3 text-left text-umber shadow-[0_12px_30px_rgba(27,14,6,.13)] transition duration-300 hover:-translate-y-1 hover:border-sun/70 hover:shadow-[0_18px_38px_rgba(27,14,6,.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-sun sm:p-4">
+      <div className="top-five-support-grid grid min-w-0 gap-3">
+        {supporting.map((book, index) => <button key={book.id} type="button" onClick={() => onSelect(book)} className="top-five-support-card group relative min-h-[158px] min-w-0 overflow-hidden rounded-[20px] border border-gold/25 bg-[#fffaf0] p-3 text-left text-umber shadow-[0_12px_30px_rgba(27,14,6,.13)] transition duration-300 hover:-translate-y-1 hover:border-sun/70 hover:shadow-[0_18px_38px_rgba(27,14,6,.2)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-sun sm:p-4">
           <span aria-hidden="true" className="absolute -right-1 -top-4 font-display text-[5.5rem] font-900 leading-none text-umber/[.045]">0{index + 2}</span>
-          <div className="relative grid h-full grid-cols-[82px_minmax(0,1fr)] items-center gap-3">
+          <div className="top-five-support-inner relative grid h-full grid-cols-[82px_minmax(0,1fr)] items-center gap-3">
             <DiscoveryCover volume={book} compact />
             <div className="min-w-0 py-1">
               <span className="text-[9px] font-900 uppercase tracking-[.17em] text-rust">Essential pick #{index + 2}</span>
