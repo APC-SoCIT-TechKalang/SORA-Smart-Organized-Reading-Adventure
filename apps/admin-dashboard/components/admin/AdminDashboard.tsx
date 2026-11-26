@@ -164,12 +164,6 @@ export function AdminDashboard() {
       : "Walk-in visitor";
   };
   const active = data.visits.filter((visit) => visit.status === "ACTIVE");
-  const rows = data.books.filter((book) =>
-    [book.title, book.author, ...book.book_genres.map((genre) => genre.genre)]
-      .join(" ")
-      .toLowerCase()
-      .includes(query.toLowerCase()),
-  );
   const noticeIsError =
     /not found|error|failed|denied|forbidden|violates|unable|invalid/i.test(
       notice,
@@ -181,7 +175,6 @@ export function AdminDashboard() {
       <AnalyticsWorkspace data={data} />
     ) : page === "Catalogue" ? (
       <CatalogueEditor
-        rows={rows}
         data={data}
         query={query}
         setQuery={setQuery}

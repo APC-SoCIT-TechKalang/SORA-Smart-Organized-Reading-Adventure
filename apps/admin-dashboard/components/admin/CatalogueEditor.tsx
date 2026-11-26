@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { BookOpen, Boxes, ChevronDown, ChevronRight, Edit3, MapPin, PackageOpen, Plus, Printer, Search, SlidersHorizontal, X } from "lucide-react";
 import { printBookLabels } from "./BookBarcodeLabels";
 import { InventoryAlerts } from "./InventoryAlerts";
 import { ReturnCartStation } from "./ReturnCartStation";
 import type { Book, Copy, DashboardData } from "./dashboard-data";
+import { groupCatalogue, searchCatalogue, volumeIdentity } from "./catalogue-series";
 
-type Props = { rows: Book[]; data: Pick<DashboardData, "books" | "copies" | "logs">; query: string; setQuery: (value: string) => void; setDrawer: (value: boolean) => void; setBulkDrawer: (value: boolean) => void; setEditingLocation: (book: Book) => void; setEditingCover: (book: Book) => void; shelveCopy: (copyId: number) => Promise<boolean>; refreshData: () => Promise<void> };
+type Props = { data: Pick<DashboardData, "books" | "copies" | "logs">; query: string; setQuery: (value: string) => void; setDrawer: (value: boolean) => void; setBulkDrawer: (value: boolean) => void; setEditingLocation: (book: Book) => void; setEditingCover: (book: Book) => void; shelveCopy: (copyId: number) => Promise<boolean>; refreshData: () => Promise<void> };
 
 export const statusLabel = (status: string) => ({ IN_SHELF: "In Shelf", WITH_READER: "With Reader", RETURN_CART: "Return Cart", "In-Shelf": "In Shelf", "In Return Cart": "Return Cart" })[status] ?? status;
 export const statusStyle = (status: string) => ({ "In Shelf": "border-emerald-200 bg-emerald-50 text-emerald-700", "With Reader": "border-amber-200 bg-amber-50 text-amber-800", "Return Cart": "border-orange-200 bg-orange-50 text-orange-800", Damaged: "border-rose-200 bg-rose-50 text-rose-700", "On Hold": "border-violet-200 bg-violet-50 text-violet-700" })[status] ?? "border-stone-200 bg-stone-50 text-stone-700";
@@ -20,25 +21,163 @@ function GenreDisclosure({ genres }: { genres: string[] }) {
   return <div className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="max-w-full truncate rounded-full border border-[#ead8c5] bg-[#fff8ee] px-2.5 py-1 text-[10px] font-semibold text-[#77563e]" title={genres[0]}>{genres[0]}</span>{genres.length > 1 && <details className="group relative"><summary className="cursor-pointer list-none rounded-full border border-[#dfcdb9] bg-[#f3eadf] px-2.5 py-1 text-[10px] font-bold text-[#7d5d45] transition hover:border-[#c59d71] hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4800c]">+{genres.length - 1}</summary><div className="absolute left-0 top-[calc(100%+.45rem)] z-30 flex w-56 flex-wrap gap-1.5 rounded-xl border border-[#dbc6ad] bg-white p-3 shadow-[0_16px_40px_rgba(64,35,18,.18)]"><p className="w-full text-[9px] font-bold uppercase tracking-[.14em] text-[#9a806b]">More genres</p>{genres.slice(1).map(genre => <span key={genre} className="max-w-full truncate rounded-full border border-[#ead8c5] bg-[#fff8ee] px-2 py-1 text-[10px] text-[#77563e]" title={genre}>{genre}</span>)}</div></details>}</div>;
 }
 
-export function CatalogueEditor({ rows, data, query, setQuery, setDrawer, setBulkDrawer, setEditingCover, setEditingLocation, shelveCopy, refreshData }: Props) {
+function CatalogueCover({ book }: { book: Book }) {
+  const frame = "h-16 w-11 shrink-0 rounded border border-[#e6d8c8]";
+  return book.cover_image_url
+    ? <img src={book.cover_image_url} alt="" loading="lazy" className={`${frame} object-cover shadow-sm`} />
+    : <span className={`${frame} grid place-items-center border-dashed bg-[#faf5ee] text-[#b3977c]`}><BookOpen size={16} aria-hidden="true" /></span>;
+}
+
+function StatusPills({ breakdown }: { breakdown: Iterable<[string, number]> }) {
+  return <span className="mt-2 flex flex-wrap gap-1.5">{Array.from(breakdown, ([label, count]) =>
+    <span key={label} className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${statusStyle(label)}`}>
+      {count.toLocaleString()} {label}
+    </span>
+  )}</span>;
+}
+
+function SeriesVolumes({ id, open, renderVolumes }: { id: string; open: boolean; renderVolumes: () => ReactNode }) {
+  const [retained, setRetained] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setRetained(true);
+      return;
+    }
+    if (!retained) return;
+    const timer = window.setTimeout(() => setRetained(false), 180);
+    return () => window.clearTimeout(timer);
+  }, [open, retained]);
+
+  return <div id={id} inert={!open} aria-hidden={!open} className="catalogue-series-panel" data-open={open}>
+    {(open || retained) && <div className="catalogue-series-clip">
+      <div className="catalogue-volume-list divide-y divide-[#f0e9e1]">{renderVolumes()}</div>
+    </div>}
+  </div>;
+}
+
+export function CatalogueEditor({ data, query, setQuery, setDrawer, setBulkDrawer, setEditingCover, setEditingLocation, shelveCopy, refreshData }: Props) {
   const [copyBook, setCopyBook] = useState<Book | null>(null);
   const [returnCartOpen, setReturnCartOpen] = useState(false);
-  const copiesByBook = useMemo(() => { const grouped = new Map<number, Copy[]>(); data.copies.forEach(copy => grouped.set(copy.book_id, [...(grouped.get(copy.book_id) ?? []), copy])); return grouped; }, [data.copies]);
+  const [activeSeries, setActiveSeries] = useState<string | null>(null);
+  const groups = useMemo(() => groupCatalogue(data.books), [data.books]);
+  const matches = useMemo(() => searchCatalogue(groups, query), [groups, query]);
+  const copiesByBook = useMemo(() => {
+    const grouped = new Map<number, Copy[]>();
+    for (const copy of data.copies) {
+      const copies = grouped.get(copy.book_id);
+      if (copies) copies.push(copy);
+      else grouped.set(copy.book_id, [copy]);
+    }
+    return grouped;
+  }, [data.copies]);
+  const statusByBook = useMemo(() => {
+    const grouped = new Map<number, Map<string, number>>();
+    for (const [bookId, copies] of copiesByBook) {
+      const counts = new Map<string, number>();
+      for (const copy of copies) {
+        const label = statusLabel(copy.status);
+        counts.set(label, (counts.get(label) ?? 0) + 1);
+      }
+      grouped.set(bookId, counts);
+    }
+    return grouped;
+  }, [copiesByBook]);
   const readsByBook = useMemo(() => { const grouped = new Map<number, number>(); data.logs.forEach(log => grouped.set(log.book_id, (grouped.get(log.book_id) ?? 0) + 1)); return grouped; }, [data.logs]);
-  const stats = [["Total titles", data.books.length], ["In shelf", data.copies.filter(copy => statusLabel(copy.status) === "In Shelf").length], ["Needs action", data.copies.filter(copy => statusLabel(copy.status) === "Return Cart").length]] as const;
+  const summaries = useMemo(() => new Map(groups.map(group => {
+    const statuses = new Map<string, number>();
+    let copies = 0;
+    let reads = 0;
+    for (const { book_id } of group.volumes) {
+      copies += copiesByBook.get(book_id)?.length ?? 0;
+      reads += readsByBook.get(book_id) ?? 0;
+      for (const [label, count] of statusByBook.get(book_id) ?? []) {
+        statuses.set(label, (statuses.get(label) ?? 0) + count);
+      }
+    }
+    return [group.id, { statuses, copies, reads }] as const;
+  })), [groups, copiesByBook, readsByBook, statusByBook]);
+  const visibleCounts = useMemo(() => {
+    let volumes = 0;
+    let copies = 0;
+    for (const group of matches) {
+      volumes += group.matchingVolumes.length;
+      for (const book of group.matchingVolumes) copies += copiesByBook.get(book.book_id)?.length ?? 0;
+    }
+    return { volumes, copies };
+  }, [matches, copiesByBook]);
+  const returnCount = data.copies.filter(copy => statusLabel(copy.status) === "Return Cart").length;
+  const stats = [["Unique titles", groups.length], ["Registered volumes", data.books.length], ["Physical copies", data.copies.length]] as const;
+  function renderVolume(book: Book, nested = false) {
+    const copies = copiesByBook.get(book.book_id) ?? [];
+    const number = nested ? volumeIdentity(book).number : null;
+    return <article key={book.book_id} className="catalogue-row grid gap-3 px-4 py-4 transition hover:bg-[#fffbf5] sm:px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <CatalogueCover book={book} />
+        <div className="min-w-0">
+          {number !== null && <span className="block text-[10px] font-bold uppercase tracking-wider text-[#8d6548]">Volume {number}</span>}
+          <b className="block break-words text-[13px] leading-5 text-[#543822]">{book.title}</b>
+          <small className="mt-1 block break-words text-[#8d735e]">{book.author ?? "Unknown author"}</small>
+        </div>
+      </div>
+        <div><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-[.12em] text-[#a98b70] catalogue-field-label">Genre</span><GenreDisclosure genres={genresFor(book)} /></div>
+        <div>{copies.length ? <button type="button" onClick={() => setCopyBook(book)} className="group w-full rounded-xl border border-[#eadfd3] bg-white px-3 py-2.5 text-left transition hover:border-[#cdb18c] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[#c4800c]"><span className="flex min-w-0 items-center gap-2"><Boxes size={16} className="shrink-0 text-[#a83d12]" /><strong className="min-w-0 flex-1 break-words">{copies.length.toLocaleString()} physical {copies.length === 1 ? "copy" : "copies"}</strong><ChevronRight size={15} className="shrink-0 text-[#b3977c]" /></span><StatusPills breakdown={statusByBook.get(book.book_id) ?? []} /></button> : <button type="button" onClick={() => setEditingLocation(book)} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-[#dbcbbd] bg-[#fcf8f3] px-3 py-2.5 text-left text-[#927760]"><PackageOpen size={16} /><span><strong className="block text-[11px]">No physical copies</strong><small className="text-[9px]">Register the first copy</small></span></button>}</div>
+        <div className="flex items-center justify-between catalogue-reads"><span className="text-[9px] font-bold uppercase tracking-[.12em] text-[#a98b70] catalogue-field-label">Reads</span><strong className="inline-grid h-8 min-w-8 place-items-center rounded-full bg-[#f5ede3] px-2 text-xs">{(readsByBook.get(book.book_id) ?? 0).toLocaleString()}</strong></div>
+        <div className="flex justify-end gap-1.5"><button type="button" onClick={() => setEditingLocation(book)} aria-label={`Manage inventory for ${book.title}`} className="grid h-10 w-10 place-items-center rounded-lg border border-[#cdb18c] hover:bg-[#fff5e7]"><SlidersHorizontal size={15} /></button><button type="button" onClick={() => setEditingCover(book)} aria-label={`Edit information for ${book.title}`} className="grid h-10 w-10 place-items-center rounded-lg border border-[#e1c9af] text-[#a83d12] hover:bg-[#fff1df]"><Edit3 size={15} /></button></div>
+    </article>;
+  }
+
   return <>
     <InventoryAlerts />
     <div className="mb-5 grid gap-3 sm:grid-cols-3">{stats.map(([label, value]) => <div key={label} className="admin-kpi rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-4 shadow-sm"><p className="text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]">{label}</p><b className="mt-2 block font-serif text-3xl">{value.toLocaleString()}</b></div>)}</div>
-    <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 shadow-sm focus-within:border-[#c4800c] focus-within:ring-2 focus-within:ring-[#f3d793]/50"><Search size={16} className="text-[#9a806b]" /><span className="sr-only">Search catalogue</span><input value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" placeholder="Search title, author, or genre" /></label><button onClick={() => setBulkDrawer(true)} className="min-h-12 rounded-xl border border-[#a83d12] px-4 py-2.5 text-xs font-bold text-[#a83d12] hover:bg-[#fff6e8]">Bulk Add</button><button onClick={() => setDrawer(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#8f320d]"><Plus size={15} />Add Book</button></div>
-    <section className="overflow-visible rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] shadow-sm"><div className="flex flex-col gap-2 border-b border-[#eee5dc] px-5 py-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-serif text-xl font-semibold">Every volume on record</h2><p className="mt-1 text-xs text-[#8d735e]">{rows.length.toLocaleString()} matching record{rows.length === 1 ? "" : "s"} · One record per volume</p></div><button type="button" onClick={() => { setReturnCartOpen(true); void refreshData(); }} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-lg border border-[#e2ba81] bg-[#fff6e8] px-3 text-xs font-bold text-[#8f3c12] transition hover:border-[#a83d12] hover:bg-[#ffeed4] sm:self-auto"><PackageOpen size={15} aria-hidden="true" />Return cart <span className="rounded-full bg-[#f8dfb7] px-2 py-0.5 text-[10px]">{stats[2][1].toLocaleString()}</span><ChevronRight size={14} aria-hidden="true" /></button></div>
-      <div className="hidden grid-cols-[minmax(240px,1.25fr)_minmax(140px,.75fr)_minmax(250px,1.2fr)_70px_96px] gap-4 border-b border-[#eee5dc] bg-[#fcf8f2] px-5 py-3 text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b] lg:grid"><span>Volume</span><span>Primary genre</span><span>Copies / status</span><span className="text-center">Reads</span><span className="text-right">Actions</span></div>
-      <div className="divide-y divide-[#f0e9e1]">{rows.map(book => { const copies = copiesByBook.get(book.book_id) ?? []; const genres = genresFor(book); const breakdown = Array.from(copies.reduce((counts, copy) => { const label = statusLabel(copy.status); counts.set(label, (counts.get(label) ?? 0) + 1); return counts; }, new Map<string, number>())); return <article key={book.book_id} className="grid gap-4 px-4 py-4 transition hover:bg-[#fffbf5] sm:px-5 lg:grid-cols-[minmax(240px,1.25fr)_minmax(140px,.75fr)_minmax(250px,1.2fr)_70px_96px] lg:items-center">
-        <div className="flex min-w-0 gap-3">{book.cover_image_url ? <img src={book.cover_image_url} alt="" className="h-16 w-11 shrink-0 rounded border border-[#e6d8c8] object-cover shadow-sm" /> : <span className="grid h-16 w-11 shrink-0 place-items-center rounded border border-dashed border-[#d7c5b3] bg-[#faf5ee] text-[#b3977c]"><BookOpen size={16} /></span>}<div className="min-w-0 self-center"><b className="line-clamp-2 text-[13px] leading-5 text-[#543822]">{book.title}</b><small className="mt-1 block truncate text-[#9a806b]">{book.author ?? "Unknown author"}</small></div></div>
-        <div><span className="mb-1.5 block text-[9px] font-bold uppercase tracking-[.12em] text-[#a98b70] lg:hidden">Genre</span><GenreDisclosure genres={genres} /></div>
-        <div>{copies.length ? <button type="button" onClick={() => setCopyBook(book)} className="group w-full rounded-xl border border-[#eadfd3] bg-white px-3 py-2.5 text-left transition hover:border-[#cdb18c] hover:shadow-sm focus-visible:ring-2 focus-visible:ring-[#c4800c]"><span className="flex min-w-0 items-center gap-2"><Boxes size={16} className="shrink-0 text-[#a83d12]" /><strong className="min-w-0 flex-1 truncate">{copies.length.toLocaleString()} physical {copies.length === 1 ? "copy" : "copies"}</strong><ChevronRight size={15} className="shrink-0 text-[#b3977c]" /></span><span className="mt-2 flex flex-wrap gap-1.5">{breakdown.slice(0, 4).map(([label, count]) => <span key={label} className={`rounded-full border px-2 py-0.5 text-[9px] font-bold ${statusStyle(label)}`}>{count.toLocaleString()} {label}</span>)}</span></button> : <button type="button" onClick={() => setEditingLocation(book)} className="flex w-full items-center gap-2 rounded-xl border border-dashed border-[#dbcbbd] bg-[#fcf8f3] px-3 py-2.5 text-left text-[#927760]"><PackageOpen size={16} /><span><strong className="block text-[11px]">No physical copies</strong><small className="text-[9px]">Register the first copy</small></span></button>}</div>
-        <div className="flex items-center justify-between lg:justify-center"><span className="text-[9px] font-bold uppercase tracking-[.12em] text-[#a98b70] lg:hidden">Reads</span><strong className="inline-grid h-8 min-w-8 place-items-center rounded-full bg-[#f5ede3] px-2 text-xs">{(readsByBook.get(book.book_id) ?? 0).toLocaleString()}</strong></div>
-        <div className="flex justify-end gap-1.5"><button type="button" onClick={() => setEditingLocation(book)} aria-label={`Manage inventory for ${book.title}`} className="grid h-10 w-10 place-items-center rounded-lg border border-[#cdb18c] hover:bg-[#fff5e7]"><SlidersHorizontal size={15} /></button><button type="button" onClick={() => setEditingCover(book)} aria-label={`Edit information for ${book.title}`} className="grid h-10 w-10 place-items-center rounded-lg border border-[#e1c9af] text-[#a83d12] hover:bg-[#fff1df]"><Edit3 size={15} /></button></div>
-      </article>; })}</div>{!rows.length && <div className="grid min-h-56 place-items-center p-10 text-center"><div><Search className="mx-auto text-[#c8ad92]" /><h3 className="mt-3 font-serif text-lg font-semibold">No matching volumes</h3></div></div>}
+    <div className="mb-5 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><label className="flex min-h-12 items-center gap-2 rounded-xl border border-[#e2d5c8] bg-white px-3 shadow-sm focus-within:border-[#c4800c] focus-within:ring-2 focus-within:ring-[#f3d793]/50"><Search size={16} className="text-[#9a806b]" /><span className="sr-only">Search catalogue</span><input value={query} onChange={event => setQuery(event.target.value)} className="min-w-0 flex-1 bg-transparent py-3 text-sm outline-none" placeholder="Search series, volume, author, or genre" /></label><button onClick={() => setBulkDrawer(true)} className="min-h-12 rounded-xl border border-[#a83d12] px-4 py-2.5 text-xs font-bold text-[#a83d12] hover:bg-[#fff6e8]">Bulk Add</button><button onClick={() => setDrawer(true)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-4 py-2.5 text-xs font-bold text-white hover:bg-[#8f320d]"><Plus size={15} />Add Book</button></div>
+    <section className="catalogue-records overflow-visible rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] shadow-sm"><div className="flex flex-col gap-2 border-b border-[#eee5dc] px-5 py-4 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-serif text-xl font-semibold">Catalog by title and series</h2><p className="mt-1 text-xs text-[#8d735e]">{matches.length.toLocaleString()} {query.trim() ? "matching" : "unique"} titles · {visibleCounts.volumes.toLocaleString()} volumes · {visibleCounts.copies.toLocaleString()} physical copies</p></div><button type="button" onClick={() => { setReturnCartOpen(true); void refreshData(); }} className="inline-flex min-h-10 items-center justify-center gap-2 self-start rounded-lg border border-[#e2ba81] bg-[#fff6e8] px-3 text-xs font-bold text-[#8f3c12] transition hover:border-[#a83d12] hover:bg-[#ffeed4] sm:self-auto"><PackageOpen size={15} aria-hidden="true" />Return cart <span className="rounded-full bg-[#f8dfb7] px-2 py-0.5 text-[10px]">{returnCount.toLocaleString()}</span><ChevronRight size={14} aria-hidden="true" /></button></div>
+      <div className="catalogue-row catalogue-column-head gap-4 border-b border-[#eee5dc] bg-[#fcf8f2] px-5 py-3 text-[10px] font-bold uppercase tracking-[.12em] text-[#9a806b]"><span>Title / series</span><span>Primary genre</span><span>Copies / status</span><span className="text-center">Reads</span><span className="text-right">Actions</span></div>
+      <div className="divide-y divide-[#f0e9e1]">
+        {matches.map(group => {
+          if (group.volumes.length === 1) return renderVolume(group.volumes[0]);
+          const first = group.volumes[0];
+          const cover = group.volumes.find(book => book.cover_image_url) ?? first;
+          const primaryGenre = genresFor(first).find(genre => !/^(series|franchise):/i.test(genre));
+          const summary = summaries.get(group.id)!;
+          const open = activeSeries === group.id;
+          const panelId = `catalogue-series-${first.book_id}`;
+          return <div key={group.id}>
+            <button type="button" aria-expanded={open} aria-controls={panelId}
+              onClick={() => setActiveSeries(current => current === group.id ? null : group.id)}
+              className="catalogue-row catalogue-series-row grid w-full gap-3 px-4 py-4 text-left sm:px-5">
+              <span className="flex min-w-0 items-center gap-3">
+                <CatalogueCover book={cover} />
+                <span className="min-w-0">
+                  <strong className="block break-words font-serif text-lg leading-tight text-[#543822]">{group.title}</strong>
+                  <small className="mt-1 block break-words text-[#8d735e]">{first.author ?? "Unknown author"}</small>
+                  <span className="mt-1 block text-xs font-semibold text-[#8d6548]">
+                    {group.volumes.length.toLocaleString()} volumes
+                    {group.matchingVolumes.length < group.volumes.length && ` · ${group.matchingVolumes.length.toLocaleString()} matching`}
+                  </span>
+                </span>
+              </span>
+              <span className="min-w-0">
+                <span className="catalogue-field-label mb-1 block text-[9px] font-bold uppercase tracking-wider text-[#8d735e]">Genre</span>
+                {primaryGenre ? <span className="inline-block max-w-full break-words rounded-full border border-[#ead8c5] bg-[#fff8ee] px-2.5 py-1 text-[10px] font-semibold text-[#77563e]">{primaryGenre}</span> : <span className="text-xs text-[#8d735e]">No genre assigned</span>}
+              </span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-2 text-xs font-bold"><Boxes size={16} className="shrink-0 text-[#a83d12]" aria-hidden="true" />{summary.copies.toLocaleString()} physical {summary.copies === 1 ? "copy" : "copies"}</span>
+                <StatusPills breakdown={summary.statuses} />
+              </span>
+              <span className="catalogue-reads flex items-center justify-between">
+                <span className="catalogue-field-label text-[9px] font-bold uppercase tracking-wider text-[#8d735e]">Reads</span>
+                <strong className="inline-grid h-8 min-w-8 place-items-center rounded-full bg-[#f5ede3] px-2 text-xs">{summary.reads.toLocaleString()}</strong>
+              </span>
+              <span className="catalogue-series-chevron grid h-10 w-10 place-items-center self-center justify-self-end rounded-lg border border-[#dfcbb3] bg-[#fff8ee] text-[#8f3c12]">
+                <ChevronDown size={17} aria-hidden="true" />
+              </span>
+            </button>
+            <SeriesVolumes id={panelId} open={open} renderVolumes={() => group.matchingVolumes.map(book => renderVolume(book, true))} />
+          </div>;
+        })}
+      </div>
+      {!matches.length && <div className="grid min-h-56 place-items-center p-6 text-center"><div><Search className="mx-auto text-[#c8ad92]" aria-hidden="true" /><h3 className="mt-3 font-serif text-lg font-semibold">No matching titles or volumes</h3></div></div>}
     </section>{copyBook && <CopyDrawer book={copyBook} copies={copiesByBook.get(copyBook.book_id) ?? []} close={() => setCopyBook(null)} manage={() => { setCopyBook(null); setEditingLocation(copyBook); }} />}{returnCartOpen && <ReturnCartStation books={data.books} copies={data.copies} onShelve={shelveCopy} refresh={refreshData} close={() => setReturnCartOpen(false)} />}
   </>;
 }
