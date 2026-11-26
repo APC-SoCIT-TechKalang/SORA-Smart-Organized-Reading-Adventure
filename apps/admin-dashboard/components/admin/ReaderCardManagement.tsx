@@ -118,15 +118,14 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
     });
   }, [printing, reader, linkedUid, data.libraryCards, fullName, run]);
 
-  const openPrint = (id: string) => {
+  const openPrint = async (id: string) => {
     const selected = readers.find(item => item.user_id === id);
     if (!selected) return;
     setError("");
     setPrintOpened(false);
     const card = data.libraryCards.find(item => item.user_id === id && item.is_active && !item.deactivated_at);
-    const member = data.memberAccounts.find(item => item.user_id === id && item.status === "ACTIVE");
     try {
-      printReaderCard({ readerName: `${selected.first_name} ${selected.last_name}`.trim(), readerId: id, membership: member?.membership_label ?? "Awaiting membership activation", cardUid: card?.librarycard_rfid ?? null });
+      await printReaderCard({ readerName: `${selected.first_name} ${selected.last_name}`.trim(), cardUid: card?.librarycard_rfid ?? null });
       setPrintOpened(true);
     } catch (cause) { setError(errorMessage(cause)); }
   };
@@ -145,7 +144,7 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
         <select autoFocus value={reader ? readerId : ""} disabled={saving || !readerOptions.length} onChange={event => {
           const id = event.target.value;
           setReaderId(id); setLinkedUid(""); setError(""); setPrintOpened(false);
-          if (printing && id) openPrint(id);
+          if (printing && id) void openPrint(id);
           else if (id) scannerTarget.current?.focus();
         }} className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal normal-case">
           <option value="">Select reader</option>
@@ -157,7 +156,7 @@ function ReaderCardActionDialog({ action, data, run, close }: Props & { action: 
       {printing ? <>
         <div className="rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-4 text-xs leading-5 text-[#795a42]">Card size: 85.6 × 53.98 mm. Choose your card printer, use actual size (100%), and turn off headers and footers in the print dialog.</div>
         {printOpened && <p role="status" className="text-sm text-emerald-800">Print dialog opened for {fullName}.</p>}
-        {readerId && <button type="button" onClick={() => openPrint(readerId)} className={primaryButton}><Printer size={16} aria-hidden="true" />Print again</button>}
+        {readerId && <button type="button" onClick={() => void openPrint(readerId)} className={primaryButton}><Printer size={16} aria-hidden="true" />Print again</button>}
       </> : <>
         {(readerOptions.length > 0 || linkedUid || saving) && <div ref={scannerTarget} tabIndex={-1} role="status" aria-live="polite" className={`rounded-xl border p-5 text-center outline-none ${linkedUid ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-[#dfc9ad] bg-[#faf6ef]"}`}>
           {linkedUid ? <CheckCircle2 className="mx-auto" size={30} aria-hidden="true" /> : saving ? <LoaderCircle className="mx-auto animate-spin" size={30} aria-hidden="true" /> : <Nfc className="mx-auto text-[#a83d12]" size={30} aria-hidden="true" />}

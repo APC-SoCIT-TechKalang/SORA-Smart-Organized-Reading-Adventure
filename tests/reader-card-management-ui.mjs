@@ -142,7 +142,12 @@ try {
   const popup = await popupEvent;
   await popup.getByRole('heading', { name: 'Jared Christian Gatchalian' }).waitFor();
   assert.equal(await page.evaluate(() => window.__printCalls), 1);
-  assert.ok((await popup.locator('body').innerText()).includes('RFID UID: 0011223344'));
+  const printText = await popup.locator('body').innerText();
+  assert.ok(printText.includes('RFID UID: 0011223344'));
+  assert.equal(printText.includes('Reader ID:'), false);
+  assert.equal(printText.includes('Wanderer'), false);
+  assert.equal(await popup.locator('.card').count(), 2);
+  assert.equal(await popup.getByAltText('Kiosk login QR code').count(), 1);
   assert.equal(await popup.getByRole('button', { name: 'Activate reader' }).count(), 0);
   await popup.emulateMedia({ media: 'print' });
   const bounds = await popup.locator('.card').boundingBox();
