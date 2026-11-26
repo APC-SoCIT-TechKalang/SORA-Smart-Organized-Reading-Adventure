@@ -1,15 +1,15 @@
-import { ArrowRightIcon, BookOpenIcon, CalendarDaysIcon, CheckCircle2Icon, Clock3Icon, HistoryIcon, SparklesIcon } from 'lucide-react';
+import { ArrowRightIcon, BookOpenIcon, CalendarDaysIcon, CheckCircle2Icon, Clock3Icon, HistoryIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useGame, type ReadingLog } from '../contexts/GameContext';
 import { GuestPrompt } from '../components/GuestPrompt';
-import { SectionHeading } from '../components/OrnatePanel';
+import { ReaderPageHeading } from '../components/ReaderPageHeading';
 import { usesReplacementSchema } from '../lib/replacement-library';
 import { ReturnBookPrompt } from '../components/ReturnBookPrompt';
 
 export function Shelf() {
   const { session, profile, logs, volumeById, giveBack, busy, setSection } = useGame();
   const [returning, setReturning] = useState<ReadingLog | null>(null);
-  if (!session) return <div className="space-y-6"><SectionHeading title="My shelf" meta="Reading activity" /><GuestPrompt title="Keep your reading adventure together" detail="Sign in to view active reading sessions, your history, membership details, and earned library points." /></div>;
+  if (!session) return <div className="space-y-6"><ReaderPageHeading kind="shelf" title="My shelf" /><GuestPrompt title="Keep your reading adventure together" detail="Sign in to view active reading sessions, your history, membership details, and earned library points." /></div>;
 
   const active = logs.filter((log) => !log.returned_at);
   const history = logs.filter((log) => log.returned_at).slice().reverse();
@@ -17,22 +17,12 @@ export function Shelf() {
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      <SectionHeading title="My shelf" meta="In-library reading" />
-      <section className="relative overflow-hidden rounded-[26px] border border-[#76502f] bg-[linear-gradient(135deg,#543822,#754821)] p-5 text-cream shadow-[0_20px_50px_rgba(84,56,34,.2)] sm:p-7">
-        <div aria-hidden="true" className="absolute -right-20 -top-28 h-72 w-72 rounded-full border border-sun/15" />
-        <div aria-hidden="true" className="absolute -bottom-36 right-24 h-64 w-64 rounded-full border border-sand/10" />
-        <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
-          <div className="max-w-2xl">
-            <p className="flex items-center gap-2 text-[10px] font-900 uppercase tracking-[.2em] text-sun"><SparklesIcon className="h-4 w-4" /> Your reading space</p>
-            <h1 className="mt-3 font-display text-3xl font-900 leading-tight text-white sm:text-4xl">Welcome back, {displayName}.</h1>
-            <p className="mt-3 max-w-xl text-sm leading-6 text-sand/70">Track your current books and revisit your reading history.</p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 sm:gap-3">
-            <ShelfMetric value={active.length} label="Reading now" icon={<BookOpenIcon />} />
-            <ShelfMetric value={history.length} label="Books returned" icon={<CheckCircle2Icon />} />
-          </div>
+      <ReaderPageHeading kind="shelf" title="My shelf" detail={`${displayName}’s current reads and library history`}>
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <ShelfMetric value={active.length} label="Reading now" icon={<BookOpenIcon />} />
+          <ShelfMetric value={history.length} label="Books returned" icon={<CheckCircle2Icon />} />
         </div>
-      </section>
+      </ReaderPageHeading>
 
       <div className="space-y-6 sm:space-y-8">
           <section aria-labelledby="active-reading-title">
@@ -41,7 +31,7 @@ export function Shelf() {
               <span className="rounded-full border border-gold/25 bg-cream/70 px-3 py-1.5 text-[10px] font-900 uppercase tracking-[.12em] text-gold">{usesReplacementSchema ? `${active.length} of 3 books` : `${active.length} in progress`}</span>
             </div>
             {active.length === 0 ? (
-              <div className="rounded-2xl border border-dashed border-gold/35 bg-cream/65 px-6 py-12 text-center shadow-[0_12px_32px_rgba(84,56,34,.06)]">
+              <div className="reader-shelf-empty rounded-2xl px-5 py-9 text-center sm:py-12">
                 <span className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-parch/40"><BookOpenIcon aria-hidden="true" className="h-6 w-6 text-gold" /></span>
                 <h3 className="mt-4 font-display text-xl font-800 text-umber">Your shelf is ready for a story</h3>
                 <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-umber/60">Explore the catalog and find your next book to read in the library.</p>
@@ -77,11 +67,11 @@ export function Shelf() {
 
           <section aria-labelledby="reading-history-title">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><HistoryIcon aria-hidden="true" className="h-5 w-5 text-gold" /><h2 id="reading-history-title" className="font-display text-xl font-900 text-umber">Reading history</h2></div>{history.length > 0 && <span className="text-xs font-700 text-umber/50">Most recent first</span>}</div>
-            <div className="overflow-hidden rounded-2xl border border-gold/25 bg-cream/75 shadow-[0_12px_30px_rgba(84,56,34,.07)]">
+            <div className="reader-shelf-history overflow-hidden rounded-2xl border border-gold/25 bg-cream/75 shadow-[0_12px_30px_rgba(84,56,34,.07)]">
               {history.length ? <div className="divide-y divide-gold/15">{history.map((log) => {
                 const volume = volumeById(String(log.book_id));
                 return <div key={log.reading_log_id} className="flex items-center gap-4 p-4 transition hover:bg-parch/20 sm:px-5">
-                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-gold/20 bg-parch/25"><CheckCircle2Icon className="h-4 w-4 text-gold" /></span>
+                  {volume?.coverImage ? <img src={volume.coverImage} alt="" loading="lazy" onError={event => { event.currentTarget.src = '/book-placeholder.svg'; }} className="h-12 w-8 shrink-0 rounded border border-gold/25 object-cover" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-gold/20 bg-parch/25"><CheckCircle2Icon className="h-4 w-4 text-gold" /></span>}
                   <div className="min-w-0 flex-1"><h3 className="truncate font-display text-sm font-800 text-umber sm:text-base">{volume?.title ?? `Book #${log.book_id}`}</h3><p className="mt-1 flex items-center gap-1.5 text-[10px] font-700 text-umber/50"><CalendarDaysIcon className="h-3.5 w-3.5" /> Completed {formatDate(log.returned_at ?? '')}</p></div>
                   <span className="shrink-0 rounded-full bg-parch/35 px-3 py-1.5 text-[10px] font-900 text-rust">{log.total_reading_minutes ?? 0} min</span>
                 </div>;
@@ -99,7 +89,7 @@ export function Shelf() {
 }
 
 function ShelfMetric({ value, label, icon }: { value: number; label: string; icon: ReactNode }) {
-  return <div className="min-w-[112px] rounded-xl border border-sand/15 bg-white/[.06] px-4 py-3 backdrop-blur"><div className="flex items-center gap-2 text-sun [&_svg]:h-4 [&_svg]:w-4">{icon}<strong className="font-display text-2xl text-white">{value}</strong></div><p className="mt-1 text-[9px] font-800 uppercase tracking-[.14em] text-sand/60">{label}</p></div>;
+  return <div className="rounded-xl border border-sand/25 bg-black/15 px-3 py-2.5 sm:px-4"><div className="flex items-center gap-2 text-sun [&_svg]:h-4 [&_svg]:w-4">{icon}<strong className="font-display text-2xl tabular-nums text-white">{value}</strong></div><p className="mt-1 text-[10px] font-800 uppercase tracking-[.07em] text-sand">{label}</p></div>;
 }
 
 function formatDate(value: string) {

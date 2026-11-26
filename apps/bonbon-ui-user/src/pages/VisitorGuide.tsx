@@ -1,5 +1,5 @@
 import { ArmchairIcon, InfoIcon } from 'lucide-react';
-import { SectionHeading } from '../components/OrnatePanel';
+import { ReaderPageHeading } from '../components/ReaderPageHeading';
 import { KioskReading } from '../components/KioskReading';
 import { GuestPrompt } from '../components/GuestPrompt';
 import { useGame } from '../contexts/GameContext';
@@ -13,17 +13,17 @@ const SEATS = Array.from({ length: 20 }, (_, index) => ({
 export function VisitorGuide() {
   const { session, profile } = useGame();
   if (usesReplacementSchema) return <div className="space-y-6">
-    <SectionHeading title="Reading hall seats" meta="In-library reading" />
+    <ReaderPageHeading kind="seats" title="Reading hall seats" detail="Find your spot for your next chapter." />
     {!session ? <GuestPrompt title="Sign in to choose a seat" detail="Sign in at the kiosk to view seat availability and scan a book to start reading." />
       : profile ? <KioskReading /> : <p role="status">Loading your library account...</p>}
   </div>;
   const available = SEATS.filter((seat) => !seat.taken).length;
   return (
     <div className="space-y-6">
-      <SectionHeading title="Reading hall seats" meta={`${available} seats open`} />
-      <section className="tb-surface tb-cut-lg p-5 sm:p-7">
+      <ReaderPageHeading kind="seats" title="Reading hall seats" detail={`${available} open seats in the preview`} />
+      <section className="reader-seat-preview tb-surface rounded-2xl p-5 sm:p-7">
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="max-w-2xl"><p className="tb-eyebrow">Quiet reading hall</p><h1 className="mt-2 font-display text-2xl font-900 text-umber sm:text-3xl">Find a comfortable reading spot</h1><p className="mt-3 text-sm font-600 leading-6 text-umber/65">Preview the 20-seat Tankobonbon reading hall before you arrive. Live occupancy will appear here when the RFID system is connected.</p></div>
+          <div className="max-w-2xl"><h2 className="font-display text-2xl font-900 text-umber sm:text-3xl">Explore the floor plan</h2><p className="mt-2 text-sm font-600 leading-6 text-umber/75">Preview the 20-seat Tankobonbon reading hall before you arrive.</p></div>
           <span className="rounded-full border border-gold/35 bg-parch/25 px-3 py-2 text-[10px] font-800 uppercase tracking-[.12em] text-rust">Demo preview</span>
         </div>
 

@@ -61,7 +61,6 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
         >
           <div className="sticky top-0 z-20 flex items-start justify-between border-b border-gold/40 bg-umber px-4 py-4 text-cream sm:px-6 sm:py-5">
             <div>
-              <p className="font-body text-[10px] font-800 uppercase tracking-[.28em] text-sun">Your reading adventure</p>
               <h2 id="reading-stats-title" className="mt-1 font-display text-2xl font-900 uppercase tracking-[.06em]">My reading journal</h2>
               <p className="mt-1 text-xs text-sand/70">See where your library visits have taken you.</p>
             </div>
@@ -77,11 +76,6 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
           ) : (
             <div className="space-y-5 p-4 sm:p-6">
               <header className="flex flex-wrap items-end justify-between gap-4">
-                <div>
-                  <p className="tb-eyebrow">Your reading adventure</p>
-                  <h3 className="mt-2 font-display text-2xl font-900 sm:text-3xl">A little time, a new world</h3>
-                  <p className="mt-2 text-sm leading-6 text-umber/65">Your completed library sessions, explored titles, and active reading days.</p>
-                </div>
                 <label className="flex flex-col gap-2 text-xs font-800 uppercase tracking-wider">Time period
                   <select className="tb-input min-h-11 rounded-lg px-3 py-2 text-sm normal-case tracking-normal" value={period} onChange={event => setPeriod(event.target.value as StatsPeriod)}>
                     <option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option>

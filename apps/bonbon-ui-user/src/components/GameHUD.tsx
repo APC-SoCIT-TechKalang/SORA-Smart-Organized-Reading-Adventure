@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, SparklesIcon, UserRoundIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
 import { ReadingStatsDialog } from './ReadingStatsDialog';
 import { MyProfileDialog } from './MyProfileDialog';
 
-export function GameHUD() {
+export function GameHUD({ ambientMotion, onToggleMotion }: { ambientMotion: boolean; onToggleMotion: () => void }) {
   const [mode, setMode] = useState<'login' | null>(null);
   const [accountOpen, setAccountOpen] = useState(false);
   const [manageAccountOpen, setManageAccountOpen] = useState(false);
@@ -41,8 +41,8 @@ export function GameHUD() {
       <header className="tb-hud sticky top-0 z-40 border-b border-gold/35 bg-cream/90 shadow-[0_8px_30px_rgba(84,56,34,.07)] backdrop-blur-xl">
         <div className="mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5 min-[390px]:gap-3 min-[390px]:px-4 sm:px-6 sm:py-3">
           <button type="button" onClick={() => setSection('archive')} className="group flex min-w-0 items-center gap-2 text-left text-umber sm:gap-3">
-            <span className="tb-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 bg-parch/25 transition group-hover:bg-parch/50 sm:h-11 sm:w-11">
-              <BookOpenIcon aria-hidden="true" className="h-5 w-5 text-rust" />
+            <span className="reader-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 sm:h-11 sm:w-11">
+              <BookOpenIcon aria-hidden="true" className="h-5 w-5" />
             </span>
             <span className="min-w-0 font-display font-900 uppercase leading-none tracking-[0.04em] sm:tracking-[0.07em]">
               <span className="block truncate text-[15px] min-[390px]:text-lg sm:text-2xl lg:text-[28px]">Tankobonbon</span>
@@ -50,10 +50,13 @@ export function GameHUD() {
             </span>
           </button>
 
-          <div className="min-w-0 justify-self-end">
+          <div className="flex min-w-0 items-center gap-1.5 justify-self-end sm:gap-2">
+            <button type="button" className="reader-motion-toggle" aria-label="Ambient motion" aria-pressed={ambientMotion} title={ambientMotion ? 'Pause ambient motion' : 'Resume ambient motion'} onClick={onToggleMotion}>
+              <SparklesIcon aria-hidden="true" size={18} />
+            </button>
             {session ? (
               <div className="relative">
-                <button type="button" aria-expanded={accountOpen} aria-haspopup="menu" onClick={() => setAccountOpen((value) => !value)} className="tb-button-secondary tb-cut-sm min-h-11 px-2.5 py-1.5 text-left">
+                <button type="button" aria-expanded={accountOpen} aria-haspopup="menu" aria-label={`${displayName}’s account`} onClick={() => setAccountOpen((value) => !value)} className="reader-account-button tb-button-secondary min-h-11 px-2.5 py-1.5 text-left">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-umber font-display text-xs font-900 text-sun">{initial}</span>
                   <span className="hidden min-w-0 sm:block">
                     <span className="block max-w-[130px] truncate text-xs font-800 text-umber">{displayName}</span>

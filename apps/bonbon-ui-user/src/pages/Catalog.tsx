@@ -3,6 +3,7 @@ import { ArrowUpRightIcon, BookOpenIcon, ChevronDownIcon, CrownIcon, LayoutGridI
 import { CatalogGrid } from '../components/CatalogGrid';
 import { VolumeDrawer } from '../components/VolumeDrawer';
 import { SectionHeading } from '../components/OrnatePanel';
+import { ReaderPageHeading } from '../components/ReaderPageHeading';
 import { useGame } from '../contexts/GameContext';
 import type { Volume } from '../types/library';
 
@@ -53,12 +54,15 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   }, [genre, query, sort, volumes]);
 
   return (
-    <div className="space-y-6">
+    <div className="reader-catalog space-y-6">
+      <ReaderPageHeading kind="catalog" title="Browse the collection" detail={`${volumes.length} ${volumes.length === 1 ? 'title' : 'titles'} in the library`}>
+        <a href="#full-catalog" onClick={() => setFiltersOpen(true)} className="reader-ghost-button"><SearchIcon aria-hidden="true" /> Search & filter</a>
+      </ReaderPageHeading>
       {bestBooks.length > 0 && <TopFiveShowcase books={bestBooks} onSelect={setSelected} />}
 
       <div id="full-catalog" className="scroll-mt-24"><SectionHeading title="Explore the full collection" meta={`${results.length} of ${volumes.length} titles`} /></div>
 
-      <section aria-label="Catalog controls" className="tb-surface relative overflow-visible rounded-2xl p-4 sm:p-5">
+      <section aria-label="Catalog controls" className="reader-catalog-controls tb-surface relative overflow-visible rounded-2xl p-4 sm:p-5">
         <div className="grid grid-cols-2 items-center gap-3 sm:flex sm:flex-wrap sm:justify-between sm:gap-4">
           <button type="button" onClick={() => setFiltersOpen((value) => !value)} aria-expanded={filtersOpen} className="flex min-h-10 items-center gap-2 rounded-lg px-2 text-xs font-800 uppercase tracking-[.1em] text-umber transition hover:bg-parch/35">
             <SearchIcon aria-hidden="true" className="h-4 w-4 text-gold" /> Search

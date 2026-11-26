@@ -2,6 +2,7 @@ import { ArrowUpRightIcon, BookOpenIcon, ChevronDownIcon, CoinsIcon, GiftIcon, H
 import { useGame } from '../contexts/GameContext';
 import { CommissionCard } from '../components/CommissionCard';
 import { GuestPrompt } from '../components/GuestPrompt';
+import { ReaderAtmosphere } from '../components/ReaderAtmosphere';
 import './quest-board.css';
 
 export function Commissions() {
@@ -15,6 +16,7 @@ export function Commissions() {
 
   return <div className="quest-board">
     <header className="quest-hero" aria-labelledby="quest-board-title">
+      <ReaderAtmosphere />
       <div className="quest-hero-content">
         <p className="quest-kicker text-[#f5cc86]"><SwordsIcon size={17} aria-hidden="true" /> Reading adventures</p>
         <h1 id="quest-board-title" className="quest-display">Quest Board</h1>

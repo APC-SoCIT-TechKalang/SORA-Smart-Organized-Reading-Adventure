@@ -5,6 +5,8 @@ import { useGame } from '../contexts/GameContext';
 import { readingDay, statsTimeZone, type StatsPeriod } from '../lib/reading-stats';
 import { useReadingStats } from '../lib/use-reading-stats';
 import { ReadingStatsData } from '../components/ReadingStatsData';
+import { ReaderPageHeading } from '../components/ReaderPageHeading';
+import '../reader-world.css';
 
 function duration(minutes: number) {
   return minutes < 60 ? `${minutes} min` : `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
@@ -35,21 +37,20 @@ function ActivatedReadingStatsDraft() {
   ];
 
   return (
-    <div className="tb-field min-h-screen px-4 py-6 text-umber sm:px-8 sm:py-10">
+    <div className="reader-world reader-journal tb-field min-h-screen px-4 py-6 text-umber sm:px-8 sm:py-10">
       <main className="mx-auto max-w-6xl space-y-6">
         <a className="inline-flex min-h-11 items-center gap-2 text-sm font-700 underline underline-offset-4" href="/"><ArrowLeftIcon aria-hidden="true" className="h-4 w-4" />Back to library</a>
 
-        <header className="flex flex-wrap items-end justify-between gap-5 py-3">
-          <div><p className="tb-eyebrow">Your reading adventure</p><h1 className="mt-2 font-display text-3xl font-900 sm:text-4xl">My reading journal</h1><p className="mt-3 max-w-xl text-sm leading-6 text-umber/70">A little time, a new world. See where your library visits have taken you.</p></div>
+        <ReaderPageHeading kind="journal" title="My reading journal" detail="Explore the books, genres, and time behind your library visits.">
           <label className="flex flex-col gap-2 text-xs font-800 uppercase tracking-wider">Time period
             <select className="tb-input min-h-11 rounded-lg px-3 py-2 text-sm normal-case tracking-normal" value={period} onChange={event => setPeriod(event.target.value as StatsPeriod)}>
               <option value="30">Last 30 days</option><option value="90">Last 90 days</option><option value="all">All time</option>
             </select>
           </label>
-        </header>
+        </ReaderPageHeading>
 
         <ReadingStatsData>
-          <section aria-label="Personal reading statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <section aria-label="Personal reading statistics" className="reader-journal-stats grid grid-cols-2 gap-3 lg:grid-cols-4">
             {cards.map(({ label, value, icon: Icon, detail }) => <OrnatePanel key={label} className="tb-cut-sm"><div className="p-4 sm:p-5"><Icon aria-hidden="true" className="mb-4 h-5 w-5 text-rust" /><p className="text-xs font-800 text-umber/65">{label}</p><p className="mt-2 break-words font-display text-2xl font-900 sm:text-3xl">{value}</p><p className="mt-2 text-xs leading-5 text-umber/60">{detail}</p></div></OrnatePanel>)}
           </section>
 
