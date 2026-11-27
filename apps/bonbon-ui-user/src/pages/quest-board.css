@@ -316,6 +316,7 @@
 
 @container quest-board (min-width: 42rem) {
   .quest-board-layout { grid-template-columns: minmax(0, 1fr) minmax(15rem, 29%); }
+  .quest-board-layout-single { grid-template-columns: minmax(0, 1fr); }
   .quest-card-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 17rem), 1fr)); }
 }
 

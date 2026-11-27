@@ -1,4 +1,5 @@
-import { BookOpenIcon, ChevronDownIcon, CoinsIcon, GiftIcon, HistoryIcon, ShieldCheckIcon, SparklesIcon, SwordsIcon, TrophyIcon } from 'lucide-react';
+import { useState } from 'react';
+import { BookOpenIcon, ChevronDownIcon, HistoryIcon, ShieldCheckIcon, SparklesIcon, SwordsIcon, TrophyIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { CommissionCard } from '../components/CommissionCard';
 import { GuestPrompt } from '../components/GuestPrompt';
@@ -7,6 +8,7 @@ import { RewardsGallery } from './RewardsGallery';
 import './quest-board.css';
 
 export function Commissions() {
+  const [fullRewards, setFullRewards] = useState(false);
   const { commissions, session, rank, rankPoints, coins, error, loading, questUpdatedAt, nextRank, rewards } = useGame();
   const active = commissions.filter(quest => quest.status === 'IN PROGRESS');
   const history = commissions.filter(quest => quest.status !== 'IN PROGRESS');
@@ -47,7 +49,7 @@ export function Commissions() {
 
     {!session ? <GuestPrompt title="Your quests await" detail="Sign in to see your reader rank, active quests, and rewards." /> : <>
       {error && hasProgress && <p role="status" className="quest-notice">Showing your last saved quest progress. The board will retry automatically.</p>}
-      <div className="quest-board-layout">
+      {!fullRewards && <div className="quest-board-layout quest-board-layout-single">
         <section aria-labelledby="active-quests-title" className="quest-active-panel min-w-0">
           <div className="quest-section-heading">
             <span className="quest-section-icon"><SwordsIcon size={20} aria-hidden="true" /></span>
@@ -63,22 +65,11 @@ export function Commissions() {
           <p className="quest-verification"><ShieldCheckIcon size={17} aria-hidden="true" /> Progress updates when you return the physical copy from a verified reading session.</p>
         </section>
 
-        <aside className="quest-rewards" aria-labelledby="quest-rewards-title">
-          <div className="quest-section-heading">
-            <span className="quest-section-icon"><GiftIcon size={20} aria-hidden="true" /></span>
-            <h2 id="quest-rewards-title">Reward gallery</h2>
-          </div>
-          <div className="quest-wallet">
-            <CoinsIcon size={23} aria-hidden="true" />
-            <div><p>Available points</p><strong>{coins.toLocaleString()}</strong></div>
-          </div>
-          <p className="quest-wallet-note">Your reading points are shown for reference. Browse the gallery below for inspiration.</p>
-        </aside>
-      </div>
+      </div>}
 
-      <RewardsGallery rewards={rewards} points={coins} loading={loading} />
+      <RewardsGallery rewards={rewards} points={coins} loading={loading} onFullViewChange={setFullRewards} />
 
-      {history.length > 0 && <details className="quest-history">
+      {history.length > 0 && <details className="quest-history" hidden={fullRewards}>
         <summary className="quest-section-heading">
           <span className="quest-section-icon"><HistoryIcon size={20} aria-hidden="true" /></span>
           <span className="quest-history-title">Quest history</span><span className="quest-count">{history.length}</span>

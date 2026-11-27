@@ -9,6 +9,19 @@ export interface DisplayReward {
   illustrative: boolean;
 }
 
+// Locally stored, transparent package images from the product manufacturers.
+export const verifiedRewardImages: Record<string, string> = {
+  'nova': '/rewards/nova.png',
+  'milo ready-to-drink': '/rewards/milo-ready-to-drink.png',
+  'samyang buldak original': '/rewards/buldak-original.png',
+};
+
+export const featuredRewardNames = ['Nova', 'Milo Ready-to-Drink', 'Samyang Buldak Original'];
+
+export function rewardImage(name: string, supplied: string | null): string | null {
+  return verifiedRewardImages[rewardIdentity(name)] ?? supplied;
+}
+
 const names: Array<[string, RewardCategory[]]> = [
   ['Nova', ['Snacks', 'Filipino Picks']], ['Oishi Prawn Crackers', ['Snacks', 'Filipino Picks']],
   ['Chippy', ['Snacks', 'Filipino Picks']], ['Piattos', ['Snacks', 'Filipino Picks']],
