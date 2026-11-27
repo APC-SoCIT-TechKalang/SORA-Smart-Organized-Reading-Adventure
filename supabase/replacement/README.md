@@ -57,6 +57,11 @@ database, not a second product version.
     It requires the existing access policies, shelf and condition fields
     (`013`), and edition metadata (`014`). It adds read-only, librarian-gated
     queries and a session lookup index without updating inventory records.
+11. `029_return_cart_timestamps.sql` records when each physical copy enters
+    the return cart for the rolling 24-hour filter. It adds one nullable column
+    to `book_copies`, a trigger, and lookup indexes; it creates no table. If
+    this same SQL was already applied under the earlier `026_return_cart_timestamps.sql`
+    filename, it does not need to be run again.
 
 For an existing database, run `008` during maintenance, then rerun the updated
 `002`, `003`, and `004` files in that order. Take a Supabase backup first. The

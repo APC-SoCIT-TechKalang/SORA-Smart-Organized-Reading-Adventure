@@ -84,15 +84,23 @@ export async function readCatalogueVolumes(groupId: string, page: number, signal
 export async function readReturnCart(signal: AbortSignal) {
   const copies = [];
   const titles = new Map<number, string>();
+  const isbns = new Map<number, string>();
   for (let offset = 0; ; offset += 500) {
-    const { data, error } = await db().from("book_copies").select(`${copyFields},books(title)`)
+    const withTime = await db().from("book_copies").select(`${copyFields},returned_to_cart_at,books(title,isbn)`)
       .eq("copy_status", "In Return Cart").order("copy_id").range(offset, offset + 499).abortSignal(signal);
+    // Older deployments remain usable until the timestamp migration is applied.
+    const result = withTime.error && /returned_to_cart_at/.test(withTime.error.message)
+      ? await db().from("book_copies").select(`${copyFields},books(title,isbn)`)
+          .eq("copy_status", "In Return Cart").order("copy_id").range(offset, offset + 499).abortSignal(signal)
+      : withTime;
+    const { data, error } = result;
     if (error) throw error;
-    for (const row of data as unknown as (ReplacementCopy & { books: { title: string } | null })[]) {
+    for (const row of data as unknown as (ReplacementCopy & { books: { title: string; isbn: string | null } | null })[]) {
       copies.push(projectCopy(row));
       if (row.books) titles.set(row.book_id, row.books.title);
+      if (row.books?.isbn) isbns.set(row.book_id, row.books.isbn);
     }
-    if (data.length < 500) return { copies, titles };
+    if (data.length < 500) return { copies, titles, isbns };
   }
 }
 

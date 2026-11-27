@@ -41,7 +41,7 @@ function useResource<T>(load: (signal: AbortSignal) => Promise<T>) {
       setState({ data, loading: false });
       return true;
     } catch (cause) {
-      if (!controller.signal.aborted) setState({ error: errorMessage(cause), loading: false });
+      if (!controller.signal.aborted) setState(previous => ({ data: previous.data, error: errorMessage(cause), loading: false }));
       return false;
     }
   }, [load]);
@@ -406,6 +406,6 @@ function ReturnCart({ revision, close, onShelve }: { revision: number; close: ()
     return readReturnCart(signal);
   }, [revision]);
   const result = useResource(load);
-  if (result.data) return <ReturnCartStation {...result.data} close={close} onShelve={onShelve} refresh={result.retry} />;
+  if (result.data) return <ReturnCartStation {...result.data} close={close} onShelve={onShelve} refresh={result.retry} loading={result.loading} loadError={result.error} />;
   return <CatalogueDialog title="Return Cart" close={close}><RequestFeedback {...result} /></CatalogueDialog>;
 }

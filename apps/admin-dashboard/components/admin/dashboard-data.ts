@@ -1,7 +1,7 @@
 import { database, readReplacementRows } from "../../lib/supabase";
 
 export type Book = { book_id: number; title: string; series_name?: string | null; author: string | null; author_firstname: string; author_lastname: string; original_title: string | null; romanized_title: string | null; isbn: string | null; volume_number: number | null; publisher: string | null; publication_date: string | null; imprint: string | null; book_type: string; description: string | null; age_rating: number; demographic: string | null; themes: string | null; cover_image_url: string | null; acquisition_status: string; book_genres: { genre: string }[]; book_copies: { copy_id: number; status: string; identifier_value: string }[] };
-export type Copy = { copy_id: number; book_id: number; copy_number: number; identifier_value: string; status: string; condition_notes: string | null; shelf_location: string | null; shelf_id: number | null };
+export type Copy = { copy_id: number; book_id: number; copy_number: number; identifier_value: string; status: string; condition_notes: string | null; shelf_location: string | null; shelf_id: number | null; returned_to_cart_at: string | null };
 export type Reader = { user_id: string; first_name: string; last_name: string; birthday: string | null; is_active: boolean; roles: { name: string } | null };
 export type LibraryCard = { librarycard_id: string; user_id: string; librarycard_rfid: string | null; is_active: boolean; deactivated_at: string | null };
 export type MemberAccount = { user_id: string; membership_label: string; remaining_minutes: number | null; status: string; expires_at: string | null };
@@ -38,7 +38,7 @@ export async function loadDashboardData(): Promise<DashboardData> {
 }
 
 export type ReplacementBook = { book_id:number; title:string; series_name:string|null; original_title:string|null; romanized_title:string|null; isbn:string|null; volume_number:number|null; publisher:string|null; publication_date:string|null; imprint:string|null; book_type:string; book_description:string|null; age_rating:number; demographic:string|null; themes:string|null; coverimage_url:string|null; authors:{author_firstname:string;author_lastname:string}|null; book_genre:string|null; book_copies:{copy_id:number;copy_status:string;barcode:string}[] };
-export type ReplacementCopy = { copy_id:number; book_id:number; copy_number:number; barcode:string; copy_status:string; shelf_location:string|null; condition_notes:string|null };
+export type ReplacementCopy = { copy_id:number; book_id:number; copy_number:number; barcode:string; copy_status:string; shelf_location:string|null; condition_notes:string|null; returned_to_cart_at?:string|null };
 
 const status = (value:string) => value === "In-Shelf" ? "IN_SHELF" : value === "With Reader" ? "WITH_READER" : value === "In Return Cart" ? "RETURN_CART" : value;
 
@@ -55,7 +55,7 @@ export function projectBook(book: ReplacementBook): Book {
     book_copies: (book.book_copies ?? []).map(copy => ({ copy_id:copy.copy_id, status:status(copy.copy_status), identifier_value:copy.barcode })),
   };
 }
-export const projectCopy = (copy: ReplacementCopy): Copy => ({ copy_id:copy.copy_id, book_id:copy.book_id, copy_number:copy.copy_number, identifier_value:copy.barcode, status:status(copy.copy_status), condition_notes:copy.condition_notes, shelf_location:copy.shelf_location, shelf_id:null });
+export const projectCopy = (copy: ReplacementCopy): Copy => ({ copy_id:copy.copy_id, book_id:copy.book_id, copy_number:copy.copy_number, identifier_value:copy.barcode, status:status(copy.copy_status), condition_notes:copy.condition_notes, shelf_location:copy.shelf_location, shelf_id:null, returned_to_cart_at:copy.returned_to_cart_at ?? null });
 
 export const dashboardShelves: Shelf[] = Array.from({length:5}, (_, i) => ({
   shelf_id: i + 1, name: `Main Reading Hall — Shelf A${i + 1}`,
