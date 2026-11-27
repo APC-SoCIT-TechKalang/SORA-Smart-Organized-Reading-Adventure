@@ -6,9 +6,11 @@ import { SectionHeading } from '../components/OrnatePanel';
 import { ReaderPageHeading } from '../components/ReaderPageHeading';
 import { useGame } from '../contexts/GameContext';
 import type { Volume } from '../types/library';
+import { groupCatalog, matchesCatalogGroup } from '../lib/catalog-series';
 
 type SortKey = 'popular' | 'newest';
 const recommendedGenres = ['Action', 'Comedy', 'Fantasy', 'Horror', 'Supernatural', 'Adventure', 'Romance'];
+const PAGE_SIZE = 24;
 
 interface CatalogProps {
   query: string;
@@ -26,6 +28,9 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   const [filtersOpen, setFiltersOpen] = useState(true);
   const [sortOpen, setSortOpen] = useState(false);
   const [selected, setSelected] = useState<Volume | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(1);
+  const groups = useMemo(() => groupCatalog(volumes), [volumes]);
 
   const bestBooks = useMemo(() => [...volumes].sort((a, b) => {
     const score = (volume: Volume) => (volume.rating * 100) + (Math.max(0, volume.copies) * 12) + (volume.rarity * 4) + (volume.coverImage ? 6 : 0);
@@ -47,20 +52,27 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   }, [volumes]);
 
   const results = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return volumes
-      .filter((volume) => (genre === 'All' || hasGenre(volume.genre, genre)) && (!needle || [volume.title, volume.author, volume.genre].some((value) => value.toLowerCase().includes(needle))))
-      .sort((a, b) => sort === 'newest' ? b.volume - a.volume : (b.rating - a.rating) || (b.copies - a.copies) || a.title.localeCompare(b.title));
-  }, [genre, query, sort, volumes]);
+    return groups
+      .filter((group) => (genre === 'All' || group.volumes.some(volume => hasGenre(volume.genre, genre)))
+        && matchesCatalogGroup(group, query))
+      .sort((a, b) => sort === 'newest'
+        ? Math.max(...b.volumes.map(volume => Number(volume.id) || 0)) - Math.max(...a.volumes.map(volume => Number(volume.id) || 0))
+        : (b.rating - a.rating) || (b.copies - a.copies) || a.title.localeCompare(b.title));
+  }, [genre, query, sort, groups]);
+  const pageCount = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
+  const visible = useMemo(() => results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [results, page]);
+  useEffect(() => { setPage(1); setExpandedId(null); }, [query, genre, sort]);
+  useEffect(() => { if (page > pageCount) setPage(pageCount); }, [page, pageCount]);
+  useEffect(() => { if (expandedId && !visible.some(group => group.id === expandedId)) setExpandedId(null); }, [expandedId, visible]);
 
   return (
     <div className="reader-catalog space-y-6">
-      <ReaderPageHeading kind="catalog" title="Browse the collection" detail={`${volumes.length} ${volumes.length === 1 ? 'title' : 'titles'} in the library`}>
+      <ReaderPageHeading kind="catalog" title="Browse the collection" detail={`${groups.length} ${groups.length === 1 ? 'title' : 'titles'} · ${volumes.length} ${volumes.length === 1 ? 'volume' : 'volumes'} in the library`}>
         <a href="#full-catalog" onClick={() => setFiltersOpen(true)} className="reader-ghost-button"><SearchIcon aria-hidden="true" /> Search & filter</a>
       </ReaderPageHeading>
       {bestBooks.length > 0 && <TopFiveShowcase books={bestBooks} onSelect={setSelected} />}
 
-      <div id="full-catalog" className="scroll-mt-24"><SectionHeading title="Explore the full collection" meta={`${results.length} of ${volumes.length} titles`} /></div>
+      <div id="full-catalog" className="scroll-mt-24"><SectionHeading title="Explore the full collection" meta={`${results.length} ${results.length === 1 ? 'title' : 'titles'} · ${results.reduce((sum, group) => sum + group.volumes.length, 0)} volumes`} /></div>
 
       <section aria-label="Catalog controls" className="reader-catalog-controls tb-surface relative overflow-visible rounded-2xl p-4 sm:p-5">
         <div className="grid grid-cols-2 items-center gap-3 sm:flex sm:flex-wrap sm:justify-between sm:gap-4">
@@ -101,7 +113,12 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
         </div></div>}
       </section>
 
-      <CatalogGrid items={results} layout={layout} onSelect={setSelected} />
+      <CatalogGrid items={visible} layout={layout} expandedId={expandedId} onToggle={id => setExpandedId(current => current === id ? null : id)} onSelect={setSelected} />
+      {pageCount > 1 && <nav aria-label="Collection pages" className="flex items-center justify-center gap-3 pb-4 text-sm font-700 text-umber">
+        <button type="button" disabled={page === 1} onClick={() => { setPage(value => value - 1); setExpandedId(null); }} className="tb-button-secondary tb-cut-sm min-h-10 px-4 disabled:opacity-40">Previous</button>
+        <span>Page {page} of {pageCount}</span>
+        <button type="button" disabled={page === pageCount} onClick={() => { setPage(value => value + 1); setExpandedId(null); }} className="tb-button-secondary tb-cut-sm min-h-10 px-4 disabled:opacity-40">Next</button>
+      </nav>}
       <VolumeDrawer volume={selected ? volumes.find(volume => volume.id === selected.id) ?? selected : null} onClose={() => setSelected(null)} />
     </div>
   );
