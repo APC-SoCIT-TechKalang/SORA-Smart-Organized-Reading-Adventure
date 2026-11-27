@@ -55,9 +55,9 @@ export function NewArrivals({ books, activeIndex, onSelect, onOpen }: NewArrival
           <div className="reader-arrival-story" aria-live="polite" aria-atomic="true">
             <div key={book.id} className="reader-arrival-reveal">
               <p className="reader-kicker"><BookmarkIcon aria-hidden="true" /> In the spotlight</p>
-              <h3>{book.title}</h3>
-              {book.author && <p className="reader-arrival-author">{book.author}</p>}
-              {synopsis && synopsis !== 'No description recorded.' && <p className="reader-arrival-synopsis">{synopsis}</p>}
+              <h3 title={book.title}>{book.title}</h3>
+              <p className="reader-arrival-author">{book.author || '\u00a0'}</p>
+              <p className="reader-arrival-synopsis">{synopsis && synopsis !== 'No description recorded.' ? synopsis : '\u00a0'}</p>
               <div className="reader-arrival-meta">
                 {book.genre && <span className="reader-arrival-genre">{book.genre}</span>}
                 {book.rating > 0 && <span><StarIcon aria-hidden="true" /> {book.rating} reader rating</span>}

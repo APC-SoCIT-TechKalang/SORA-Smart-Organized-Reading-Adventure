@@ -7,8 +7,8 @@ import { useGame } from '../contexts/GameContext';
 
 // Pixel-art BON cutout with a transparent background.
 const BON_ART = "/bon-pixel.png";
-const BON_BLINK = "/bon-blink.png";
-const BON_EXCITED_FRAMES = ["/bon-excited-1.png", "/bon-excited-2.png"];
+const BON_IDLE = "/bon-idle.gif";
+const BON_EXCITED = "/bon-excited.gif";
 // Use the same BON artwork for the chat profile so the pet and chat identity
 // always stay visually consistent.
 const BON_AVATAR = BON_ART;
@@ -36,8 +36,6 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
-  const [blinking, setBlinking] = useState(false);
-  const [excitedFrame, setExcitedFrame] = useState(0);
   const showBonSparkles = false;
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
@@ -76,47 +74,6 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
     window.addEventListener('tankobonbon:open-chat', openChat);
     return () => window.removeEventListener('tankobonbon:open-chat', openChat);
   }, []);
-
-  // BON blinks occasionally while idle, then switches to a two-frame excited
-  // loop while hovered or keyboard-focused.
-  useEffect(() => {
-    if (hovered) {
-      setBlinking(false);
-      return;
-    }
-
-    let blinkTimer: number;
-    let closeTimer: number;
-
-    const scheduleBlink = () => {
-      blinkTimer = window.setTimeout(() => {
-        setBlinking(true);
-        closeTimer = window.setTimeout(() => {
-          setBlinking(false);
-          scheduleBlink();
-        }, 180);
-      }, 3800);
-    };
-
-    scheduleBlink();
-    return () => {
-      window.clearTimeout(blinkTimer);
-      window.clearTimeout(closeTimer);
-    };
-  }, [hovered]);
-
-  useEffect(() => {
-    if (!hovered) {
-      setExcitedFrame(0);
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      setExcitedFrame((frame) => (frame + 1) % BON_EXCITED_FRAMES.length);
-    }, 420);
-
-    return () => window.clearInterval(timer);
-  }, [hovered]);
 
   function beginHover() {
     if (hoverIntentTimer.current !== null) {
@@ -509,7 +466,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
           className={`bon-launcher pointer-events-auto relative rounded-full drop-shadow-[0_3px_6px_rgba(84,56,34,0.14)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-rust ${open ? 'hidden lg:block' : 'block'}`}>
           
           <img
-            src={hovered ? BON_EXCITED_FRAMES[excitedFrame] : blinking ? BON_BLINK : BON_ART}
+            src={hovered ? BON_EXCITED : BON_IDLE}
             alt="BON, the Tankobonbon archive guide, waving hello"
             draggable={false}
             className="bon-launcher-image absolute bottom-0 left-1/2 w-auto max-w-none -translate-x-1/2 select-none" />

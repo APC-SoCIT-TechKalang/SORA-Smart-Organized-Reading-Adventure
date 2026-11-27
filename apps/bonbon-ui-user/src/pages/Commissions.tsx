@@ -47,7 +47,7 @@ export function Commissions() {
     {!session ? <GuestPrompt title="Your quests await" detail="Sign in to see your reader rank, active quests, and rewards." /> : <>
       {error && hasProgress && <p role="status" className="quest-notice">Showing your last saved quest progress. The board will retry automatically.</p>}
       <div className="quest-board-layout">
-        <section aria-labelledby="active-quests-title" className="min-w-0">
+        <section aria-labelledby="active-quests-title" className="quest-active-panel min-w-0">
           <div className="quest-section-heading">
             <span className="quest-section-icon"><SwordsIcon size={20} aria-hidden="true" /></span>
             <h2 id="active-quests-title">Active quests</h2>

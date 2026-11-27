@@ -45,13 +45,17 @@
   padding: clamp(1.1rem, 5cqi, 3.3rem);
 }
 .reader-arrival-copy h3 {
+  display: -webkit-box;
   max-width: 24ch;
   margin-top: .7rem;
+  overflow: hidden;
   color: #fff3d8;
   font: 900 clamp(1.45rem, 5.4cqi, 3.45rem)/1.04 var(--reader-serif);
   letter-spacing: -.025em;
   overflow-wrap: anywhere;
   text-wrap: balance;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 .reader-arrival-author { margin-top: .65rem; color: #f3ca8e; font-size: .91rem; font-weight: 800; }
 .reader-arrival-synopsis {
@@ -229,8 +233,39 @@
   .reader-arrival-stage {
     grid-template-areas: "story display";
     grid-template-columns: minmax(0, 1fr) minmax(0, .85fr);
+    height: clamp(29rem, 42cqi, 33rem);
   }
+  .reader-arrival-copy {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding-block: 1.25rem;
+  }
+  .reader-arrival-action { align-self: flex-start; margin-top: auto; }
+  .reader-arrival-copy h3 {
+    min-height: 2.08em;
+    font-size: clamp(1.65rem, 3.7cqi, 3.15rem);
+  }
+  .reader-arrival-author {
+    min-height: 1.4em;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
+  .reader-arrival-synopsis { min-height: 4.95em; }
+  .reader-arrival-meta {
+    min-height: 2rem;
+    max-height: 4.1rem;
+    overflow: hidden;
+  }
+  .reader-arrival-display { min-height: 0; }
+  .reader-arrival-cover { width: min(15rem, 35cqi, 70%); max-height: calc(100% - 2.5rem); }
+}
+@container arrivals (min-width: 38rem) and (max-width: 50rem) {
+  .reader-arrival-copy { padding-inline: 1.4rem; }
+  .reader-arrival-copy h3 { font-size: clamp(1.5rem, 3.3cqi, 2.2rem); }
+  .reader-arrival-synopsis { -webkit-line-clamp: 2; min-height: 3.3em; }
+  }
 @container arrivals (min-width: 44rem) {
   .reader-arrival-lineup li { flex-basis: calc(12.5% - .45rem); }
 }

@@ -6,12 +6,8 @@
   background: radial-gradient(ellipse at 40% 65%, #87574168, transparent 70%), #241813;
 }
 .checkout-illustration {
-  --kiosk-illustration-shade: linear-gradient(0deg, #1d1413fa, #2d20234a 76%, #2d202355);
-  --kiosk-illustration-position: right 64%;
-}
-.checkout-illustration .kiosk-entrance-arch {
-  inset-inline: 9%;
-  background: radial-gradient(ellipse at 72% 30%, #edaa5750, transparent 53%);
+  --kiosk-illustration-shade: linear-gradient(0deg, #20110df5, #20110d32 88%);
+  --kiosk-illustration-position: right 56%;
 }
 .checkout-kicker {
   display: flex;
@@ -27,18 +23,18 @@
 .checkout-kicker svg { width: 1.05rem; height: 1.05rem; flex: none; }
 .checkout-illustration .checkout-hero-heading {
   max-width: 8ch;
-  font-size: clamp(3.4rem, 8vw, 7.1rem);
-  line-height: .94;
-  letter-spacing: -.055em;
+  font-size: clamp(2.8rem, 5vw, 3.7rem);
+  line-height: 1.02;
+  letter-spacing: -.035em;
   text-transform: uppercase;
-  text-shadow: 0 8px 30px #1b0d08a8;
+  text-shadow: 0 5px 20px #1b0d08b0;
 }
 .checkout-illustration .checkout-hero-heading em { color: #f5c778; }
 .checkout-illustration .checkout-hero-subtitle {
   max-width: 26ch;
-  margin-top: 1.2rem;
+  margin-top: .65rem;
   color: #f7dfbd;
-  font-size: clamp(.95rem, 1.5vw, 1.2rem);
+  font-size: clamp(.81rem, 2vw, 1rem);
   line-height: 1.5;
 }
 .checkout-entry-eyebrow {

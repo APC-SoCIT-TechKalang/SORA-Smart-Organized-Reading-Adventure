@@ -150,8 +150,18 @@
 
 .quest-board-layout {
   display: grid;
-  align-items: start;
+  align-items: stretch;
   gap: clamp(1rem, 2.4cqi, 1.6rem);
+}
+
+.quest-active-panel,
+.quest-rewards {
+  min-width: 0;
+  border: 1px solid var(--quest-line);
+  border-radius: .9rem;
+  background: var(--quest-paper);
+  padding: .95rem;
+  box-shadow: 0 8px 24px #47281513;
 }
 
 .quest-section-heading { margin-bottom: .85rem; }
@@ -263,7 +273,7 @@
 .quest-card-meter { height: .6rem; margin-block: .42rem; background: #ead8bc; }
 .quest-card-meter > span { background: linear-gradient(90deg, var(--quest-card-accent), #b67b2e); }
 
-.quest-empty, .quest-notice, .quest-rewards, .quest-history {
+.quest-empty, .quest-notice, .quest-history {
   border: 1px solid var(--quest-line);
   border-radius: .9rem;
   background: var(--quest-paper);
@@ -279,12 +289,12 @@
 .quest-updated { margin-top: 0; }
 
 .quest-rewards {
-  padding: .95rem;
-  box-shadow: 0 8px 24px #47281513;
+  align-self: stretch;
 }
 
-.quest-rewards .quest-section-heading { margin-bottom: .7rem; }
-.quest-rewards .quest-section-heading h2 { font-size: 1.08rem; }
+.quest-active-panel .quest-section-heading,
+.quest-rewards .quest-section-heading { min-height: 2.25rem; margin-bottom: .85rem; }
+.quest-rewards .quest-section-heading h2 { font-size: clamp(1rem, 2.65cqi, 1.5rem); }
 .quest-wallet { display: flex; align-items: center; gap: .65rem; border-radius: .65rem; background: #4c291b; padding: .7rem .85rem; color: #ffdd94; }
 .quest-wallet > svg { flex: none; }
 .quest-wallet p { color: #ffebd4; font-size: .72rem; font-weight: 750; }
