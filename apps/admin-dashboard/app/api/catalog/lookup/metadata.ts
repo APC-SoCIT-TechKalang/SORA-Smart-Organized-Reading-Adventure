@@ -1,3 +1,4 @@
+import { standardCatalogTitle } from "../../../../lib/catalog-title.ts";
 export type BookMetadata = {
   isbn10: string;
   isbn13: string;
@@ -123,7 +124,11 @@ export function parseEditionTitle(title: string) {
   if (omnibus) return { series: omnibus[1].trim(), volume: omnibus[2], collectedVolumeRange: range };
   const explicit = normalized.match(/^(.*?)(?:[,.\s:-]+(?:vol(?:ume)?\.?|book)\s*#?\s*)(\d+(?:\.\d+)?)\b/i);
   if (explicit) return { series: explicit[1].replace(/[(:\s-]+$/, "").trim(), volume: explicit[2], collectedVolumeRange: range };
-  const ending = normalized.match(/^(.*?)[,.\s-]+(\d+(?:\.\d+)?)$/);
+  const japanese = normalized.match(/^(.*?)\s*第?(\d+)巻$/u);
+  if (japanese) return { series: japanese[1].trim(), volume: String(Number(japanese[2])), collectedVolumeRange: range };
+  if (/\b(?:no\.|chapter|edition|part)\s*\d+$/i.test(normalized)) return { series: "", volume: "", collectedVolumeRange: range };
+  const ending = normalized.match(/^(.*?)[,\s-]+(\d+(?:\.\d+)?)$/);
+  if (ending && Number(ending[2]) >= 1900) return { series: "", volume: "", collectedVolumeRange: range };
   return { series: ending?.[1]?.trim() ?? "", volume: ending?.[2] ?? "", collectedVolumeRange: range };
 }
 
@@ -158,7 +163,7 @@ export function hasJapaneseCharacters(value: string) {
 // service may supply its official English series name after alias matching.
 export function resolveEditionIdentity(primary: BookMetadata, exactMatches: BookMetadata[], englishSeries = "", romanizedSeries = "") {
   const matches = [primary, ...exactMatches];
-  const volumes = [...new Set(matches.map(item => item.volume).filter(Boolean))];
+  const volumes = [...new Set(matches.map(item => /^\d+(?:\.\d+)?$/.test(item.volume) ? String(Number(item.volume)) : item.volume).filter(Boolean))];
   const volumeConflict = volumes.length > 1;
   const volume = volumeConflict ? "" : volumes[0] ?? "";
   const englishEdition = matches.find(item => item.title && !hasJapaneseCharacters(item.title));
@@ -443,7 +448,7 @@ export function mangaSearchTitle(metadata: BookMetadata) {
 
 export function toFormMetadata(metadata: BookMetadata): FormMetadata {
   return {
-    title: metadata.title,
+    title: standardCatalogTitle(metadata.title, metadata.series, metadata.volume, metadata.bookType),
     original_title: metadata.originalTitle,
     romanized_title: metadata.romanizedTitle,
     author: metadata.authors.join(", "),

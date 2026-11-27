@@ -4,6 +4,7 @@ import { useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { BookOpen, Download, LoaderCircle, Pencil, Plus, Printer, ScanLine, Trash2, Upload, X } from "lucide-react";
 import { database } from "../../lib/supabase";
+import { updateCatalogIdentity } from "../../lib/catalog-title";
 import type { Shelf } from "./dashboard-data";
 import { printBookLabels, type BookLabel } from "./BookBarcodeLabels";
 import { bookImportTemplate, bulkRowError, catalogGenreSummary, cleanBookGenres, emptyBulkRow, expandBookQuantities, fillRepeatedBooks, normalizeBookIsbn, parseBookBatch, validBookIsbn, type BulkBookRow } from "./book-batch";
@@ -67,7 +68,7 @@ export function BulkAddBooks({ data, close, run }:Props) {
     }catch(cause){setRows(current=>[...current,{...emptyBulkRow(),isbn,shelf_location:shelves[0]||""}]);setScan("");setError(`${cause instanceof Error?cause.message:"Lookup failed"} The ISBN was added for review.`);}finally{setBusy(false);}
   };
 
-  const edit=(index:number,key:keyof BulkBookRow,value:string|number)=>setRows(current=>current.map((row,i)=>i===index?{...row,[key]:value,...(key==="isbn"?{existingBookId:undefined}:{})}:row));
+  const edit=(index:number,key:keyof BulkBookRow,value:string|number)=>setRows(current=>current.map((row,i)=>i===index?{...updateCatalogIdentity(row,key,value),...(key==="isbn"?{existingBookId:undefined}:{})}:row));
   const splitCopy=(index:number)=>setRows(current=>{const source=current[index];if(!source)return current;const copy={...source,quantity:1,shelf_location:""};return source.quantity===1?[...current.slice(0,index+1),copy,...current.slice(index+1)]:current.flatMap((row,i)=>i===index?[{...row,quantity:row.quantity-1},copy]:[row]);});
 
   const submit=async()=>{

@@ -17,6 +17,7 @@ import {
 import { database, usesReplacementSchema } from "../../lib/supabase";
 import type { Shelf } from "./dashboard-data";
 import { printBookLabels, type BookLabel } from "./BookBarcodeLabels";
+import { updateCatalogIdentity } from "../../lib/catalog-title";
 
 type Props = {
   data: { shelves: Shelf[] };
@@ -125,7 +126,7 @@ export function CompleteAddVolume({ data, close, run }: Props) {
     autoFilled.current.delete(key);
     setAiFields((current) => current.filter((item) => item !== key));
     setFieldSources((current) => ({ ...current, [key]: "Manual edit" }));
-    setForm((current) => ({ ...current, [key]: value }));
+    setForm((current) => updateCatalogIdentity(current, key, value));
   };
   const normalizeIsbn = (value: string) => value.toUpperCase().replace(/[\s-]/g, "");
   const completeIsbn = (value: string) => {

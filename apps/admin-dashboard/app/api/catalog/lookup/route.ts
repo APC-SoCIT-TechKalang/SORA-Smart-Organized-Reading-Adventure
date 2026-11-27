@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { standardCatalogTitle } from "../../../../lib/catalog-title";
 import {
   type BookMetadata,
   type FormMetadata,
@@ -888,6 +889,7 @@ export async function POST(request: NextRequest) {
       }
     }
     metadata.description = professionalSynopsis(metadata.description);
+    metadata.title = standardCatalogTitle(metadata.title, metadata.series_name, metadata.volume_number, metadata.book_type);
     metadata.age_rating = numericAgeRating(metadata.age_rating);
     let ageRatingSuggested = false;
     if (!metadata.age_rating) {
@@ -899,8 +901,6 @@ export async function POST(request: NextRequest) {
     // Validate covers before calculating review fields. A provider placeholder
     // must be treated as missing, so the UI can offer title search or upload.
     let coverCandidates = await validatedCoverUrls(normalized.coverUrls);
-    if (!coverCandidates.length && mangaEnrichments.length)
-      coverCandidates = await validatedCoverUrls(mangaEnrichments.flatMap((result) => result.metadata?.coverUrls ?? []));
     metadata.cover_image_url = coverCandidates[0] ?? "";
     fieldSources.cover_image_url = coverCandidates.length ? (fieldSources.cover_image_url || sources[0]) : "";
 
