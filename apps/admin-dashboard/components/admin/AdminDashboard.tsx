@@ -405,7 +405,7 @@ function Overview({
             aria-hidden="true"
           />
           <div className="admin-hero-sheen" aria-hidden="true" />
-          <div className="relative flex items-start justify-between">
+          <div className="relative flex items-start">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[.22em] text-[#f9d219]">
                 On the floor
@@ -420,9 +420,6 @@ function Overview({
                 volumes in readers’ hands
               </p>
             </div>
-            <span className="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-semibold backdrop-blur">
-              Live now
-            </span>
           </div>
           <div className="relative mt-10 flex h-24 items-end gap-3">
             {leaders.map(({ reads }, index) => (
@@ -455,17 +452,13 @@ function Overview({
           </div>
           <button
             onClick={() => setPage("Analytics")}
-            className="admin-cta group mt-5 flex w-full items-center justify-between overflow-hidden rounded-xl px-4 py-3.5 text-xs font-bold text-[#543822] shadow-[0_8px_20px_rgba(196,128,12,.35)]"
+            className="group mt-5 flex w-full items-center justify-between rounded-xl border border-[#6d4931] bg-[#6b452f] px-4 py-3.5 text-sm font-semibold text-[#fffaf2] transition-colors hover:bg-[#543822] active:bg-[#432b1d] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#c4800c] focus-visible:ring-offset-2"
           >
             <span className="relative z-10 flex items-center gap-2">
-              <span className="grid h-6 w-6 place-items-center rounded-lg bg-[#543822]/15 transition group-hover:rotate-12">
-                ✦
-              </span>
+              <ChartNoAxesCombined size={17} strokeWidth={1.8} aria-hidden="true" />
               View full analytics
             </span>
-            <span className="relative z-10 flex items-center gap-1 transition group-hover:translate-x-1">
-              Open <span aria-hidden="true">→</span>
-            </span>
+            <ChevronRight size={18} strokeWidth={1.8} aria-hidden="true" className="transition-transform group-hover:translate-x-0.5" />
           </button>
         </section>
       </div>
