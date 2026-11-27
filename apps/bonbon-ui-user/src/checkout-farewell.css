@@ -25,6 +25,30 @@
 }
 .kiosk-entrance-title .checkout-kicker { margin: 0 0 .65rem; font-size: .7rem; }
 .checkout-kicker svg { width: 1.05rem; height: 1.05rem; flex: none; }
+.checkout-illustration .checkout-hero-heading {
+  max-width: 8ch;
+  font-size: clamp(3.4rem, 8vw, 7.1rem);
+  line-height: .94;
+  letter-spacing: -.055em;
+  text-transform: uppercase;
+  text-shadow: 0 8px 30px #1b0d08a8;
+}
+.checkout-illustration .checkout-hero-heading em { color: #f5c778; }
+.checkout-illustration .checkout-hero-subtitle {
+  max-width: 26ch;
+  margin-top: 1.2rem;
+  color: #f7dfbd;
+  font-size: clamp(.95rem, 1.5vw, 1.2rem);
+  line-height: 1.5;
+}
+.checkout-entry-eyebrow {
+  margin-bottom: .65rem;
+  color: #9e491e;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
 .checkout-entry-description { margin-top: .6rem; color: #694532; font-size: .9rem; line-height: 1.55; }
 
 .checkout-summary,

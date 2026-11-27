@@ -271,12 +271,14 @@ function Welcome({ status, message, onPhysical, onQr }: { status: Status; messag
       <ReaderAtmosphere />
       <div className="kiosk-entrance-arch" aria-hidden="true" />
       <div className="kiosk-entrance-title">
-        <p className="checkout-kicker"><BookMarkedIcon aria-hidden="true" /> Check-out</p>
-        <h1 id="checkout-title">Until the <em>next chapter.</em></h1>
+        <p className="checkout-kicker"><BookMarkedIcon aria-hidden="true" /> Your library visit</p>
+        <h1 id="checkout-title" className="checkout-hero-heading">Check <em>out.</em></h1>
+        <p className="checkout-hero-subtitle">Close this chapter. Your next story awaits.</p>
       </div>
     </div>
 
     <div className="kiosk-entry-card">
+      <p className="checkout-entry-eyebrow">Check-out station</p>
       <h2>Present your reader card</h2>
       <p className="checkout-entry-description">Review your visit and confirm your check-out.</p>
       <div className="kiosk-entry-actions" aria-busy={busy}>
