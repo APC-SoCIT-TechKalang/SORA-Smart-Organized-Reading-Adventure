@@ -207,7 +207,7 @@ export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelv
     {action?.kind === "register" && <RegisterCopy book={action.book} close={closeAction} run={run} />}
     {action?.kind === "bulk" && <BulkCopies book={action.book} close={closeAction} run={run} />}
     {action?.kind === "copy" && <EditOneCopy key={action.row.copy_id} copy={projectCopy(action.row)} title={action.row.title} close={closeAction} run={run} />}
-    {cartOpen && <ReturnCart revision={revision} close={() => setCartOpen(false)} onShelve={shelveCopy} />}
+    {cartOpen && <ReturnCart revision={revision} close={() => setCartOpen(false)} onShelve={shelveCopy} onBulkComplete={() => { void summary.retry(); void result.retry(); }} />}
   </div>;
 
   function updateFilter(key: keyof CatalogueFilters, value: string) {
@@ -400,12 +400,12 @@ function BulkCopies({ book, close, run }: { book: Book; close: () => void; run: 
   return <CatalogueDialog title="Manage copies" close={close}><RequestFeedback {...result} /></CatalogueDialog>;
 }
 
-function ReturnCart({ revision, close, onShelve }: { revision: number; close: () => void; onShelve: Props["shelveCopy"] }) {
+function ReturnCart({ revision, close, onShelve, onBulkComplete }: { revision: number; close: () => void; onShelve: Props["shelveCopy"]; onBulkComplete: () => void }) {
   const load = useCallback((signal: AbortSignal) => {
     void revision;
     return readReturnCart(signal);
   }, [revision]);
   const result = useResource(load);
-  if (result.data) return <ReturnCartStation {...result.data} close={close} onShelve={onShelve} refresh={result.retry} loading={result.loading} loadError={result.error} />;
+  if (result.data) return <ReturnCartStation {...result.data} close={close} onShelve={onShelve} refresh={result.retry} onBulkComplete={onBulkComplete} loading={result.loading} loadError={result.error} />;
   return <CatalogueDialog title="Return Cart" close={close}><RequestFeedback {...result} /></CatalogueDialog>;
 }

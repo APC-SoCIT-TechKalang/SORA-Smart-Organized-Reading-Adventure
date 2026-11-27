@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { findReturnCopyByBarcode, isRecentlyReturned, returnedAgo, selectReturnCopies } from '../components/admin/return-cart.ts';
+import { findReturnCopyByBarcode, isRecentlyReturned, returnedAgo, selectReturnCopies, selectShelvableReturnCopies } from '../components/admin/return-cart.ts';
 import type { Copy } from '../components/admin/dashboard-data.ts';
 
 const now = Date.parse('2026-11-27T04:00:00Z');
@@ -38,4 +38,9 @@ test('relative times never invent a missing or future return timestamp', () => {
   assert.equal(returnedAgo(new Date(now - 3 * 24 * 3_600_000).toISOString(), now), 'Returned 3 days ago');
   assert.equal(returnedAgo(null, now), 'Return time unavailable');
   assert.equal(returnedAgo(new Date(now + 60_000).toISOString(), now), 'Return time unavailable');
+});
+
+test('return all includes the full cart, skips copies without a shelf, and groups by shelf', () => {
+  const copies = [copy(1, 30, 'Shelf A10'), copy(2, 1, null), copy(3, 2, 'Shelf A2'), copy(4, 1, 'Shelf A2', 'IN_SHELF')];
+  assert.deepEqual(selectShelvableReturnCopies(copies).map(item => item.copy_id), [3, 1]);
 });

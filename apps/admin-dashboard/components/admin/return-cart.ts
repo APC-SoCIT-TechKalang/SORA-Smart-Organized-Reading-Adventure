@@ -39,3 +39,9 @@ export function findReturnCopyByBarcode(copies: Copy[], barcode: string) {
   return normalized ? copies.find(copy => copy.status === "RETURN_CART"
     && copy.identifier_value.trim().toLocaleUpperCase() === normalized) : undefined;
 }
+
+export function selectShelvableReturnCopies(copies: Copy[]) {
+  return copies.filter(copy => copy.status === "RETURN_CART" && Boolean(copy.shelf_location?.trim()))
+    .sort((a, b) => a.shelf_location!.trim().localeCompare(b.shelf_location!.trim(), undefined, { numeric: true })
+      || a.copy_id - b.copy_id);
+}
