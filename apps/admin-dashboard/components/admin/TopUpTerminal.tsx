@@ -8,6 +8,7 @@ import { database, errorMessage } from "../../lib/supabase";
 import { isDigitalCardPayload, normalizePhysicalCardUid, parseDigitalCardPayload, sanitizeCardPayload, subscribeToCardScanner } from "../../lib/card-scanner";
 import { subscribeToCardDirectory } from "../../lib/card-directory-sync";
 import type { DashboardData } from "./dashboard-data";
+import { MAX_TOP_UP_PESOS, quoteTimeTopUp } from "./top-up-pricing";
 
 type TopUpReader = {
   userId: string;
@@ -73,7 +74,10 @@ export function TopUpTerminal({ data, name, run }: {
   const [message, setMessage] = useState("");
   const [cameraOpen, setCameraOpen] = useState(false);
   const [rateTier, setRateTier] = useState<RateTier>("Adult");
+  const [entryMode, setEntryMode] = useState<"pesos" | "time">("pesos");
   const [amount, setAmount] = useState("");
+  const [hours, setHours] = useState("");
+  const [minutes, setMinutes] = useState("");
   const [method, setMethod] = useState("Cash");
   const [reference, setReference] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -83,16 +87,23 @@ export function TopUpTerminal({ data, name, run }: {
   const videoRef = useRef<HTMLVideoElement>(null);
   const resetTimer = useRef<number | null>(null);
 
-  const amountValue = Number(amount) || 0;
   const hourlyRate = TOP_UP_RATES_PHP_PER_HOUR[rateTier];
-  const calculatedMinutes = amountValue > 0 ? Math.max(1, Math.round((amountValue / hourlyRate) * 60)) : 0;
+  const timeQuote = quoteTimeTopUp(hours, minutes, hourlyRate);
+  const amountValue = entryMode === "time" ? timeQuote?.amount ?? 0 : Number(amount) || 0;
+  const calculatedMinutes = entryMode === "time" ? timeQuote?.minutes ?? 0 : amountValue > 0 ? Math.max(1, Math.round((amountValue / hourlyRate) * 60)) : 0;
+  const validTopUp = Number.isFinite(amountValue) && amountValue > 0 && amountValue <= MAX_TOP_UP_PESOS
+    && Number.isSafeInteger(calculatedMinutes) && calculatedMinutes > 0;
+  const formattedAmount = amountValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const newBalance = (reader?.balance ?? 0) + calculatedMinutes;
 
   const reset = useCallback(() => {
     if (resetTimer.current) window.clearTimeout(resetTimer.current);
     setReader(null);
     setRateTier("Adult");
+    setEntryMode("pesos");
     setAmount("");
+    setHours("");
+    setMinutes("");
     setMethod("Cash");
     setReference("");
     setMessage("");
@@ -283,7 +294,7 @@ export function TopUpTerminal({ data, name, run }: {
 
     {reader && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/55 p-2 backdrop-blur-sm sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) reset(); }}><form role="dialog" aria-modal="true" aria-labelledby="top-up-menu-title" className="terminal-modal-panel flex max-h-[90dvh] min-h-0 w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.38)]" onSubmit={async event => {
       event.preventDefault();
-      if (submitting || calculatedMinutes <= 0 || amountValue <= 0) return;
+      if (submitting || !validTopUp) return;
       setSubmitting(true);
       const updatedBalance = reader.balance + calculatedMinutes;
       const ok = await run(() => api().rpc("admin_top_up", {
@@ -306,13 +317,21 @@ export function TopUpTerminal({ data, name, run }: {
 
           <div className="mt-4 grid grid-cols-2 gap-3"><div className="rounded-xl bg-[#543822] p-4 text-white"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#f3d793]">Current balance</p><p className="mt-2 font-serif text-2xl font-semibold">{reader.balance.toLocaleString()}</p><p className="text-[11px] text-white/65">minutes</p></div><div className="rounded-xl border border-[#e7bd66] bg-[#fff4cf] p-4"><p className="text-[9px] font-bold uppercase tracking-[.16em] text-[#8b5510]">New balance</p><p className="mt-2 font-serif text-2xl font-semibold text-[#a83d12]">{newBalance.toLocaleString()}</p><p className="text-[11px] text-[#8b6b3e]">minutes</p></div></div>
 
-          <fieldset className="mt-4"><legend className="text-[10px] font-bold uppercase tracking-[.15em] text-[#795a42]">Choose amount</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{PESO_PRESETS.map(value => <button key={value} type="button" onClick={() => setAmount(String(value))} className={`min-h-12 rounded-xl border text-sm font-bold transition ${amountValue === value ? "border-[#a83d12] bg-[#a83d12] text-white" : "border-[#d8c3ad] bg-white text-[#704d34] hover:bg-[#fff5e8]"}`}>₱{value}</button>)}</div></fieldset>
+          <fieldset className="mt-4"><legend className="text-[10px] font-bold uppercase tracking-[.15em] text-[#795a42]">Enter top-up by</legend><div className="mt-2 grid grid-cols-2 rounded-xl border border-[#d8c3ad] bg-[#f7efe4] p-1">{(["pesos", "time"] as const).map(mode => <button key={mode} type="button" aria-pressed={entryMode === mode} onClick={() => setEntryMode(mode)} className={`min-h-11 rounded-lg px-3 text-sm font-bold transition ${entryMode === mode ? "bg-[#a83d12] text-white shadow-sm" : "text-[#704d34] hover:bg-white"}`}>{mode === "pesos" ? "Pesos" : "Hours & minutes"}</button>)}</div></fieldset>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]"><label className="text-xs font-bold">Custom peso amount<div className="relative mt-2"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-semibold text-[#806b59]">₱</span><input required inputMode="decimal" type="number" min="1" max="100000" step="1" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Enter amount" className="min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white pl-8 pr-3 text-sm font-normal" /></div></label><div className="flex min-w-40 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><Clock3 size={20} className="shrink-0" /><div><p className="text-[9px] font-bold uppercase tracking-wider">Time added</p><p className="text-sm font-bold">{formatDuration(calculatedMinutes)}</p><p className="text-[10px]">{calculatedMinutes.toLocaleString()} min</p></div></div></div>
+          {entryMode === "pesos" ? <>
+            <fieldset className="mt-4"><legend className="text-[10px] font-bold uppercase tracking-[.15em] text-[#795a42]">Choose amount</legend><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{PESO_PRESETS.map(value => <button key={value} type="button" onClick={() => setAmount(String(value))} className={`min-h-12 rounded-xl border text-sm font-bold transition ${amountValue === value ? "border-[#a83d12] bg-[#a83d12] text-white" : "border-[#d8c3ad] bg-white text-[#704d34] hover:bg-[#fff5e8]"}`}>₱{value}</button>)}</div></fieldset>
+            <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]"><label className="text-xs font-bold">Custom peso amount<div className="relative mt-2"><span className="pointer-events-none absolute inset-y-0 left-3 flex items-center font-semibold text-[#806b59]">₱</span><input required inputMode="decimal" type="number" min="1" max={MAX_TOP_UP_PESOS} step="1" value={amount} onChange={event => setAmount(event.target.value)} placeholder="Enter amount" className="min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white pl-8 pr-3 text-sm font-normal" /></div></label><div className="flex min-w-40 items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><Clock3 size={20} className="shrink-0" /><div><p className="text-[9px] font-bold uppercase tracking-wider">Time added</p><p className="text-sm font-bold">{formatDuration(calculatedMinutes)}</p><p className="text-[10px]">{calculatedMinutes.toLocaleString()} min</p></div></div></div>
+          </> : <>
+            <div className="mt-4 grid grid-cols-2 gap-3"><label className="text-xs font-bold">Hours<input inputMode="numeric" type="number" min="0" step="1" value={hours} onChange={event => setHours(event.target.value)} placeholder="0" className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" /></label><label className="text-xs font-bold">Minutes<input inputMode="numeric" type="number" min="0" max="59" step="1" value={minutes} onChange={event => setMinutes(event.target.value)} placeholder="0" className="mt-2 min-h-12 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" /></label></div>
+            <div className="mt-3 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800"><Clock3 size={20} className="shrink-0" /><div><p className="text-[9px] font-bold uppercase tracking-wider">Time added</p><p className="text-sm font-bold">{formatDuration(calculatedMinutes)} · {calculatedMinutes.toLocaleString()} min</p></div></div>
+            <div className="mt-3 rounded-xl border border-[#e7bd66] bg-[#fff4cf] px-4 py-3"><p className="text-[9px] font-bold uppercase tracking-wider text-[#8b5510]">Amount to collect</p><p className="mt-1 font-serif text-2xl font-semibold text-[#a83d12]">₱{formattedAmount}</p><p className="text-[11px] text-[#8b6b3e]">At ₱{hourlyRate} per hour · rounded to the nearest centavo</p></div>
+            {(hours || minutes) && !timeQuote && <p role="alert" className="mt-2 text-xs text-rose-700">Enter a positive duration (0–59 minutes) with a charge up to ₱{MAX_TOP_UP_PESOS.toLocaleString()}.</p>}
+          </>}
 
           <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold">Payment method<select value={method} onChange={event => setMethod(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal"><option>Cash</option><option>Gcash</option><option>Card</option></select></label><label className="text-xs font-bold">Receipt / reference <span className="font-normal text-[#9a806b]">(optional)</span><input maxLength={100} value={reference} onChange={event => setReference(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" placeholder="Enter reference" /></label></div>
         </div>
-        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] p-4 sm:flex-row sm:justify-end sm:px-6"><button type="button" disabled={submitting} onClick={reset} className="min-h-12 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold">Cancel</button><button type="submit" disabled={submitting || amountValue <= 0 || calculatedMinutes <= 0} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-6 text-xs font-bold text-white disabled:opacity-45 sm:flex-none">{submitting ? <><LoaderCircle size={16} className="animate-spin" />Processing…</> : <><WalletCards size={16} />Confirm ₱{amountValue.toLocaleString()} top-up</>}</button></footer>
+        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] p-4 sm:flex-row sm:justify-end sm:px-6"><button type="button" disabled={submitting} onClick={reset} className="min-h-12 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold">Cancel</button><button type="submit" disabled={submitting || !validTopUp} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-6 text-xs font-bold text-white disabled:opacity-45 sm:flex-none">{submitting ? <><LoaderCircle size={16} className="animate-spin" />Processing…</> : <><WalletCards size={16} />Confirm ₱{formattedAmount} top-up</>}</button></footer>
       </>}
     </form></div>, document.body)}
   </>;
