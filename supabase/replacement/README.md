@@ -66,6 +66,11 @@ database, not a second product version.
     to `book_copies`, a trigger, and lookup indexes; it creates no table. If
     this same SQL was already applied under the earlier `026_return_cart_timestamps.sql`
     filename, it does not need to be run again.
+12. `031_require_topup_reference.sql` requires a nonblank receipt or payment
+    reference for new top-up transactions. Apply it to existing databases before
+    deploying the updated Top-up terminal. Existing transactions with missing
+    references remain untouched and must be reconciled before validating the
+    constraint.
 
 For an existing database, run `008` during maintenance, then rerun the updated
 `002`, `003`, and `004` files in that order. Take a Supabase backup first. The

@@ -92,7 +92,8 @@ declare reader sora_v2.users%rowtype;
 begin
   if not sora_v2.is_librarian() then raise exception 'Librarian access required'; end if;
   if p_minutes is null or p_minutes <= 0 or p_amount is null or p_amount < 0
-    or p_method not in ('Cash', 'Gcash', 'Card') then
+    or p_method not in ('Cash', 'Gcash', 'Card')
+    or nullif(btrim(p_reference), '') is null then
     raise exception 'Invalid top-up details';
   end if;
   select * into reader from sora_v2.users
@@ -110,7 +111,7 @@ begin
   insert into sora_v2.topup_transactions(processed_by, user_id,
     minutes_added, payment_status, amount_paid, payment_method, payment_reference)
   values (sora_v2.current_user_id(), p_user_id,
-    p_minutes, 'PAID', p_amount, p_method, nullif(btrim(p_reference), ''))
+    p_minutes, 'PAID', p_amount, p_method, btrim(p_reference))
   returning topup_id into new_topup_id;
   return new_topup_id;
 end;

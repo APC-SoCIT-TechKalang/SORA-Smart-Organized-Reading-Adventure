@@ -93,6 +93,7 @@ export function TopUpTerminal({ data, name, run }: {
   const calculatedMinutes = entryMode === "time" ? timeQuote?.minutes ?? 0 : amountValue > 0 ? Math.max(1, Math.round((amountValue / hourlyRate) * 60)) : 0;
   const validTopUp = Number.isFinite(amountValue) && amountValue > 0 && amountValue <= MAX_TOP_UP_PESOS
     && Number.isSafeInteger(calculatedMinutes) && calculatedMinutes > 0;
+  const validReference = reference.trim().length > 0;
   const formattedAmount = amountValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const newBalance = (reader?.balance ?? 0) + calculatedMinutes;
 
@@ -269,9 +270,9 @@ export function TopUpTerminal({ data, name, run }: {
       </section>
 
       <section className="rounded-2xl border border-[#e8dfd3] bg-[#fffdf9] p-5 shadow-sm sm:p-6">
-        <div className="flex items-center justify-between gap-3"><div><h2 className="font-serif text-2xl font-semibold">Active time balances</h2><p className="mt-1 text-xs text-[#8d735e]">Updates after every completed top-up</p></div><WalletCards className="text-[#a83d12]" /></div>
+        <div className="flex items-center justify-between gap-3"><div><h2 className="font-serif text-2xl font-semibold">Active time balances</h2><p className="mt-1 text-xs text-[#8d735e]">Updates automatically and after each top-up. New memberships start at 0 minutes.</p></div><WalletCards className="text-[#a83d12]" /></div>
         <div className="mt-4 max-h-[26rem] overflow-y-auto pr-1">
-          {hourly.map(item => { const card = data.libraryCards.find(entry => entry.user_id === item.user_id && entry.is_active && !entry.deactivated_at); const visit = data.visits.find(entry => entry.user_id === item.user_id && entry.status === "ACTIVE"); const live = liveReadingSeconds(item.remaining_minutes ?? 0, visit, now); return <div className="flex min-w-0 items-center justify-between gap-3 border-b border-[#eee5dc] py-4 text-xs" key={item.user_id}><div className="min-w-0"><b className="block truncate">{name(item.user_id)}</b><small className="mt-1 block truncate text-[#8d735e]">{item.membership_label}{card?.librarycard_rfid ? ` · Card ${card.librarycard_rfid}` : ""}</small></div><span className="shrink-0 rounded-full bg-[#fff0c9] px-2.5 py-1 font-bold text-[#804916]" title={visit?.session_status === "READING" ? "Live reading balance" : "Stored balance"}>{visit?.session_status === "READING" ? `${formatReadingClock(live)} left` : `${item.remaining_minutes} min`}</span></div>; })}
+          {hourly.map(item => { const card = data.libraryCards.find(entry => entry.user_id === item.user_id && entry.is_active && !entry.deactivated_at); const visit = data.visits.find(entry => entry.user_id === item.user_id && entry.status === "ACTIVE"); const live = liveReadingSeconds(item.remaining_minutes ?? 0, visit, now); const needsTopUp = (item.remaining_minutes ?? 0) <= 0; return <div className="flex min-w-0 items-center justify-between gap-3 border-b border-[#eee5dc] py-4 text-xs" key={item.user_id}><div className="min-w-0"><b className="block truncate">{name(item.user_id)}</b><small className="mt-1 block truncate text-[#8d735e]">{item.membership_label}{card?.librarycard_rfid ? ` · Card ${card.librarycard_rfid}` : ""}</small></div><span className={`shrink-0 rounded-full px-2.5 py-1 font-bold ${needsTopUp ? "bg-rose-50 text-rose-700" : "bg-[#fff0c9] text-[#804916]"}`} title={visit?.session_status === "READING" ? "Live reading balance" : needsTopUp ? "No reading time has been loaded or time has been used up" : "Stored balance"}>{visit?.session_status === "READING" ? `${formatReadingClock(live)} left` : needsTopUp ? "0 min · Top-up needed" : `${item.remaining_minutes} min`}</span></div>; })}
           {!hourly.length && <p className="py-10 text-center text-sm text-[#806b59]">No hourly memberships are active.</p>}
         </div>
       </section>
@@ -294,7 +295,7 @@ export function TopUpTerminal({ data, name, run }: {
 
     {reader && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center overflow-hidden bg-[#2d190c]/55 p-2 backdrop-blur-sm sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget && !submitting) reset(); }}><form role="dialog" aria-modal="true" aria-labelledby="top-up-menu-title" className="terminal-modal-panel flex max-h-[90dvh] min-h-0 w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] text-[#543822] shadow-[0_30px_100px_rgba(50,27,13,.38)]" onSubmit={async event => {
       event.preventDefault();
-      if (submitting || !validTopUp) return;
+      if (submitting || !validTopUp || !validReference) return;
       setSubmitting(true);
       const updatedBalance = reader.balance + calculatedMinutes;
       const ok = await run(() => api().rpc("admin_top_up", {
@@ -302,7 +303,7 @@ export function TopUpTerminal({ data, name, run }: {
         p_minutes: calculatedMinutes,
         p_amount: amountValue,
         p_method: method,
-        p_reference: reference.trim() || null,
+        p_reference: reference.trim(),
       }), `Top-up completed for ${reader.name}`);
       if (ok) {
         setCompletedBalance(updatedBalance);
@@ -329,9 +330,10 @@ export function TopUpTerminal({ data, name, run }: {
             {(hours || minutes) && !timeQuote && <p role="alert" className="mt-2 text-xs text-rose-700">Enter a positive duration (0–59 minutes) with a charge up to ₱{MAX_TOP_UP_PESOS.toLocaleString()}.</p>}
           </>}
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold">Payment method<select value={method} onChange={event => setMethod(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal"><option>Cash</option><option>Gcash</option><option>Card</option></select></label><label className="text-xs font-bold">Receipt / reference <span className="font-normal text-[#9a806b]">(optional)</span><input maxLength={100} value={reference} onChange={event => setReference(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" placeholder="Enter reference" /></label></div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs font-bold">Payment method<select value={method} onChange={event => setMethod(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal"><option>Cash</option><option>Gcash</option><option>Card</option></select></label><label className="text-xs font-bold">Receipt / reference number<input required maxLength={100} value={reference} onChange={event => setReference(event.target.value)} aria-invalid={reference.length > 0 && !validReference} className="mt-2 min-h-11 w-full rounded-xl border border-[#d8c3ad] bg-white px-3 text-sm font-normal" placeholder="Enter receipt or payment reference" /></label></div>
+          {reference.length > 0 && !validReference && <p role="alert" className="mt-2 text-xs text-rose-700">Enter a receipt or payment reference number.</p>}
         </div>
-        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] p-4 sm:flex-row sm:justify-end sm:px-6"><button type="button" disabled={submitting} onClick={reset} className="min-h-12 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold">Cancel</button><button type="submit" disabled={submitting || !validTopUp} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-6 text-xs font-bold text-white disabled:opacity-45 sm:flex-none">{submitting ? <><LoaderCircle size={16} className="animate-spin" />Processing…</> : <><WalletCards size={16} />Confirm ₱{formattedAmount} top-up</>}</button></footer>
+        <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#eadfd3] bg-[#fcf8f2] p-4 sm:flex-row sm:justify-end sm:px-6"><button type="button" disabled={submitting} onClick={reset} className="min-h-12 rounded-xl border border-[#d8c3ad] bg-white px-5 text-xs font-bold">Cancel</button><button type="submit" disabled={submitting || !validTopUp || !validReference} className="inline-flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-[#a83d12] px-6 text-xs font-bold text-white disabled:opacity-45 sm:flex-none">{submitting ? <><LoaderCircle size={16} className="animate-spin" />Processing…</> : <><WalletCards size={16} />Confirm ₱{formattedAmount} top-up</>}</button></footer>
       </>}
     </form></div>, document.body)}
   </>;

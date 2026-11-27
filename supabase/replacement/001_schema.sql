@@ -97,7 +97,7 @@ create table sora_v2.topup_transactions (
   payment_status text not null default 'UNPAID' check (payment_status in ('UNPAID', 'PAID')),
   amount_paid numeric(10,2) not null,
   payment_method text not null check (payment_method in ('Cash', 'Gcash', 'Card')),
-  payment_reference varchar(100),
+  payment_reference varchar(100) not null check (nullif(btrim(payment_reference), '') is not null),
   created_at timestamptz not null default now()
 );
 
