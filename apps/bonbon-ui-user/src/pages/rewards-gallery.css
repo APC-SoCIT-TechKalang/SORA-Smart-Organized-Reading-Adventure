@@ -1,0 +1,38 @@
+.rewards-gallery { overflow: hidden; border: 1px solid #c99a52; border-radius: 1.25rem; background: #fff7e8; color: #432819; box-shadow: 0 18px 42px #2c1a1226; }
+.rewards-gallery-hero { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; min-height: 12rem; padding: clamp(1.25rem, 3vw, 2.3rem); color: #fff7e8; background: linear-gradient(90deg, #2c1a12ee 0%, #432819dc 68%, #432819a8), url('/reader-archive-hall.jpg') center 55% / cover; }
+.rewards-gallery-eyebrow { display: flex; align-items: center; gap: .45rem; color: #e9c17a; font-size: .72rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }
+.rewards-gallery-eyebrow svg { width: 1rem; height: 1rem; }
+.rewards-gallery-hero h2 { margin-top: .3rem; font: 900 clamp(1.7rem, 3vw, 2.7rem)/1.12 Cinzel, Georgia, serif; text-wrap: balance; }
+.rewards-gallery-hero p:last-child { max-width: 47ch; margin-top: .6rem; color: #f4e0c6; font-size: .9rem; line-height: 1.55; }
+.rewards-points { display: flex; flex: none; align-items: center; gap: .8rem; min-width: 10rem; padding: 1rem; border: 1px solid #e9c17a; border-radius: .8rem; background: #2c1a12bc; box-shadow: inset 0 0 0 3px #e9c17a1f; color: #f7d797; }
+.rewards-points > svg { width: 1.4rem; height: 1.4rem; }
+.rewards-points span { font-size: .7rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.rewards-points strong { display: block; font: 900 1.65rem/1.2 Cinzel, Georgia, serif; font-variant-numeric: tabular-nums; }
+.rewards-gallery-body { padding: clamp(1rem, 2vw, 1.5rem); }
+.rewards-gallery-notice { padding: .7rem .9rem; border-left: 3px solid #c99a52; border-radius: .35rem; background: #f4e3c4a6; color: #66482e; font-size: .78rem; line-height: 1.5; }
+.rewards-gallery-toolbar { display: grid; gap: .85rem; margin: 1rem 0; }
+.rewards-filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+.rewards-filters button { min-height: 2.5rem; padding: .45rem .85rem; border: 1px solid #c99a52; border-radius: 999px; background: #fff7e8; color: #432819; font-size: .75rem; font-weight: 750; transition: background .2s ease, color .2s ease; }
+.rewards-filters button[aria-pressed="true"] { background: #432819; color: #fff7e8; box-shadow: inset 0 -2px #e9c17a; }
+.rewards-search-sort { display: flex; flex-wrap: wrap; gap: .55rem; }
+.rewards-search { display: flex; flex: 1 1 15rem; align-items: center; gap: .5rem; padding: 0 .7rem; border: 1px solid #c99a52; border-radius: .65rem; background: #fffdf8; }
+.rewards-search svg { width: 1rem; height: 1rem; color: #80664d; }
+.rewards-search input { width: 100%; min-width: 0; min-height: 2.65rem; background: transparent; outline: 0; font-size: .82rem; }
+.rewards-sort { flex: 0 1 13rem; }
+.rewards-sort select { width: 100%; min-height: 2.65rem; padding: 0 .65rem; border: 1px solid #c99a52; border-radius: .65rem; background: #fffdf8; color: #432819; font-size: .8rem; }
+.rewards-gallery :is(button, input, select):focus-visible { outline: 2px solid #9b4a23; outline-offset: 2px; }
+.rewards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: .85rem; }
+.reward-treasure { display: grid; grid-template-columns: 41% minmax(0, 1fr); min-height: 9.5rem; overflow: hidden; border: 1px solid #d7b77d; border-radius: .8rem; background: linear-gradient(135deg, #fff9ed, #f4e3c4); box-shadow: 0 6px 16px #43281914; }
+.reward-treasure-art { display: grid; min-width: 0; place-items: center; padding: .75rem; border-right: 1px solid #d7b77d80; }
+.reward-treasure-art img { width: 100%; height: 7.7rem; object-fit: contain; filter: drop-shadow(0 6px 5px #43281933); }
+.reward-art-fallback { display: grid; width: 4rem; height: 4rem; place-items: center; border: 1px solid #c99a52; border-radius: 50%; color: #9b6835; font: 900 2rem Cinzel, Georgia, serif; }
+.reward-treasure-info { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; padding: .75rem; }
+.reward-treasure-category { color: #9b4a23; font-size: .65rem; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.reward-treasure h3 { margin: .25rem 0 .5rem; font: 800 clamp(.9rem, 1.3vw, 1.05rem)/1.25 Cinzel, Georgia, serif; overflow-wrap: anywhere; }
+.reward-treasure-cost { display: flex; align-items: center; gap: .3rem; color: #815020; font-size: .76rem; font-weight: 800; }
+.reward-treasure-cost svg { width: .9rem; height: .9rem; }
+.reward-treasure small { margin-top: .25rem; color: #80664d; font-size: .68rem; }
+.rewards-load-more { display: block; min-height: 2.75rem; margin: 1.2rem auto 0; padding: .5rem 1rem; border: 1px solid #c99a52; border-radius: .6rem; background: #432819; color: #fff7e8; font-size: .82rem; font-weight: 800; }
+.rewards-empty { padding: 2rem 1rem; text-align: center; color: #80664d; }
+@media (max-width: 40rem) { .rewards-gallery-hero { align-items: flex-start; flex-direction: column; } .rewards-points { min-width: 0; } .rewards-sort { flex: 1 1 12rem; } }
+@media (prefers-reduced-motion: reduce) { .rewards-filters button { transition: none; } }
