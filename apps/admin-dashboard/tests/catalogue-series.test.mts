@@ -44,3 +44,10 @@ test("returns a series when its volume matches and preserves whole-series data",
   }
   assert.equal(searchCatalogue(groups, "Example")[0].matchingVolumes.length, 2);
 });
+
+test("shows the full edition title for a one-volume group", () => {
+  const [group] = groupCatalogue([
+    book(1, "Blue Lock, Volume 1", { series_name: "Blue Lock", volume_number: 1 }),
+  ]);
+  assert.equal(group.title, "Blue Lock, Volume 1");
+});

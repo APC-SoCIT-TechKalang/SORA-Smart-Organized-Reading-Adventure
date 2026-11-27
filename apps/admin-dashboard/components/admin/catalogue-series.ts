@@ -58,6 +58,9 @@ export function groupCatalogue(books: Book[]): CatalogueGroup[] {
     volumes.sort((a, b) => volumeNumbers.get(a.book_id)! - volumeNumbers.get(b.book_id)!
       || a.title.localeCompare(b.title, undefined, { numeric: true }) || a.book_id - b.book_id);
   }
+  for (const group of groups.values()) {
+    if (group.volumes.length === 1) group.title = group.volumes[0].title;
+  }
   return [...groups.values()];
 }
 
