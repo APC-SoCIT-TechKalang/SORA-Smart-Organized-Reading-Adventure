@@ -67,8 +67,6 @@ export function Commissions() {
 
       </div>}
 
-      <RewardsGallery rewards={rewards} points={coins} loading={loading} onFullViewChange={setFullRewards} />
-
       {history.length > 0 && <details className="quest-history" hidden={fullRewards}>
         <summary className="quest-section-heading">
           <span className="quest-section-icon"><HistoryIcon size={20} aria-hidden="true" /></span>
@@ -77,6 +75,7 @@ export function Commissions() {
         </summary>
         <div className="quest-card-grid">{history.map(quest => <CommissionCard key={quest.assignmentId ?? quest.id} commission={quest} />)}</div>
       </details>}
+      <RewardsGallery rewards={rewards} points={coins} loading={loading} onFullViewChange={setFullRewards} />
       {questUpdatedAt && <p className="quest-updated"><SparklesIcon size={13} aria-hidden="true" /> Updated <time dateTime={questUpdatedAt}>{new Date(questUpdatedAt).toLocaleString()}</time></p>}
     </>}
   </div>;
