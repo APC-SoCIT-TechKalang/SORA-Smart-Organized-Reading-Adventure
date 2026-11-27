@@ -2820,3 +2820,64 @@ textarea.tb-input:focus {
     height: 98px;
   }
 }
+
+/* Reader collection adapts to its content column, including a collapsed rail. */
+.catalog-volume-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr));
+}
+
+.reader-catalog .tb-book-card > button:first-child {
+  display: block;
+  width: 100%;
+}
+
+.reader-catalog .tb-book-card :is(button, a),
+.reader-catalog .catalog-volume-grid button {
+  -webkit-tap-highlight-color: rgba(183, 121, 18, .2);
+}
+
+.book-record-row {
+  grid-template-columns: minmax(7rem, 30%) minmax(0, 1fr);
+}
+.book-record-row :is(dt, dd) {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.book-record-row {
+  font-size: .875rem;
+  line-height: 1.45;
+}
+
+@container top-five (max-width: 520px) {
+  .top-five-support-card .text-\[9px\] { font-size: .6875rem; }
+  .top-five-support-card .text-\[10px\] { font-size: .75rem; }
+}
+
+@media (max-width: 639px) {
+  .book-record-row { grid-template-columns: minmax(0, 1fr); }
+  .reader-catalog .tb-book-card { padding: .45rem; }
+  .reader-catalog .tb-book-card > button:first-child { min-height: 0; }
+  .reader-catalog .tb-book-card > button:first-child > span:nth-child(2) { padding-inline: .15rem; }
+  [role="dialog"][aria-labelledby="volume-title"] {
+    max-height: 100dvh;
+    border-radius: 1rem 1rem 0 0;
+  }
+}
+
+@media (hover: none) {
+  .reader-catalog .tb-book-card:hover,
+  .reader-catalog .tb-book-cover:hover { transform: none; }
+}
+
+/* Keep the guide reachable without covering cards on narrow reader screens. */
+@media (max-width: 639px) {
+  .bon-launcher-group { --bon-launcher-size: 3.75rem; }
+  .bon-launcher-group .bon-dialogue-trigger {
+    left: auto;
+    right: 0;
+    bottom: calc(var(--bon-launcher-size) + .2rem);
+    translate: none;
+    min-height: 1.875rem;
+    padding: .2rem .55rem;
+  }
+}

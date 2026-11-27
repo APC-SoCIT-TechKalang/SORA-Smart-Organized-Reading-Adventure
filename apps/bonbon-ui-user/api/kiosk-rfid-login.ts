@@ -63,6 +63,8 @@ function allowed(id: string) {
 function normalizePhysicalCardUid(value: string) {
   return value
     .normalize('NFKC')
+    // Scanner payloads may contain control characters that must not reach card lookup.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200d\u2060\ufeff]/g, '')
     .trim()
     .replace(/^][a-z]\d/i, '')

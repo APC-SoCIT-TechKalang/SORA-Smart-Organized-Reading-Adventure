@@ -20,12 +20,19 @@ interface CatalogProps {
 
 export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   const { volumes } = useGame();
-  const availableGenres = new Set(volumes.flatMap((volume) => splitGenres(volume.genre).map(normalizeGenre)));
-  const genres = ['All', ...recommendedGenres.filter((item) => availableGenres.has(normalizeGenre(item))).slice(0, 5)];
+  const genres = useMemo(() => {
+    const names = new Map<string, string>();
+    volumes.forEach(volume => splitGenres(volume.genre).forEach(name => names.set(normalizeGenre(name), name)));
+    return ['All', ...[...names.values()].sort((a, b) => {
+      const aIndex = recommendedGenres.findIndex(item => normalizeGenre(item) === normalizeGenre(a));
+      const bIndex = recommendedGenres.findIndex(item => normalizeGenre(item) === normalizeGenre(b));
+      return (aIndex < 0 ? 999 : aIndex) - (bIndex < 0 ? 999 : bIndex) || a.localeCompare(b);
+    })];
+  }, [volumes]);
   const [genre, setGenre] = useState('All');
   const [layout, setLayout] = useState<'grid' | 'list'>(initialLayout);
   const [sort, setSort] = useState<SortKey>('popular');
-  const [filtersOpen, setFiltersOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(() => !window.matchMedia('(max-width: 639px)').matches);
   const [sortOpen, setSortOpen] = useState(false);
   const [selected, setSelected] = useState<Volume | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -105,7 +112,12 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
             {query && <button type="button" onClick={() => onQueryChange('')} className="flex h-8 w-8 items-center justify-center rounded-full text-umber/45 hover:bg-parch/35 hover:text-rust" aria-label="Clear catalog search"><XIcon aria-hidden="true" className="h-4 w-4" /></button>}
           </label>
 
-        <div className="flex flex-wrap gap-2" aria-label="Filter by genre">
+        <label className="block text-xs font-800 text-umber sm:hidden">Genre
+          <select value={genre} onChange={event => setGenre(event.target.value)} className="tb-input mt-2 min-h-11 w-full rounded-lg px-3 text-umber">
+            {genres.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>
+        </label>
+        <div className="hidden max-h-28 flex-wrap gap-2 overflow-y-auto sm:flex" aria-label="Filter by genre">
           {genres.map((item) => {
             const isActive = item === genre;
             return <button key={item} type="button" onClick={() => setGenre(item)} aria-pressed={isActive} className={`min-h-10 shrink-0 rounded-full border px-4 text-xs font-800 transition ${isActive ? 'border-umber bg-umber text-sand' : 'border-gold/35 bg-cream text-umber/65 hover:border-gold hover:bg-parch/30'}`}>{item}</button>;
@@ -196,7 +208,7 @@ function DiscoveryCover({ volume, compact = false }: { volume: Volume; compact?:
   return <span className={`relative block overflow-hidden border border-sand/35 bg-cream shadow-[0_18px_45px_rgba(28,15,7,.32)] ${compact ? 'h-[112px] w-[82px] rounded-lg' : 'aspect-[3/4] w-full rounded-xl'}`}>
     <span className="relative flex h-full w-full overflow-hidden rounded-[inherit]" style={{ backgroundColor: volume.plateColor }}>
       {volume.coverImage
-        ? <img src={volume.coverImage} alt={`${volume.title} book cover`} className="h-full w-full bg-cream object-contain transition duration-500 group-hover:scale-[1.03]" onError={event => { event.currentTarget.src = '/book-placeholder.svg'; }} />
+        ? <img src={volume.coverImage} alt={`${volume.title} book cover`} loading={compact ? 'lazy' : 'eager'} className="h-full w-full bg-cream object-contain transition duration-500 group-hover:scale-[1.03]" onError={event => { event.currentTarget.src = '/book-placeholder.svg'; }} />
         : <span className={`relative mt-auto block p-3 font-display font-900 uppercase leading-[1.05] ${compact ? 'text-[8px]' : 'text-xl sm:text-2xl'}`} style={{ color: volume.plateInk }}>{plate.map((line, index) => <span key={`${line}-${index}`} className="block">{line}</span>)}</span>}
     </span>
   </span>;
