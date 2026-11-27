@@ -144,7 +144,7 @@ export function AdminBonChat({ data, onOpenAnalytics, onDataRequested }: {
     });
   }, [messages.length, busy, open]);
 
-  async function answer(question: string, refinementDrafts?: QuestDraft[]) {
+  async function answer(question: string, refinementDrafts?: QuestDraft[], options?: { hideAdminMessage?: boolean }) {
     if (busy || requestLockRef.current) return;
     requestLockRef.current = true;
     const isRegeneration = Boolean(refinementDrafts?.length) && /\b(?:regenerate|alternative)\b/i.test(question);
@@ -221,7 +221,8 @@ export function AdminBonChat({ data, onOpenAnalytics, onDataRequested }: {
       return;
     }
     const prior = messages.slice(-4).map(message => ({ role: message.from === "admin" ? "user" : "assistant", content: message.text }));
-    setMessages(current => [...current, { id: Date.now(), from: "admin", text: effectiveQuestion }]);
+    if (!options?.hideAdminMessage)
+      setMessages(current => [...current, { id: Date.now(), from: "admin", text: effectiveQuestion }]);
     setDraft("");
     setBusy(true);
     try {
@@ -245,7 +246,7 @@ export function AdminBonChat({ data, onOpenAnalytics, onDataRequested }: {
   function submit(event: FormEvent) { event.preventDefault(); if (draft.trim() && !busy) void answer(draft.trim()); }
   const suggestions = ["Today's analytics summary", "Which genre is most read?", "Show the least-used books", "How is quest participation?"];
 
-  useEffect(() => { const openQuest = () => { const prompt=questStarters[starterIndex.current++%questStarters.length]; setOpen(true); window.setTimeout(()=>void answer(prompt),0); }; window.addEventListener("open-bon-quest",openQuest); return()=>window.removeEventListener("open-bon-quest",openQuest); });
+  useEffect(() => { const openQuest = () => { const prompt=questStarters[starterIndex.current++%questStarters.length]; setOpen(true); window.setTimeout(()=>void answer(prompt,undefined,{hideAdminMessage:true}),0); }; window.addEventListener("open-bon-quest",openQuest); return()=>window.removeEventListener("open-bon-quest",openQuest); });
 
   useEffect(() => {
     if (!dragging || pos === null) return;
