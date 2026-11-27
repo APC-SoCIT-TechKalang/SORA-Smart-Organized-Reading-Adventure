@@ -5,7 +5,7 @@ import type { Commission, SectionId, Toast, Volume } from '../types/library';
 import { database, errorMessage, readRows, setupMessage, supabase } from '../lib/supabase';
 import { volumes as demoVolumes } from '../data/manga';
 import { bookToVolume, questToCommission, type BookRow, type QuestRow } from '../lib/library-mappers';
-import { loadReplacementLibrary, replacementApi, requireReaderAccount, usesReplacementSchema } from '../lib/replacement-library';
+import { loadReplacementLibrary, replacementApi, requireReaderAccount, usesReplacementSchema, type RedemptionReceipt } from '../lib/replacement-library';
 import { useReaderAccess } from '../lib/use-reader-access';
 
 export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
@@ -14,11 +14,12 @@ interface QuestProgress { quest_id: number; status: string; }
 interface Progress { total_points: number; current_streak_days: number; membership_ranks: { name: string } | null; }
 interface LibraryState {
   volumes: Volume[]; commissions: Commission[]; profile: Profile | null; logs: ReadingLog[];
-  rank: string; coins: number; streak: number; claimed: string[]; enrolled: string[];
+  rank: string; rankPoints:number; coins: number; streak: number; claimed: string[]; enrolled: string[];
   questUpdatedAt: string | null; nextRank: { name: string; pointsRequired: number } | null;
-  rewards: { reward_id:number; reward_name:string; points_cost:number; stock_quantity:number; is_available:boolean }[];
+  rewards: { reward_id:number; reward_name:string; reward_category:'Snacks'|'Drinks'; points_cost:number; stock_quantity:number; is_available:boolean; image_url:string|null }[];
+  redemptions: { redemption_id:number; redemption_reference:string; points_spent:number; redemption_status:string; redeemed_at:string; rewards:{reward_name:string}|null }[];
 }
-const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', coins: 0, streak: 0, claimed: [], enrolled: [], questUpdatedAt: null, nextRank: null, rewards: [] };
+const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', rankPoints:0, coins: 0, streak: 0, claimed: [], enrolled: [], questUpdatedAt: null, nextRank: null, rewards: [], redemptions:[] };
 
 function initialSection(): SectionId {
   if (new URLSearchParams(window.location.search).has('reading')) return 'shelf';
@@ -231,7 +232,13 @@ function useLibraryState() {
     logSession: (_id: string) => { message('Reading time is recorded automatically', 'Finish reading and return the book to complete your session.'); },
     claim: (q: Commission) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('claim_quest', { p_quest_id: Number(q.id) }), 'Quest points claimed'),
     joinQuest: (id: string) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('join_quest', { p_quest_id: Number(id) }), 'Quest joined'),
-    redeemReward: (rewardId: number) => usesReplacementSchema ? run(() => replacementApi().rpc('reader_redeem_reward', { p_reward_id: rewardId }), 'Reward redemption requested') : Promise.resolve(false),
+    redeemReward: async (rewardId:number,requestKey:string):Promise<RedemptionReceipt|null> => {
+      if(!usesReplacementSchema||mutation.current)return null;
+      mutation.current=true;setBusy(true);
+      try{const result=await replacementApi().rpc('reader_redeem_shop_reward',{p_reward_id:rewardId,p_request_key:requestKey});if(result.error)throw result.error;await refresh();message('Redemption reserved','Show the confirmation to a librarian to claim your item.');return result.data as RedemptionReceipt;}
+      catch(err){message('Redemption could not be completed',errorMessage(err));return null;}
+      finally{mutation.current=false;setBusy(false);}
+    },
     toggleEvent: (_id: string, _name: string, _xp: number) => message('Event registration unavailable', 'Ask library staff about current events.'),
     toggleClub: (_id: string, _name: string) => message('Club registration unavailable', 'Ask library staff about current clubs.'),
     dismissToast,

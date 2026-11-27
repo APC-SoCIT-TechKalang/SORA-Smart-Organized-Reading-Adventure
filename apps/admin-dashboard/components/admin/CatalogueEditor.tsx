@@ -140,6 +140,7 @@ export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelv
   const filterCount = Object.values(filters).filter(Boolean).length;
   return <div className="space-y-4">
     <InventoryAlerts />
+    {cartOpen && <ReturnCart revision={revision} close={() => setCartOpen(false)} onShelve={shelveCopy} onBulkComplete={() => { void summary.retry(); void result.retry(); }} />}
     <section aria-label="Book management workspace" className="catalogue-workspace rounded-2xl border bg-[#fffdf9]">
       <div className="catalogue-summary">
         {stats && <dl className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
@@ -207,7 +208,6 @@ export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelv
     {action?.kind === "register" && <RegisterCopy book={action.book} close={closeAction} run={run} />}
     {action?.kind === "bulk" && <BulkCopies book={action.book} close={closeAction} run={run} />}
     {action?.kind === "copy" && <EditOneCopy key={action.row.copy_id} copy={projectCopy(action.row)} title={action.row.title} close={closeAction} run={run} />}
-    {cartOpen && <ReturnCart revision={revision} close={() => setCartOpen(false)} onShelve={shelveCopy} onBulkComplete={() => { void summary.retry(); void result.retry(); }} />}
   </div>;
 
   function updateFilter(key: keyof CatalogueFilters, value: string) {
@@ -407,5 +407,5 @@ function ReturnCart({ revision, close, onShelve, onBulkComplete }: { revision: n
   }, [revision]);
   const result = useResource(load);
   if (result.data) return <ReturnCartStation {...result.data} close={close} onShelve={onShelve} refresh={result.retry} onBulkComplete={onBulkComplete} loading={result.loading} loadError={result.error} />;
-  return <CatalogueDialog title="Return Cart" close={close}><RequestFeedback {...result} /></CatalogueDialog>;
+  return <section aria-labelledby="return-cart-loading-title" className="mb-4 overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] shadow-sm"><header className="flex items-center justify-between border-b border-[#eadfd3] bg-[#fcf7ef] p-4"><h2 id="return-cart-loading-title" className="font-serif text-xl font-semibold">Return Cart</h2><button type="button" onClick={close} className="min-h-9 rounded-lg border border-[#d8c3ad] bg-white px-3 text-xs font-bold">Close</button></header><RequestFeedback {...result} /></section>;
 }

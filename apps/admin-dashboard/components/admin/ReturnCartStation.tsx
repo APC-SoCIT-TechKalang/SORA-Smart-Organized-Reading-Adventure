@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { CheckCircle2, Clock3, LoaderCircle, MapPin, PackageOpen, RotateCw, ScanLine, X } from "lucide-react";
 import { database } from "../../lib/supabase";
 import type { Copy } from "./dashboard-data";
@@ -38,8 +37,6 @@ export function ReturnCartStation({ titles, isbns, copies, onShelve, refresh, on
 
   useEffect(() => {
     const previousFocus = document.activeElement as HTMLElement | null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     inputRef.current?.focus();
     const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") closeRef.current?.click(); };
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -47,7 +44,6 @@ export function ReturnCartStation({ titles, isbns, copies, onShelve, refresh, on
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
       previousFocus?.focus();
     };
   }, []);
@@ -165,8 +161,7 @@ export function ReturnCartStation({ titles, isbns, copies, onShelve, refresh, on
     </li>;
   };
 
-  return createPortal(<div className="fixed inset-0 z-[110] grid place-items-center bg-[#2d190c]/60 p-2 backdrop-blur-sm sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget && !busy) close(); }}>
-    <section role="dialog" aria-modal="true" aria-labelledby="return-cart-title" className="flex max-h-[calc(100dvh-1rem)] min-h-0 w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] shadow-[0_30px_100px_rgba(50,27,13,.35)] sm:max-h-[calc(100dvh-2rem)]">
+  return <section aria-labelledby="return-cart-title" className="mb-4 flex min-h-0 w-full flex-col overflow-hidden rounded-2xl border border-[#d9c5aa] bg-[#fffdf9] shadow-sm">
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#eadfd3] bg-[#fcf7ef] p-4 sm:p-5"><div><p className="text-[9px] font-bold uppercase tracking-[.18em] text-[#a83d12]">Book management</p><h2 id="return-cart-title" className="mt-1 flex items-center gap-2 font-serif text-xl font-semibold"><PackageOpen size={20} />Return cart <span className="rounded-full bg-[#f8dfb7] px-2 py-0.5 font-sans text-xs text-[#804916]">{pending.length}</span></h2><p className="mt-1 text-xs text-[#806b59]">Organize returned books and place each copy on its assigned shelf.</p></div><button ref={closeRef} type="button" disabled={busy} onClick={close} aria-label="Close return cart" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-[#d8c3ad] bg-white disabled:opacity-50"><X size={17} /></button></header>
       <div className="shrink-0 space-y-2 border-b border-[#eadfd3] bg-[#fffdf9] px-4 py-3 sm:px-5">
         <form onSubmit={event => { event.preventDefault(); void findCopy(); }} className="flex gap-2"><label className="flex min-h-10 min-w-0 flex-1 items-center gap-2 rounded-lg border border-[#d8c3ad] bg-white px-3 text-xs"><ScanLine size={16} className="shrink-0 text-[#a83d12]" /><span className="sr-only">Scan copy barcode</span><input ref={inputRef} value={barcode} onChange={event => setBarcode(event.target.value)} disabled={busy} maxLength={100} autoComplete="off" placeholder="Scan the copy barcode…" className="min-w-0 flex-1 bg-transparent py-2 outline-none" /></label><button type="submit" disabled={busy || !barcode.trim()} className="rounded-lg bg-[#543822] px-3 text-xs font-bold text-white disabled:opacity-40">Find copy</button></form>
@@ -183,6 +178,5 @@ export function ReturnCartStation({ titles, isbns, copies, onShelve, refresh, on
         {groups.map(([name, items]) => <section key={name} className="mb-3 overflow-hidden rounded-xl border border-[#eadfd3]"><h3 className="flex items-center justify-between bg-[#faf3e9] px-3 py-2.5 text-xs font-bold sm:px-4"><span className="flex items-center gap-2"><MapPin size={14} className="text-[#a83d12]" />{name === "Unassigned" ? "Unassigned shelf" : name}</span><span className="rounded-full bg-white px-2 py-0.5 text-[10px]">{items.length}</span></h3><ul>{items.map(copy => copyRow(copy, copy.copy_id === selectedId))}</ul></section>)}
         {!visible.length && !selectedOutsideFilter && <p className="rounded-xl border border-[#eadfd3] bg-[#faf6ef] p-6 text-center text-sm text-[#806b59]">{pending.length ? "No pending copies match these filters." : "Return cart is clear. No copies need shelving."}</p>}
       </div>
-    </section>
-  </div>, document.body);
+    </section>;
 }

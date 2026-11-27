@@ -193,6 +193,15 @@ Apply `supabase/replacement/027_prevent_duplicate_quest_definitions.sql` to
 reuse the shared fallback quest and reject new duplicate pending/approved quest
 definitions without removing historical reader assignments.
 
+Apply `supabase/replacement/028_snack_reward_shop.sql` after `027` before
+deploying the reader and admin apps. It adds the reward catalogue fields,
+idempotent atomic redemption, staff fulfillment, and a public `reward-images`
+bucket with librarian-only writes. The six example products are seeded hidden
+with zero stock; staff must upload approved product images, enter real stock,
+and enable each item in Admin → Rewards. Reader rank uses lifetime quest points,
+while the separately displayed available balance subtracts non-cancelled
+redemptions, so spending never lowers rank.
+
 Validation uses an isolated PostgreSQL engine and mocked browser requests:
 
 ```powershell

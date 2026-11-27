@@ -32,7 +32,7 @@ interface BonChatbotProps {
 }
 
 export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
-  const { section, setSection, session, profile, borrowed, rank, coins, streak, nextRank, rewards, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
+  const { section, setSection, session, profile, borrowed, rank, rankPoints, coins, streak, nextRank, rewards, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -189,10 +189,10 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             signedIn: Boolean(session),
             userName: profile ? `${profile.first_name} ${profile.last_name}`.trim() : undefined,
             rank,
-            points: coins,
+            points: rankPoints,
             streak,
             nextRank: nextRank?.name,
-            pointsToNext: nextRank ? Math.max(0, nextRank.pointsRequired - coins) : 0,
+            pointsToNext: nextRank ? Math.max(0, nextRank.pointsRequired - rankPoints) : 0,
             booksCompleted: logs.filter((log) => Boolean(log.returned_at)).length,
             activeReading: borrowed.flatMap((item) => {
               const volume = volumeById(item.volumeId);

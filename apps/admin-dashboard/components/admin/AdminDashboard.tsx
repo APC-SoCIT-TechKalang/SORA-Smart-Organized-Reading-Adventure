@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Clock3,
   Edit3,
+  Gift,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -51,16 +52,18 @@ import { CheckoutQueue } from "./CheckoutQueue";
 import { QuestManagement } from "./QuestManagement";
 import { TopUpTerminal } from "./TopUpTerminal";
 import { ReaderCardManagement } from "./ReaderCardManagement";
+import { RewardManagement } from "./RewardManagement";
 import { normalizePhysicalCardUid } from "../../lib/card-scanner";
 
 type Page =
-  "Overview" | "Analytics" | "Catalogue" | "Challenges" | "Readers" | "Top-up terminal";
+  "Overview" | "Analytics" | "Catalogue" | "Challenges" | "Rewards" | "Readers" | "Top-up terminal";
 type Data = DashboardData;
 const nav: { icon: typeof LayoutDashboard; page: Page; label: string }[] = [
   { icon: LayoutDashboard, page: "Overview", label: "Overview" },
   { icon: ChartNoAxesCombined, page: "Analytics", label: "Analytics" },
   { icon: BookOpen, page: "Catalogue", label: "Book Management" },
   { icon: Trophy, page: "Challenges", label: "Quest" },
+  { icon: Gift, page: "Rewards", label: "Rewards" },
   { icon: Users, page: "Readers", label: "Readers" },
   { icon: Wallet, page: "Top-up terminal", label: "Top-up terminal" },
 ];
@@ -191,6 +194,8 @@ export function AdminDashboard() {
       />
     ) : page === "Challenges" ? (
       <QuestManagement data={data} name={name} run={run} />
+    ) : page === "Rewards" ? (
+      <RewardManagement data={data} name={name} run={run} />
     ) : page === "Readers" ? (
       <Readers data={data} active={active} name={name} run={run} />
     ) : (
@@ -282,7 +287,7 @@ export function AdminDashboard() {
                 <h1 className="font-serif font-semibold tracking-tight">
                   {page === "Overview" ? "Reading Room Today" : (currentWorkspace?.label ?? page)}
                 </h1>
-                <p className="admin-page-heading-description">{page === "Overview" ? "A clear view of today’s library activity." : page === "Analytics" ? "Explore reading trends and verified activity." : page === "Catalogue" ? "Manage titles, copies, and shelf locations." : page === "Challenges" ? "Review quests and reader progress." : page === "Readers" ? "Manage members and library cards." : "Verify cards and add reading time."}</p>
+                <p className="admin-page-heading-description">{page === "Overview" ? "A clear view of today’s library activity." : page === "Analytics" ? "Explore reading trends and verified activity." : page === "Catalogue" ? "Manage titles, copies, and shelf locations." : page === "Challenges" ? "Review quests and reader progress." : page === "Rewards" ? "Manage snack products, stock, and reader redemptions." : page === "Readers" ? "Manage members and library cards." : "Verify cards and add reading time."}</p>
               </div>
             </header>
             {error && (

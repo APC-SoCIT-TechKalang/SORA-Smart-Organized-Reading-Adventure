@@ -12,6 +12,8 @@ export type Enrollment = { quest_progress_id: number; quest_id: number; user_id:
 export type QuestGeneration = { generation_id: number; source: string; status: string; difficulty: string | null; failure_reason: string | null; created_at: string };
 export type Plan = { membership_type_id: number; name: string; entry_type: string };
 export type Shelf = { shelf_id: number; name: string };
+export type Reward = { reward_id:number; reward_name:string; reward_category:"Snacks"|"Drinks"; points_cost:number; stock_quantity:number; is_available:boolean; image_url:string|null };
+export type Redemption = { redemption_id:number; user_id:string; reward_id:number; points_spent:number; redemption_status:"PENDING"|"FULFILLED"|"CANCELLED"; redemption_reference:string; redeemed_at:string; fulfilled_at:string|null; rewards:{reward_name:string}|null };
 
 export type DashboardData = {
   books: Book[];
@@ -26,11 +28,13 @@ export type DashboardData = {
   questGenerations: QuestGeneration[];
   plans: Plan[];
   shelves: Shelf[];
+  rewards: Reward[];
+  redemptions: Redemption[];
 };
 
 export const emptyDashboardData: DashboardData = {
   books: [], copies: [], readers: [], libraryCards: [], memberAccounts: [], visits: [],
-  logs: [], quests: [], enrollments: [], questGenerations: [], plans: [], shelves: [],
+  logs: [], quests: [], enrollments: [], questGenerations: [], plans: [], shelves: [], rewards: [], redemptions: [],
 };
 
 export async function loadDashboardData(): Promise<DashboardData> {
@@ -66,9 +70,11 @@ type ReplacementSession = { session_id:number; user_id:string; copy_id:number; b
 type ReplacementQuest = { quest_id:number; quest_name:string; quest_description:string; quest_requirement:string; target_genre:string|null; quest_difficulty:string; time_limit_days:number|null; points_reward:number; review_decision:string; revised_parameters:Record<string,unknown>|null; previous_parameters:Record<string,unknown>|null };
 type ReplacementEnrollment = { user_quest_id:number; quest_id:number; user_id:string; quest_status:string; progress_value:number; deadline_at:string|null; points_awarded:number };
 type ReplacementGeneration = { request_id:string; request_category:string; validation_status:string; rejection_reason:string|null; created_at:string };
+type ReplacementReward = Reward;
+type ReplacementRedemption = Redemption;
 
 async function loadFixedDashboardData(): Promise<DashboardData> {
-  const [rawBooks, rawCopies, rawReaders, rawLibraryCards, rawSessions, rawQuests, rawEnrollments, questGenerations] = await Promise.all([
+  const [rawBooks, rawCopies, rawReaders, rawLibraryCards, rawSessions, rawQuests, rawEnrollments, questGenerations, rewards, redemptions] = await Promise.all([
     readReplacementRows<ReplacementBook>("books", "book_id,title,series_name,original_title,romanized_title,isbn,volume_number,publisher,publication_date,imprint,book_type,book_description,age_rating,demographic,themes,coverimage_url,authors(author_firstname,author_lastname),book_genre,book_copies(copy_id,copy_status,barcode)", "book_id"),
     readReplacementRows<ReplacementCopy>("book_copies", "copy_id,book_id,copy_number,barcode,copy_status,shelf_location,condition_notes", "copy_id"),
     readReplacementRows<ReplacementUser>("users", "id,first_name,last_name,birthdate,user_role,is_active,membership_type,membership_rank,remaining_minutes,membership_status,membership_expires_at", "id"),
@@ -77,6 +83,8 @@ async function loadFixedDashboardData(): Promise<DashboardData> {
     readReplacementRows<ReplacementQuest>("quests", "quest_id,quest_name,quest_description,quest_requirement,target_genre,quest_difficulty,time_limit_days,points_reward,review_decision,revised_parameters,previous_parameters", "quest_id"),
     readReplacementRows<ReplacementEnrollment>("user_quests", "user_quest_id,quest_id,user_id,quest_status,progress_value,deadline_at,points_awarded", "user_quest_id"),
     readReplacementRows<ReplacementGeneration>("ai_requests", "request_id,request_category,validation_status,rejection_reason,created_at", "created_at"),
+    readReplacementRows<ReplacementReward>("rewards", "reward_id,reward_name,reward_category,points_cost,stock_quantity,is_available,image_url", "reward_name"),
+    readReplacementRows<ReplacementRedemption>("redemptions", "redemption_id,user_id,reward_id,points_spent,redemption_status,redemption_reference,redeemed_at,fulfilled_at,rewards(reward_name)", "redeemed_at"),
   ]);
   const copyBooks = new Map(rawCopies.map(copy => [copy.copy_id, copy.book_id]));
   const books = rawBooks.map(projectBook);
@@ -91,7 +99,7 @@ async function loadFixedDashboardData(): Promise<DashboardData> {
   const enrollments: Enrollment[] = rawEnrollments.map(item => ({ quest_progress_id:item.user_quest_id, quest_id:item.quest_id, user_id:item.user_id, status:item.quest_status === "IN PROGRESS" ? "ACTIVE" : item.quest_status, progress_value:item.progress_value, deadline_at:item.deadline_at, points_awarded:item.points_awarded }));
   const plans: Plan[] = ["Wanderer","Guild Member","Guild Adventurer"].map((name,index) => ({ membership_type_id:index+1, name, entry_type:name === "Wanderer" ? "WALK_IN" : name === "Guild Adventurer" ? "UNLIMITED" : "HOURLY" }));
   const generationProjection: QuestGeneration[] = questGenerations.filter(item=>item.request_category==="QUEST_HELP"&&item.validation_status==="REJECTED").map((item,index)=>({generation_id:index+1,source:"AI",status:"FAILED",difficulty:null,failure_reason:item.rejection_reason,created_at:item.created_at}));
-  return { books, copies, readers, libraryCards, memberAccounts, visits, logs, quests, enrollments, questGenerations:generationProjection, plans, shelves:dashboardShelves };
+  return { books, copies, readers, libraryCards, memberAccounts, visits, logs, quests, enrollments, questGenerations:generationProjection, plans, shelves:dashboardShelves, rewards, redemptions };
 }
 
 export const replacementDatabase = () => database().schema("sora_v2");
