@@ -139,15 +139,15 @@ export function KioskReading() {
       </div>
       <form onSubmit={event => { event.preventDefault(); void run(async () => {
         if (readingIssue) throw new Error(readingIssue);
-        if (active && atBookLimit) throw new Error('You can read a maximum of three books in one session. Finish this session before adding another book.');
+        if (active && atBookLimit) throw new Error('You can have a maximum of three books at one time. Return one before scanning another book.');
         const result = await call('kiosk_scan_book', { p_barcode: barcode.trim(), p_seat_id: active ? null : reservation?.seat_id }) as { error?: string; title: string };
         if (result.error) throw new Error(result.error);
         setBarcode(''); setSelected(null); setMessage(`${result.title} ${active ? 'added to your session' : 'scanned. Your reading session has started'}.`);
       }); }}>
-        {active && <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-gold/25 bg-parch/25 px-3 py-2.5 text-sm"><span className="font-700">Books in this session</span><strong className={atBookLimit ? 'text-rust' : 'text-umber'}>{activeBookCount} / 3</strong></div>}
-        <label className="block font-700">Book ISBN or copy barcode<input ref={scanner} className={input} value={barcode} onChange={event => setBarcode(event.target.value)} autoComplete="off" required maxLength={100} placeholder={atBookLimit ? 'Three-book limit reached' : 'Scan here, then press Enter'} disabled={busy || !loaded || !checkedIn || atBookLimit} /></label>
+        {active && <div className="mb-3 flex items-center justify-between gap-3 rounded-lg border border-gold/25 bg-parch/25 px-3 py-2.5 text-sm"><span><span className="block font-700">Books currently with you</span><small className="mt-0.5 block text-[10px] text-umber/55">Returning a book immediately frees one slot.</small></span><strong className={atBookLimit ? 'text-rust' : 'text-umber'}>{activeBookCount} / 3</strong></div>}
+        <label className="block font-700">Book ISBN or copy barcode<input ref={scanner} className={input} value={barcode} onChange={event => setBarcode(event.target.value)} autoComplete="off" required maxLength={100} placeholder={atBookLimit ? 'Return one book to free a slot' : 'Scan here, then press Enter'} disabled={busy || !loaded || !checkedIn || atBookLimit} /></label>
         <p className="mt-2 text-xs text-umber/65">USB barcode scanners can type into this field and submit with Enter. You can also enter a barcode manually for testing.</p>
-        <button className={`${button} mt-4`} disabled={busy || !loaded || !checkedIn || !!readingIssue || !barcode.trim() || (!active && !hasHold) || active?.session_status === 'CHECKOUT PENDING' || atBookLimit}>{busy ? 'Saving...' : atBookLimit ? 'Three-book limit reached' : active ? 'Scan & add book' : 'Scan & start session'}</button>
+        <button className={`${button} mt-4`} disabled={busy || !loaded || !checkedIn || !!readingIssue || !barcode.trim() || (!active && !hasHold) || active?.session_status === 'CHECKOUT PENDING' || atBookLimit}>{busy ? 'Saving...' : atBookLimit ? 'Return one book to add another' : active ? 'Scan & add book' : 'Scan & start session'}</button>
       </form>
     </>}
   </section>;

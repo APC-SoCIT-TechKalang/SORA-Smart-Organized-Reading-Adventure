@@ -6,7 +6,11 @@ five-minute seat holds without adding tables or columns. Existing seat records
 and occupancy are preserved. Apply `015_reader_three_book_sessions.sql` after
 `012` (and after `014` when RFID login is installed). It preserves one seat/timer
 session, enforces the three-book maximum in the database, and keeps extra scanned
-copies attached to that session.
+copies attached to that session. After installing the per-book return functions
+in `018` and the ISBN return update in `020`, apply
+`022_active_book_limit.sql`. It changes the maximum to three copies currently
+with the reader, so a returned copy frees a slot without closing the seat/timer
+session. It replaces functions only and preserves all tables and rows.
 
 For the UC-03/UC-04 kiosk update, apply the revised `011_kiosk_reading.sql` to the
 existing database after the library card Boolean change. It uses the existing

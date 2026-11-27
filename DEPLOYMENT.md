@@ -140,6 +140,16 @@ charge pauses checkout and appears in the admin dashboard's
 Checkout counter; staff adjust it there and record payment. The reader then
 completes checkout, which releases the seat. Self-payment is not enabled.
 
+Apply `supabase/replacement/020_return_books_by_isbn.sql` after `018` to allow
+the Finish reading confirmation to accept either the physical-copy barcode or
+the selected title's ISBN. Then apply
+`supabase/replacement/022_active_book_limit.sql` after `020`. The latter keeps
+the three-book rule based on copies currently `With Reader`, rather than every
+book scanned during the lifetime of the seat/timer session. Returning one book
+therefore changes the active count from 3 to 2 and immediately frees a slot for
+another scan. Both files replace functions only; they add no tables or columns
+and do not rewrite existing rows.
+
 ## Quest and gamification module (UC-10 through UC-16)
 
 Apply `supabase/replacement/019_quest_gamification_existing_schema.sql` after
