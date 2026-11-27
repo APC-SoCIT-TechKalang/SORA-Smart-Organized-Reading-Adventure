@@ -7,9 +7,10 @@ import { ReaderPageHeading } from '../components/ReaderPageHeading';
 import { useGame } from '../contexts/GameContext';
 import type { Volume } from '../types/library';
 import { groupCatalog, matchesCatalogGroup } from '../lib/catalog-series';
+import { catalogGenreOptions, matchesCatalogGenre } from '../lib/catalog-genres';
 
 type SortKey = 'popular' | 'newest';
-const recommendedGenres = ['Action', 'Comedy', 'Fantasy', 'Horror', 'Supernatural', 'Adventure', 'Romance'];
+const QUICK_GENRE_COUNT = 6;
 const PAGE_SIZE = 24;
 
 interface CatalogProps {
@@ -20,15 +21,9 @@ interface CatalogProps {
 
 export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   const { volumes } = useGame();
-  const genres = useMemo(() => {
-    const names = new Map<string, string>();
-    volumes.forEach(volume => splitGenres(volume.genre).forEach(name => names.set(normalizeGenre(name), name)));
-    return ['All', ...[...names.values()].sort((a, b) => {
-      const aIndex = recommendedGenres.findIndex(item => normalizeGenre(item) === normalizeGenre(a));
-      const bIndex = recommendedGenres.findIndex(item => normalizeGenre(item) === normalizeGenre(b));
-      return (aIndex < 0 ? 999 : aIndex) - (bIndex < 0 ? 999 : bIndex) || a.localeCompare(b);
-    })];
-  }, [volumes]);
+  const genres = useMemo(() => catalogGenreOptions(volumes), [volumes]);
+  const quickGenres = genres.slice(0, QUICK_GENRE_COUNT);
+  const otherGenres = genres.slice(QUICK_GENRE_COUNT);
   const [genre, setGenre] = useState('All');
   const [layout, setLayout] = useState<'grid' | 'list'>(initialLayout);
   const [sort, setSort] = useState<SortKey>('popular');
@@ -45,8 +40,8 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
   }).slice(0, 5), [volumes]);
 
   useEffect(() => {
-    if (genre !== 'All' && !volumes.some((volume) => hasGenre(volume.genre, genre))) setGenre('All');
-  }, [genre, volumes]);
+    if (genre !== 'All' && !genres.includes(genre)) setGenre('All');
+  }, [genre, genres]);
 
   useEffect(() => {
     const openRecommendedVolume = (event: Event) => {
@@ -60,7 +55,7 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
 
   const results = useMemo(() => {
     return groups
-      .filter((group) => (genre === 'All' || group.volumes.some(volume => hasGenre(volume.genre, genre)))
+      .filter((group) => (genre === 'All' || group.volumes.some(volume => matchesCatalogGenre(volume.genre, genre)))
         && matchesCatalogGroup(group, query))
       .sort((a, b) => sort === 'newest'
         ? Math.max(...b.volumes.map(volume => Number(volume.id) || 0)) - Math.max(...a.volumes.map(volume => Number(volume.id) || 0))
@@ -94,11 +89,11 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
 
           <div className="relative justify-self-end">
             <button type="button" onClick={() => setSortOpen((value) => !value)} aria-expanded={sortOpen} aria-haspopup="listbox" className="tb-input flex min-h-11 min-w-[9rem] items-center justify-between gap-3 rounded-full px-3 text-xs font-700 text-umber sm:min-w-40 sm:gap-5 sm:px-4">
-              {sort === 'popular' ? 'Most Read' : 'Newest first'}
+              {sort === 'popular' ? 'Recommended' : 'Newest first'}
               <ChevronDownIcon className={`h-3.5 w-3.5 text-gold transition ${sortOpen ? 'rotate-180' : ''}`} />
             </button>
             {sortOpen && <div role="listbox" aria-label="Sort books" className="absolute right-0 top-[calc(100%+.5rem)] z-30 w-48 overflow-hidden rounded-xl border border-gold/35 bg-cream p-1.5 shadow-[0_16px_36px_rgba(84,56,34,.22)]">
-              <SortOption label="Most Read" active={sort === 'popular'} onClick={() => { setSort('popular'); setSortOpen(false); }} />
+              <SortOption label="Recommended" active={sort === 'popular'} onClick={() => { setSort('popular'); setSortOpen(false); }} />
               <SortOption label="Newest first" active={sort === 'newest'} onClick={() => { setSort('newest'); setSortOpen(false); }} />
             </div>}
           </div>
@@ -114,14 +109,19 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
 
         <label className="block text-xs font-800 text-umber sm:hidden">Genre
           <select value={genre} onChange={event => setGenre(event.target.value)} className="tb-input mt-2 min-h-11 w-full rounded-lg px-3 text-umber">
+            <option value="All">All genres</option>
             {genres.map(item => <option key={item} value={item}>{item}</option>)}
           </select>
         </label>
-        <div className="hidden max-h-28 flex-wrap gap-2 overflow-y-auto sm:flex" aria-label="Filter by genre">
-          {genres.map((item) => {
+        <div className="hidden flex-wrap items-center gap-2 sm:flex" aria-label="Filter by genre">
+          {['All', ...quickGenres].map((item) => {
             const isActive = item === genre;
             return <button key={item} type="button" onClick={() => setGenre(item)} aria-pressed={isActive} className={`min-h-10 shrink-0 rounded-full border px-4 text-xs font-800 transition ${isActive ? 'border-umber bg-umber text-sand' : 'border-gold/35 bg-cream text-umber/65 hover:border-gold hover:bg-parch/30'}`}>{item}</button>;
           })}
+          {otherGenres.length > 0 && <select aria-label="More reading genres" value={otherGenres.includes(genre) ? genre : ''} onChange={event => setGenre(event.target.value || 'All')} className="tb-input min-h-10 max-w-[11rem] rounded-full border border-gold/35 bg-cream px-3 text-xs font-800 text-umber">
+            <option value="">More genres</option>
+            {otherGenres.map(item => <option key={item} value={item}>{item}</option>)}
+          </select>}
         </div></div>}
       </section>
 
@@ -138,7 +138,7 @@ export function Catalog({ query, onQueryChange, initialLayout }: CatalogProps) {
 
 function TopFiveShowcase({ books, onSelect }: { books: Volume[]; onSelect: (book: Volume) => void }) {
   const [featured, ...supporting] = books;
-  const featuredGenre = splitGenres(featured.genre)[0] || 'Library favorite';
+  const featuredGenre = catalogGenreOptions([featured])[0] || 'Library favorite';
 
   return <section aria-labelledby="best-picks-title" className="top-five-showcase relative overflow-hidden rounded-[30px] border border-umber/80 bg-umber p-3 text-cream shadow-[0_28px_70px_rgba(61,36,19,.25)] sm:p-5">
     <div aria-hidden="true" className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full border border-sun/10" />
@@ -213,16 +213,6 @@ function DiscoveryCover({ volume, compact = false }: { volume: Volume; compact?:
     </span>
   </span>;
 }
-
-function splitGenres(value: string) {
-  return value
-    .split(/[,;\n]+/)
-    .map((genre) => genre.trim())
-    .filter(Boolean);
-}
-
-const normalizeGenre = (value: string) => value.trim().toLowerCase();
-const hasGenre = (value: string, genre: string) => splitGenres(value).some(item => normalizeGenre(item) === normalizeGenre(genre));
 
 interface LayoutToggleProps {
   active: boolean;
