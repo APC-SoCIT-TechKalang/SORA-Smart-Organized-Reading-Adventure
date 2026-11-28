@@ -1,8 +1,9 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { BookOpenIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, StarIcon, XIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, XIcon } from 'lucide-react';
 import type { Volume } from '../types/library';
 import { catalogVolumeNumber, type CatalogSeries } from '../lib/catalog-series';
+import { formatOf, genreOptions, subjectOptions } from '../lib/catalog-filters';
 import { useGame } from '../contexts/GameContext';
 
 interface CatalogGridProps {
@@ -45,11 +46,11 @@ export function CatalogGrid({ items, layout, expandedId, onToggle, onSelect }: C
     const expanded = expandedId === group.id;
     const panelId = `catalog-${encodeURIComponent(group.id)}`;
     const button = <button type="button" onClick={() => series ? onToggle(group.id) : onSelect(group.cover)} aria-expanded={series ? expanded : undefined} aria-controls={series ? panelId : undefined} className={`min-w-0 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold ${compact ? 'grid grid-cols-[auto_minmax(0,1fr)] items-center gap-3' : ''}`}>
-      <Cover volume={group.cover} compact={compact} showStatus={!series} badge={series ? group.volumes.length : undefined} />
-      <span className={compact ? 'min-w-0' : 'block min-w-0'}><span className="mt-3 block truncate font-display text-sm font-800 text-umber sm:text-[15px]">{group.title}</span>
-        <span className="mt-0.5 block truncate text-[11px] font-600 text-umber/55 sm:text-xs">{group.author}</span>
-        <span className="mt-2 flex items-center justify-between gap-2"><span className="truncate text-[10px] font-800 uppercase tracking-[.1em] text-gold">{group.genre}</span><span className="flex shrink-0 items-center gap-1 text-[11px] font-800 text-gold"><StarIcon aria-hidden="true" className="h-3 w-3 fill-sun text-sun" />{group.rating || 'New'}</span></span>
-        {series && <span className="mt-1 block text-[11px] font-700 text-umber/65">{group.volumes.length} volumes · {group.copies < 0 ? 'Sign in for availability' : `${group.copies} copies available`}</span>}
+      <Cover volume={group.cover} compact={compact} showStatus={!series} />
+      <span className={compact ? 'min-w-0' : 'block min-w-0'}><span className="mt-3 block font-display text-sm font-800 leading-snug text-umber sm:text-[15px]">{group.title}</span>
+        <span className="mt-1 block text-[11px] font-600 text-umber/65 sm:text-xs">{group.author}</span>
+        <span className="mt-2 flex flex-wrap gap-1"><span className="rounded-full bg-parch/50 px-2 py-1 text-[10px] font-800 text-rust">{formatOf(group.cover)}</span>{genreOptions(group.volumes).slice(0,2).map(tag => <span key={tag} className="rounded-full bg-parch/30 px-2 py-1 text-[10px] text-umber/70">{tag}</span>)}{subjectOptions(group.volumes).slice(0,1).map(tag => <span key={tag} className="rounded-full bg-parch/30 px-2 py-1 text-[10px] text-umber/70">{tag}</span>)}</span>
+        <span className="mt-2 block text-[11px] font-700 text-umber/65">{series ? `${group.volumes.length} volumes · ` : ''}{group.copies < 0 ? 'Sign in for availability' : `${group.copies} ${group.copies === 1 ? 'copy' : 'copies'} available`}</span>
       </span>
     </button>;
     const action = series
@@ -84,12 +85,12 @@ function VolumePanel({ group, onClose, onSelect, onStart, actionLabel, busy, isB
   </section>;
 }
 
-function Cover({ volume, compact = false, showStatus = true, badge }: { volume: Volume; compact?: boolean; showStatus?: boolean; badge?: number }) {
+function Cover({ volume, compact = false, showStatus = true }: { volume: Volume; compact?: boolean; showStatus?: boolean }) {
   const { isBorrowed } = useGame();
   const plate = Array.isArray(volume.plate) && volume.plate.length ? volume.plate : [volume.title || 'Untitled book'];
   return <span className={`tb-book-cover relative block shrink-0 overflow-visible border-2 border-gold bg-cream p-[3px] shadow-[0_8px_20px_rgba(84,56,34,.11)] transition duration-300 group-hover:-translate-y-1.5 group-hover:shadow-[0_18px_34px_rgba(84,56,34,.2)] ${compact ? 'h-16 w-11' : 'w-full'}`}><span className={`relative flex overflow-hidden ${compact ? 'h-full' : 'aspect-[3/4]'}`} style={{ backgroundColor: volume.plateColor }}>
     {volume.coverImage ? <img src={volume.coverImage} alt={`${volume.title} book cover`} loading="lazy" className="h-full w-full bg-cream object-contain" onError={event => { event.currentTarget.src = '/book-placeholder.svg'; }} /> : <span className={`relative mt-auto block p-3 font-display font-900 uppercase leading-[1.05] ${compact ? 'text-[7px]' : 'text-base sm:text-lg'}`} style={{ color: volume.plateInk }}>{plate.map((line, index) => <span key={`${line}-${index}`} className="block">{line}</span>)}</span>}
     {!compact && <span aria-hidden="true" className="pointer-events-none absolute inset-2 border border-current opacity-25" style={{ color: volume.plateInk }} />}
     {!compact && showStatus && (isBorrowed(volume.id) || volume.copies === 0) && <span className={`absolute left-0 top-3 border-y border-r border-umber px-2 py-1 text-[8px] font-800 uppercase tracking-[.12em] ${isBorrowed(volume.id) ? 'bg-sun text-umber' : 'bg-cream text-rust'}`}>{isBorrowed(volume.id) ? 'On shelf' : 'Check staff'}</span>}
-  </span>{!compact && <span className="absolute -right-1.5 -top-1.5 flex h-7 w-7 rotate-45 items-center justify-center border border-umber bg-sun"><span className="-rotate-45 font-display text-[9px] font-900 text-umber">{badge ?? volume.volume}</span></span>}</span>;
+  </span></span>;
 }

@@ -8,6 +8,8 @@ interface ReplacementBook {
   book_id: number;
   series_name: string | null;
   book_type: string | null;
+  themes: string | null;
+  created_at: string | null;
   title: string;
   original_title: string | null;
   isbn: string | null;
@@ -81,6 +83,8 @@ function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
     id: String(book.book_id),
     seriesName: book.series_name,
     bookType: book.book_type,
+    themes: book.themes,
+    addedAt: book.created_at,
     title: book.title,
     author: book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : 'Unknown author',
     genre: book.book_genre || 'General',
@@ -103,7 +107,7 @@ function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
 export async function loadReplacementLibrary(session: Session | null): Promise<ReplacementLibraryData> {
   const books = await readAll<ReplacementBook>(
     'books',
-    'book_id,title,series_name,book_type,original_title,isbn,volume_number,publisher,book_description,coverimage_url,book_genre,authors(author_firstname,author_lastname)'
+    'book_id,title,series_name,book_type,themes,created_at,original_title,isbn,volume_number,publisher,book_description,coverimage_url,book_genre,authors(author_firstname,author_lastname)'
       + (session ? ',book_copies(copy_id,copy_status,shelf_location)' : ''),
     'book_id',
   );

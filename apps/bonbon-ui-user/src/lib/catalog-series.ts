@@ -18,7 +18,7 @@ function candidate(volume: Volume) {
   const match = volume.title.match(numberedTitle);
   const name = volume.seriesName?.trim() || match?.[1].trim() || '';
   const number = volume.volume > 0 ? volume.volume : match ? Number(match[2]) : null;
-  if (!name || number === null) return null;
+  if (!name || (number === null && !volume.seriesName?.trim())) return null;
   return { name, number, key: `${normalize(name)}|${normalize(volume.author)}|${normalize(volume.bookType ?? '')}` };
 }
 
@@ -38,12 +38,12 @@ export function groupCatalog(volumes: Volume[]): CatalogSeries[] {
   }
   const validSeries = new Set<string>();
   for (const [key, members] of candidates) {
-    if (members.length > 1 && new Set(members.map(item => catalogVolumeNumber(item))).size === members.length) validSeries.add(key);
+    if (members.length > 1) validSeries.add(key);
   }
   const groups = new Map<string, CatalogSeries>();
   for (const volume of volumes) {
     const identity = candidate(volume);
-    // Repeated volume numbers often mean separate editions. Keep those records independent.
+    // An explicit series name or a shared numbered title groups editions and volumes.
     const grouped = !!identity && validSeries.has(identity.key);
     const id = grouped && identity ? `series:${identity.key}` : `book:${volume.id}`;
     if (groups.has(id)) continue;
@@ -66,6 +66,7 @@ export function matchesCatalogGroup(group: CatalogSeries, query: string): boolea
   if (!needle) return true;
   const fields = [group.title, group.author, group.genre,
     ...group.volumes.flatMap(volume => [volume.title, volume.author, volume.genre, volume.isbn ?? '',
+      volume.seriesName ?? '', volume.themes ?? '', volume.synopsis,
       `${group.title} volume ${catalogVolumeNumber(volume) ?? ''}`, `${group.title} vol ${catalogVolumeNumber(volume) ?? ''}`])];
   return fields.some(value => normalize(value).includes(needle));
 }

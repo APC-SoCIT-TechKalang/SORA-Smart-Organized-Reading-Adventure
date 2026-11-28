@@ -5,6 +5,8 @@ export type QuestTrack = 'daily' | 'weekly' | 'seasonal';
 export interface Volume {
   seriesName?: string | null;
   bookType?: string | null;
+  themes?: string | null;
+  addedAt?: string | null;
   physicalCopies?: import('../lib/shelf-location').LocatedCopy[];
   coverImage?: string;
   isbn?: string | null;
