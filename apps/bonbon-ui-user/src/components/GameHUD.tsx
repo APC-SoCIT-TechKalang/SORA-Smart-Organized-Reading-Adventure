@@ -53,9 +53,8 @@ export function GameHUD() {
           </button>
 
           <div className="flex min-w-0 items-center gap-2 justify-self-end">
-            {session && readerAccess === 'active' && <button type="button" aria-label="Session history" title="Session history" aria-haspopup="dialog" onClick={() => { setAccountOpen(false); setHistoryOpen(true); }} className="reader-account-button tb-button-secondary min-h-11 shrink-0 px-3 py-1.5 text-left">
-              <HistoryIcon aria-hidden="true" className="h-5 w-5 text-gold" />
-              <span className="hidden text-xs font-800 text-umber md:block">Session history</span>
+            {session && readerAccess === 'active' && <button type="button" aria-label="Session history" title="Session history" aria-haspopup="dialog" onClick={() => { setAccountOpen(false); setHistoryOpen(true); }} className="reader-account-button tb-button-secondary h-11 w-11 shrink-0 !p-0">
+              <HistoryIcon aria-hidden="true" className="h-[18px] w-[18px] text-gold" />
             </button>}
             {session ? (
               <div className="relative">

@@ -152,6 +152,14 @@ and do not rewrite existing rows.
 
 ## Quest and gamification module (UC-10 through UC-16)
 
+For reader session history balances, apply
+`supabase/replacement/036_session_history_balances.sql` after `035`.
+It snapshots remaining minutes and unlimited membership at checkout, after the
+time debit in the same transaction. Existing completed sessions show “Not
+recorded”; their historical balances are not inferred from current balances.
+The reader UI still displays sessions and payment status before this migration
+is applied, but new balance snapshots require the migration.
+
 Apply `supabase/replacement/019_quest_gamification_existing_schema.sql` after
 `018` before deploying the reader and admin apps. It adds no tables and no
 columns. It reuses `quests.revised_parameters`, `user_quests`,

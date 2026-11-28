@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpenIcon, HistoryIcon, XIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, HistoryIcon, XIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { replacementApi, usesReplacementSchema } from '../lib/replacement-library';
 import { errorMessage } from '../lib/supabase';
+import { remainingTimeLabel, sessionCharges, type SessionBalance } from '../lib/session-history';
 
-interface HistorySession {
+interface HistorySession extends SessionBalance {
   session_id: number;
   borrow_date: string | null;
   return_date: string | null;
@@ -13,6 +14,7 @@ interface HistorySession {
 }
 
 const PAGE_SIZE = 20;
+const money = (value: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value);
 const dateLabel = (value: string | null) => value && Number.isFinite(Date.parse(value))
   ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not recorded';
 const durationLabel = (start: string | null, end: string | null) => {
@@ -31,6 +33,7 @@ export function SessionHistoryDialog({ onClose }: { onClose: () => void }) {
   const [error, setError] = useState('');
   const [hasMore, setHasMore] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [expanded, setExpanded] = useState<number | null>(null);
   const dialog = useRef<HTMLElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -68,14 +71,22 @@ export function SessionHistoryDialog({ onClose }: { onClose: () => void }) {
     setError('');
     void (async () => {
       try {
-        const { data, error: queryError } = await replacementApi().from('sessions')
-          .select('session_id,borrow_date,return_date,session_status')
+        const columns = 'session_id,borrow_date,return_date,session_status,food_charge,other_charge,food_other_charges_payment';
+        const query = (selection: string) => replacementApi().from('sessions')
+          .select(selection)
           .eq('user_id', profile.user_id)
           .order('session_id', { ascending: false })
           .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+        let result = await query(`${columns},remaining_minutes_after,unlimited_time_after`);
+        // Allow the UI to deploy before the additive balance migration.
+        if (result.error && ['42703', 'PGRST204'].includes(result.error.code)
+          && /remaining_minutes_after|unlimited_time_after/.test(result.error.message)) {
+          result = await query(columns);
+        }
+        const { data, error: queryError } = result;
         if (queryError) throw queryError;
         if (cancelled) return;
-        const next = (data ?? []) as HistorySession[];
+        const next = (data ?? []) as unknown as HistorySession[];
         setRows(previous => page === 0 ? next.slice(0, PAGE_SIZE) : [
           ...previous.filter(row => !next.slice(0, PAGE_SIZE).some(item => item.session_id === row.session_id)),
           ...next.slice(0, PAGE_SIZE),
@@ -90,7 +101,7 @@ export function SessionHistoryDialog({ onClose }: { onClose: () => void }) {
     return () => { cancelled = true; };
   }, [profile?.user_id, page, retry]);
 
-  const sessions = usesReplacementSchema ? rows : [...logs]
+  const sessions: HistorySession[] = usesReplacementSchema ? rows : [...logs]
     .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at))
     .map(log => ({ session_id: log.reading_log_id, borrow_date: log.started_at, return_date: log.returned_at, session_status: log.returned_at ? 'CLOSED' : 'READING' }));
   const pending = loading || libraryLoading;
@@ -103,21 +114,35 @@ export function SessionHistoryDialog({ onClose }: { onClose: () => void }) {
         <div className="min-w-0 flex-1"><h2 id="session-history-title" className="font-display text-xl font-800 sm:text-2xl">Session history</h2><p className="mt-1 text-xs text-umber/65">Your reading visits, most recent first.</p></div>
         <button type="button" aria-label="Close session history" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-parch/40"><XIcon aria-hidden="true" /></button>
       </header>
-      <div className="space-y-4 overflow-y-auto p-4 sm:p-6" tabIndex={0} aria-label="Reading sessions">
+      <div className="space-y-2 overflow-y-auto p-4 sm:p-6" tabIndex={0} aria-label="Reading sessions">
         {failure && <div role="alert" className="rounded-xl border border-rust/30 p-4 text-sm"><p>Session history could not be updated. {failure}</p><button type="button" disabled={pending && !failure} className="tb-button-secondary mt-3 min-h-11 px-4" onClick={() => { if (libraryError) void refresh(); setRetry(value => value + 1); }}>Try again</button></div>}
         {!pending && !failure && sessions.length === 0 && <div className="py-10 text-center"><BookOpenIcon aria-hidden="true" className="mx-auto h-9 w-9 text-gold" /><h3 className="mt-4 font-display text-lg font-800">Your first chapter awaits</h3><p className="mt-2 text-sm text-umber/65">Your reading sessions will appear here once you start reading at the library.</p></div>}
         {sessions.map(item => {
           const books = logs.filter(log => usesReplacementSchema ? log.session_id === item.session_id : log.reading_log_id === item.session_id);
           const titles = [...new Set(books.map(log => volumeById(String(log.book_id))?.title ?? `Book #${log.book_id}`))];
           const status = item.session_status === 'CLOSED' ? 'Completed' : item.session_status === 'CHECKOUT PENDING' ? 'Checkout pending' : 'Reading';
-          return <article key={item.session_id} className="rounded-xl border border-gold/30 bg-white/40 p-4 sm:p-5">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-display text-sm font-800">Session #{item.session_id}</h3><span className={`rounded-full px-3 py-1 text-xs font-700 ${item.session_status === 'CLOSED' ? 'bg-parch/50 text-umber' : 'bg-gold/15 text-rust'}`}>{status}</span></div>
-            <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-3">
+          const charges = sessionCharges(item);
+          const isExpanded = expanded === item.session_id;
+          return <article key={item.session_id} className="overflow-hidden rounded-xl border border-gold/30 bg-white/40">
+            <h3><button type="button" aria-expanded={isExpanded} aria-controls={`session-details-${item.session_id}`} onClick={() => setExpanded(isExpanded ? null : item.session_id)} className="flex min-h-14 w-full items-center gap-3 p-3 text-left transition hover:bg-parch/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold sm:px-4">
+              <span className="min-w-0 flex-1"><span className="block font-display text-sm font-800">Session #{item.session_id}</span><span className="mt-1 block text-xs text-umber/60">{dateLabel(item.borrow_date)}</span>{charges.unsettled && <span className="mt-1 block text-xs font-800 text-rust">Unsettled charges · {money(charges.total)}</span>}</span>
+              <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-700 ${item.session_status === 'CLOSED' ? 'bg-parch/50 text-umber' : 'bg-gold/15 text-rust'}`}>{status}</span>
+              <ChevronDownIcon aria-hidden="true" className={`h-4 w-4 shrink-0 text-gold transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
+            </button></h3>
+            <div id={`session-details-${item.session_id}`} hidden={!isExpanded} className="border-t border-gold/20 p-4">
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
               <div><dt className="text-xs text-umber/60">Started</dt><dd className="mt-1 font-700">{dateLabel(item.borrow_date)}</dd></div>
               <div><dt className="text-xs text-umber/60">Ended</dt><dd className="mt-1 font-700">{item.return_date ? dateLabel(item.return_date) : item.session_status === 'CLOSED' ? 'Not recorded' : 'In progress'}</dd></div>
               <div><dt className="text-xs text-umber/60">Reading duration</dt><dd className="mt-1 font-700">{durationLabel(item.borrow_date, item.return_date)}</dd></div>
+              <div><dt className="text-xs text-umber/60">Remaining time after session</dt><dd className="mt-1 font-700">{remainingTimeLabel(item)}</dd></div>
             </dl>
+            <section aria-label="Session charges" className="mt-4 rounded-lg border border-gold/20 bg-cream/60 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-xs font-800">Food & other charges</h4><span className={`text-xs font-800 ${charges.unsettled ? 'text-rust' : 'text-umber/70'}`}>{charges.label}</span></div>
+              {charges.known && <dl className="mt-3 space-y-2 text-xs"><div className="flex justify-between gap-2"><dt>Food charges</dt><dd>{money(charges.food)}</dd></div><div className="flex justify-between gap-2"><dt>Other charges</dt><dd>{money(charges.other)}</dd></div><div className="flex justify-between gap-2 border-t border-gold/20 pt-2 font-800"><dt>{charges.unsettled ? 'Amount due' : 'Total charges'}</dt><dd>{money(charges.total)}</dd></div></dl>}
+              {charges.unsettled && <p className="mt-3 text-xs text-rust">Please settle these charges with the librarian.</p>}
+            </section>
             {titles.length > 0 && <div className="mt-4 border-t border-gold/20 pt-3"><p className="text-xs font-700 text-umber/60">Books read</p><ul className="mt-2 space-y-1 text-sm">{titles.map(title => <li key={title} className="flex items-start gap-2"><BookOpenIcon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-gold" /><span>{title}</span></li>)}</ul></div>}
+            </div>
           </article>;
         })}
         {pending && !failure && <p role="status" className="py-4 text-center text-sm text-umber/65">Loading sessions…</p>}
