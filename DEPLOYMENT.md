@@ -152,6 +152,14 @@ and do not rewrite existing rows.
 
 ## Quest and gamification module (UC-10 through UC-16)
 
+Apply `supabase/replacement/037_reader_station_checkout_guard_fix.sql` after
+`035` (and `036` if used) to fix admin checkout failing with “Duplicate scan
+ignored” after books are returned. The session-close trigger and checkout RPC
+write two attendance events in one transaction; this migration permits that
+specific pair while keeping the one-second guard for separate card taps.
+Existing blocked sessions can be checked out by scanning again after applying
+the migration; no session or payment records need to be removed.
+
 For reader session history balances, apply
 `supabase/replacement/036_session_history_balances.sql` after `035`.
 It snapshots remaining minutes and unlimited membership at checkout, after the
