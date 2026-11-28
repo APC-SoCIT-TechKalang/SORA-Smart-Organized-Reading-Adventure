@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { BookOpenIcon, ChevronDownIcon, HistoryIcon, XIcon } from 'lucide-react';
+import { BookOpenIcon, CalendarDaysIcon, ChevronDownIcon, Clock3Icon, HistoryIcon, XIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { replacementApi, usesReplacementSchema } from '../lib/replacement-library';
 import { errorMessage } from '../lib/supabase';
 import { remainingTimeLabel, sessionCharges, type SessionBalance } from '../lib/session-history';
+import './session-history-dialog.css';
 
 interface HistorySession extends SessionBalance {
   session_id: number;
@@ -17,6 +18,8 @@ const PAGE_SIZE = 20;
 const money = (value: number) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(value);
 const dateLabel = (value: string | null) => value && Number.isFinite(Date.parse(value))
   ? new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : 'Not recorded';
+const dayLabel = (value: string | null) => value && Number.isFinite(Date.parse(value))
+  ? new Date(value).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Date not recorded';
 const durationLabel = (start: string | null, end: string | null) => {
   if (!start || !end) return '—';
   const elapsed = Date.parse(end) - Date.parse(start);
@@ -106,47 +109,62 @@ export function SessionHistoryDialog({ onClose }: { onClose: () => void }) {
     .map(log => ({ session_id: log.reading_log_id, borrow_date: log.started_at, return_date: log.returned_at, session_status: log.returned_at ? 'CLOSED' : 'READING' }));
   const pending = loading || libraryLoading;
   const failure = error || libraryError;
+  const groupedSessions = sessions.reduce<{ date: string; items: HistorySession[] }[]>((groups, item) => {
+    const date = dayLabel(item.borrow_date);
+    const lastGroup = groups[groups.length - 1];
+    if (lastGroup?.date === date) lastGroup.items.push(item);
+    else groups.push({ date, items: [item] });
+    return groups;
+  }, []);
 
-  return createPortal(<div className="fixed inset-0 z-[100] flex items-end justify-center bg-umber/75 p-2 backdrop-blur-md sm:items-center sm:p-4" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
-    <section ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="session-history-title" className="flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-gold/40 bg-cream text-umber shadow-2xl outline-none">
-      <header className="flex shrink-0 items-center gap-3 border-b border-gold/30 p-4 sm:p-6">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-umber text-sun"><HistoryIcon aria-hidden="true" /></span>
-        <div className="min-w-0 flex-1"><h2 id="session-history-title" className="font-display text-xl font-800 sm:text-2xl">Session history</h2><p className="mt-1 text-xs text-umber/65">Your reading visits, most recent first.</p></div>
-        <button type="button" aria-label="Close session history" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full hover:bg-parch/40"><XIcon aria-hidden="true" /></button>
+  return createPortal(<div className="session-history-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) onClose(); }}>
+    <section ref={dialog} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="session-history-title" className="session-history-dialog">
+      <header className="session-history-header">
+        <div className="session-history-header-main">
+          <span className="session-history-emblem"><HistoryIcon aria-hidden="true" /></span>
+          <div className="session-history-heading"><p className="session-history-eyebrow">Your library journey</p><h2 id="session-history-title">Session history</h2><p>Every visit, chapter by chapter.</p></div>
+          <button type="button" aria-label="Close session history" onClick={onClose} className="session-history-close"><XIcon aria-hidden="true" /></button>
+        </div>
+        <div className="session-history-header-foot"><span><BookOpenIcon aria-hidden="true" size={16} /> Reading visits</span><strong>{sessions.length} <small>{sessions.length === 1 ? 'visit loaded' : 'visits loaded'}</small></strong></div>
       </header>
-      <div className="space-y-2 overflow-y-auto p-4 sm:p-6" tabIndex={0} aria-label="Reading sessions">
-        {failure && <div role="alert" className="rounded-xl border border-rust/30 p-4 text-sm"><p>Session history could not be updated. {failure}</p><button type="button" disabled={pending && !failure} className="tb-button-secondary mt-3 min-h-11 px-4" onClick={() => { if (libraryError) void refresh(); setRetry(value => value + 1); }}>Try again</button></div>}
-        {!pending && !failure && sessions.length === 0 && <div className="py-10 text-center"><BookOpenIcon aria-hidden="true" className="mx-auto h-9 w-9 text-gold" /><h3 className="mt-4 font-display text-lg font-800">Your first chapter awaits</h3><p className="mt-2 text-sm text-umber/65">Your reading sessions will appear here once you start reading at the library.</p></div>}
-        {sessions.map(item => {
-          const books = logs.filter(log => usesReplacementSchema ? log.session_id === item.session_id : log.reading_log_id === item.session_id);
-          const titles = [...new Set(books.map(log => volumeById(String(log.book_id))?.title ?? `Book #${log.book_id}`))];
-          const status = item.session_status === 'CLOSED' ? 'Completed' : item.session_status === 'CHECKOUT PENDING' ? 'Checkout pending' : 'Reading';
-          const charges = sessionCharges(item);
-          const isExpanded = expanded === item.session_id;
-          return <article key={item.session_id} className="overflow-hidden rounded-xl border border-gold/30 bg-white/40">
-            <h3><button type="button" aria-expanded={isExpanded} aria-controls={`session-details-${item.session_id}`} onClick={() => setExpanded(isExpanded ? null : item.session_id)} className="flex min-h-14 w-full items-center gap-3 p-3 text-left transition hover:bg-parch/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold sm:px-4">
-              <span className="min-w-0 flex-1"><span className="block font-display text-sm font-800">Session #{item.session_id}</span><span className="mt-1 block text-xs text-umber/60">{dateLabel(item.borrow_date)}</span>{charges.unsettled && <span className="mt-1 block text-xs font-800 text-rust">Unsettled charges · {money(charges.total)}</span>}</span>
-              <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-700 ${item.session_status === 'CLOSED' ? 'bg-parch/50 text-umber' : 'bg-gold/15 text-rust'}`}>{status}</span>
-              <ChevronDownIcon aria-hidden="true" className={`h-4 w-4 shrink-0 text-gold transition-transform ${isExpanded ? 'rotate-180' : ''}`} />
-            </button></h3>
-            <div id={`session-details-${item.session_id}`} hidden={!isExpanded} className="border-t border-gold/20 p-4">
-            <dl className="grid gap-3 text-sm sm:grid-cols-2">
-              <div><dt className="text-xs text-umber/60">Started</dt><dd className="mt-1 font-700">{dateLabel(item.borrow_date)}</dd></div>
-              <div><dt className="text-xs text-umber/60">Ended</dt><dd className="mt-1 font-700">{item.return_date ? dateLabel(item.return_date) : item.session_status === 'CLOSED' ? 'Not recorded' : 'In progress'}</dd></div>
-              <div><dt className="text-xs text-umber/60">Reading duration</dt><dd className="mt-1 font-700">{durationLabel(item.borrow_date, item.return_date)}</dd></div>
-              <div><dt className="text-xs text-umber/60">Remaining time after session</dt><dd className="mt-1 font-700">{remainingTimeLabel(item)}</dd></div>
-            </dl>
-            <section aria-label="Session charges" className="mt-4 rounded-lg border border-gold/20 bg-cream/60 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2"><h4 className="text-xs font-800">Food & other charges</h4><span className={`text-xs font-800 ${charges.unsettled ? 'text-rust' : 'text-umber/70'}`}>{charges.label}</span></div>
-              {charges.known && <dl className="mt-3 space-y-2 text-xs"><div className="flex justify-between gap-2"><dt>Food charges</dt><dd>{money(charges.food)}</dd></div><div className="flex justify-between gap-2"><dt>Other charges</dt><dd>{money(charges.other)}</dd></div><div className="flex justify-between gap-2 border-t border-gold/20 pt-2 font-800"><dt>{charges.unsettled ? 'Amount due' : 'Total charges'}</dt><dd>{money(charges.total)}</dd></div></dl>}
-              {charges.unsettled && <p className="mt-3 text-xs text-rust">Please settle these charges with the librarian.</p>}
-            </section>
-            {titles.length > 0 && <div className="mt-4 border-t border-gold/20 pt-3"><p className="text-xs font-700 text-umber/60">Books read</p><ul className="mt-2 space-y-1 text-sm">{titles.map(title => <li key={title} className="flex items-start gap-2"><BookOpenIcon aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0 text-gold" /><span>{title}</span></li>)}</ul></div>}
-            </div>
-          </article>;
-        })}
-        {pending && !failure && <p role="status" className="py-4 text-center text-sm text-umber/65">Loading sessions…</p>}
-        {hasMore && !failure && <button type="button" disabled={pending} onClick={() => setPage(value => value + 1)} className="tb-button-secondary mx-auto min-h-11 px-5 disabled:opacity-50">Load older sessions</button>}
+      <div className="session-history-scroll" tabIndex={0} aria-label="Reading sessions">
+        {failure && <div role="alert" className="session-history-state"><p>Session history could not be updated. {failure}</p><button type="button" disabled={pending && !failure} className="session-history-load" onClick={() => { if (libraryError) void refresh(); setRetry(value => value + 1); }}>Try again</button></div>}
+        {!pending && !failure && sessions.length === 0 && <div className="session-history-state"><BookOpenIcon aria-hidden="true" size={36} /><h3>Your first chapter awaits</h3><p>Your reading sessions will appear here once you start reading at the library.</p></div>}
+        {groupedSessions.map(group => <section key={group.date} className="session-history-day" aria-label={group.date}>
+          <h3 className="session-history-day-heading"><CalendarDaysIcon aria-hidden="true" size={16} /><span>{group.date}</span><small>{group.items.length} {group.items.length === 1 ? 'visit' : 'visits'}</small></h3>
+          <div className="session-history-list">{group.items.map(item => {
+            const books = logs.filter(log => usesReplacementSchema ? log.session_id === item.session_id : log.reading_log_id === item.session_id);
+            const titles = [...new Set(books.map(log => volumeById(String(log.book_id))?.title ?? `Book #${log.book_id}`))];
+            const status = item.session_status === 'CLOSED' ? 'Completed' : item.session_status === 'CHECKOUT PENDING' ? 'Checkout pending' : 'Reading';
+            const charges = sessionCharges(item);
+            const isExpanded = expanded === item.session_id;
+            const duration = item.return_date ? durationLabel(item.borrow_date, item.return_date) : item.session_status === 'CLOSED' ? 'Duration not recorded' : 'In progress';
+            return <article key={item.session_id} className={'session-history-item' + (isExpanded ? ' is-expanded' : '')}>
+              <h4><button type="button" aria-expanded={isExpanded} aria-controls={`session-details-${item.session_id}`} onClick={() => setExpanded(isExpanded ? null : item.session_id)} className="session-history-trigger">
+                <span className="session-history-timeline-mark"><BookOpenIcon aria-hidden="true" size={19} /></span>
+                <span className="session-history-visit-copy"><span className="session-history-visit-kicker">Visit #{item.session_id} · {dateLabel(item.borrow_date)}</span><strong>{titles[0] ?? 'Library reading visit'}</strong><span className="session-history-visit-meta">{titles.length > 1 ? `${titles.length} books · ` : ''}{duration}</span>{charges.unsettled && <span className="session-history-due">Amount due: {money(charges.total)}</span>}</span>
+                <span className={'session-history-status' + (item.session_status === 'CLOSED' ? '' : item.session_status === 'CHECKOUT PENDING' ? ' pending' : ' reading')}>{status}</span>
+                <ChevronDownIcon aria-hidden="true" className="session-history-chevron" />
+              </button></h4>
+              <div id={`session-details-${item.session_id}`} hidden={!isExpanded} className="session-history-details">
+                <dl className="session-history-facts">
+                  <div><dt>Started</dt><dd>{dateLabel(item.borrow_date)}</dd></div>
+                  <div><dt>Ended</dt><dd>{item.return_date ? dateLabel(item.return_date) : item.session_status === 'CLOSED' ? 'Not recorded' : 'In progress'}</dd></div>
+                  <div><dt><Clock3Icon aria-hidden="true" size={12} className="inline" /> Reading duration</dt><dd>{durationLabel(item.borrow_date, item.return_date)}</dd></div>
+                  <div><dt>Remaining time after session</dt><dd>{remainingTimeLabel(item)}</dd></div>
+                </dl>
+                {titles.length > 0 && <section className="session-history-books" aria-label="Books read"><h5 className="session-history-section-title">Books read</h5><ul>{titles.map(title => <li key={title}><BookOpenIcon aria-hidden="true" size={15} /><span>{title}</span></li>)}</ul></section>}
+                <section aria-label="Session charges" className="session-history-charges">
+                  <div className="session-history-charge-head"><strong>Food & other charges</strong><span className={charges.unsettled ? 'due' : ''}>{charges.label}</span></div>
+                  {charges.known && <dl className="session-history-charge-rows"><div className="session-history-charge-row"><dt>Food charges</dt><dd>{money(charges.food)}</dd></div><div className="session-history-charge-row"><dt>Other charges</dt><dd>{money(charges.other)}</dd></div><div className="session-history-charge-row total"><dt>{charges.unsettled ? 'Amount due' : 'Total charges'}</dt><dd>{money(charges.total)}</dd></div></dl>}
+                  {charges.unsettled && <p className="session-history-charge-note">Please settle these charges with the librarian.</p>}
+                </section>
+              </div>
+            </article>;
+          })}</div>
+        </section>)}
+        {pending && !failure && <p role="status" className="session-history-state">Loading sessions…</p>}
+        {hasMore && !failure && <button type="button" disabled={pending} onClick={() => setPage(value => value + 1)} className="session-history-load">Load older sessions</button>}
       </div>
     </section>
   </div>, document.body);
