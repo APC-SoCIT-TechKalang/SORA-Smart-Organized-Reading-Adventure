@@ -1455,7 +1455,7 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
     position: fixed !important;
     inset: 0 !important;
     z-index: 70;
-    width: 100vw !important;
+    width: 100% !important;
     height: 100dvh !important;
     max-width: none !important;
     max-height: none !important;
@@ -1485,6 +1485,9 @@ button:hover .tb-brand-seal { transform: rotate(-4deg) scale(1.04); border-color
   .bon-chat-composer {
     flex: 0 0 auto;
   }
+
+  .bon-chat-footer { min-width: 0; }
+  .bon-chat-log { overflow-wrap: anywhere; overscroll-behavior: contain; }
 }
 
 /* Desktop chat is a fixed-height floating card beside BON. A definite height

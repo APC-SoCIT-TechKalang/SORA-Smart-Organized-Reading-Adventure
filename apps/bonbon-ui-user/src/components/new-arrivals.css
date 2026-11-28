@@ -36,6 +36,7 @@
 .reader-arrival-stage {
   display: grid;
   grid-template-areas: "display" "story";
+  touch-action: pan-y pinch-zoom;
   background: radial-gradient(ellipse at 0% 100%, #5c2d1b, transparent 72%), #2d180f;
 }
 .reader-arrival-copy {
@@ -278,4 +279,18 @@
     from { opacity: .55; }
     to { opacity: 1; }
   }
+}
+
+@media (max-width: 37.99rem) {
+  .reader-arrival-display { min-height: clamp(14rem, 55vw, 20rem); }
+  .reader-arrival-cover { width: min(38vw, 10rem); }
+  .reader-arrival-lineup {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    padding-bottom: .4rem;
+  }
+  .reader-arrival-lineup li { flex: 0 0 clamp(5.5rem, 27vw, 7rem); max-width: none; scroll-snap-align: start; }
+  .reader-arrival-lineup button { min-height: 5.75rem; }
 }
