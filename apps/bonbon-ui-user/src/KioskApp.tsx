@@ -16,6 +16,7 @@ import { normalizePhysicalCardUid, startWebNfcScan, subscribeToHidScanner, subsc
 import { parseKioskQrPayload } from './lib/kioskQr';
 import { subscribeToCardDirectory } from './lib/cardDirectorySync';
 import { ReaderAtmosphere } from './components/ReaderAtmosphere';
+import './reader-world.css';
 import './kiosk-entrance.css';
 
 type KioskStatus = 'ready' | 'scanning' | 'authorizing' | 'entering' | 'error';
@@ -161,7 +162,7 @@ export function KioskApp() {
   }), []);
   useEffect(() => { void clearSession(); }, [clearSession]);
 
-  return <main className="kiosk-entrance text-umber"><KioskHeader />
+  return <main className="reader-world kiosk-entrance text-umber"><KioskHeader />
     <div className="kiosk-entrance-stage">
       <WelcomeView status={status} message={message} startPhysicalScan={startPhysicalScan} startQrScan={startQrScan} qrScanning={qrScanning} stopQrScan={() => { setQrScanning(false); setStatus('ready'); setMessage(''); }} videoRef={videoRef} />
     </div>
@@ -174,15 +175,16 @@ export function KioskApp() {
 }
 
 function KioskHeader() {
-  return <header className="kiosk-entrance-header">
-    <div className="mx-auto w-full max-w-[1440px] px-4 py-3 sm:px-8">
-      <div className="flex min-w-0 items-center gap-2.5 sm:gap-3">
-        <span className="kiosk-entrance-seal"><BookOpenIcon aria-hidden="true" size={21} /></span>
-        <span className="min-w-0">
-          <span className="block truncate font-display text-sm font-900 min-[390px]:text-lg sm:text-2xl">Tankobonbon</span>
-          <small className="block truncate text-[8px] font-800 uppercase tracking-[.09em] text-[#e7bf86] sm:text-[10px]">S.O.R.A. Reading Adventure</small>
+  return <header className="tb-hud kiosk-entrance-header sticky top-0 z-40 border-b border-gold/35 bg-cream/90 shadow-[0_8px_30px_rgba(84,56,34,.07)] backdrop-blur-xl">
+    <div className="mx-auto grid max-w-[1440px] grid-cols-[minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5 min-[390px]:gap-3 min-[390px]:px-4 sm:px-6 sm:py-3">
+      <div className="flex min-w-0 items-center gap-2 text-umber sm:gap-3">
+        <span className="reader-brand-seal flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gold/50 sm:h-11 sm:w-11"><BookOpenIcon aria-hidden="true" className="h-5 w-5" /></span>
+        <span className="min-w-0 font-display font-900 uppercase leading-none tracking-[0.04em] sm:tracking-[0.07em]">
+          <span className="block truncate text-[15px] min-[390px]:text-lg sm:text-2xl lg:text-[28px]">Tankobonbon</span>
+          <small className="mt-1 block truncate font-body text-[7px] font-800 leading-tight tracking-[.11em] text-gold min-[390px]:text-[8px] sm:mt-1.5 sm:text-[10px] sm:tracking-[.17em] lg:text-xs">S.O.R.A. Reading Adventure</small>
         </span>
       </div>
+      <span className="kiosk-guest-indicator">Guest</span>
     </div>
   </header>;
 }
@@ -218,35 +220,35 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
   </section>;
 
   const busy = status === 'authorizing' || status === 'entering';
-  return <section aria-labelledby="kiosk-welcome-title" className="kiosk-entrance-frame">
-    <div className="kiosk-entrance-illustration">
-      <ReaderAtmosphere />
-      <div className="kiosk-entrance-arch" aria-hidden="true" />
-      <div className="kiosk-entrance-title">
-        <h1 id="kiosk-welcome-title">Step into <em>the library.</em></h1>
-        <p>Sign in to choose a seat and start reading.</p>
-      </div>
+  return <section aria-labelledby="kiosk-welcome-title" className="reader-archive kiosk-archive">
+    <ReaderAtmosphere />
+    <div className="reader-archive-copy kiosk-archive-copy">
+      <p className="reader-kicker">Welcome to the Archive</p>
+      <h1 id="kiosk-welcome-title">Your next<br />chapter<br /><em>awaits.</em></h1>
+      <p className="reader-archive-description">Every great adventure begins with a page. Sign in to begin your reading journey.</p>
     </div>
 
-    <div className="kiosk-entry-card">
-      <h2>Present your reader card</h2>
+    <div className="kiosk-entry-card kiosk-signin-panel">
+      <p className="kiosk-signin-eyebrow">Reader sign-in</p>
+      <h2>Begin your adventure.</h2>
+      <p className="kiosk-signin-intro">Present your reader ID to continue.</p>
       <div className="kiosk-entry-actions" aria-busy={busy}>
         <button type="button" onClick={() => void startPhysicalScan()} disabled={busy} className="kiosk-entry-action kiosk-entry-action--primary">
           <span className="kiosk-entry-icon">
             {status === 'authorizing' ? <LoaderCircleIcon aria-hidden="true" className="motion-safe:animate-spin" /> : <NfcIcon aria-hidden="true" />}
           </span>
-          <span className="kiosk-entry-action-copy"><strong>Tap physical card</strong><small>Use the reader beside this screen</small></span>
+          <span className="kiosk-entry-action-copy"><strong>Tap physical ID</strong><small>Use the card reader beside you</small></span>
           <ArrowRightIcon aria-hidden="true" className="kiosk-entry-arrow" />
         </button>
         <button type="button" onClick={startQrScan} disabled={busy} className="kiosk-entry-action">
           <span className="kiosk-entry-icon"><QrCodeIcon aria-hidden="true" /></span>
-          <span className="kiosk-entry-action-copy"><strong>Scan digital card</strong><small>Show the QR code on your phone</small></span>
+          <span className="kiosk-entry-action-copy"><strong>Scan Digital ID</strong><small>Show your QR code</small></span>
           <ArrowRightIcon aria-hidden="true" className="kiosk-entry-arrow" />
         </button>
       </div>
       {status === 'authorizing' && <p role="status" className="kiosk-entry-feedback">Verifying your card…</p>}
       {message && <p role={status === 'error' ? 'alert' : 'status'} className={`kiosk-entry-feedback ${status === 'error' ? 'is-error' : ''}`}>{message}</p>}
-      <p className="kiosk-entry-privacy"><ShieldCheckIcon aria-hidden="true" /> Private kiosk session</p>
+      <p className="kiosk-entry-privacy"><ShieldCheckIcon aria-hidden="true" /> Private reader session</p>
     </div>
   </section>;
 }
