@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { BookOpenIcon } from 'lucide-react';
 import { HeroReading } from '../components/HeroReading';
 import { StatStrip } from '../components/StatStrip';
@@ -7,11 +7,11 @@ import { VolumeDrawer } from '../components/VolumeDrawer';
 import { useGame } from '../contexts/GameContext';
 import type { Volume } from '../types/library';
 
-export function Archive() {
+export function Archive({ hero, guest = false }: { hero?: ReactNode; guest?: boolean }) {
   const { volumes, setSection } = useGame();
   const [activeArrivalIndex, setActiveArrivalIndex] = useState(0);
   const [openedBook, setOpenedBook] = useState<Volume | null>(null);
-  const arrivalItems = volumes.slice(-8);
+  const arrivalItems = guest ? [...volumes].sort((a, b) => (Date.parse(b.addedAt ?? '') || 0) - (Date.parse(a.addedAt ?? '') || 0) || Number(b.id) - Number(a.id)).slice(0, 8) : volumes.slice(-8);
 
   useEffect(() => {
     if (!arrivalItems.length) {
@@ -25,8 +25,8 @@ export function Archive() {
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <HeroReading />
-      <StatStrip />
+      {hero ?? <HeroReading />}
+      {!guest && <StatStrip />}
       <section className="reader-arrival-section" aria-labelledby="new-arrivals-title">
         <header className="reader-arrival-heading">
           <BookOpenIcon aria-hidden="true" />

@@ -16,6 +16,7 @@ import { normalizePhysicalCardUid, startWebNfcScan, subscribeToHidScanner, subsc
 import { parseKioskQrPayload } from './lib/kioskQr';
 import { subscribeToCardDirectory } from './lib/cardDirectorySync';
 import { ReaderAtmosphere } from './components/ReaderAtmosphere';
+import { AppShell } from './components/AppShell';
 import './reader-world.css';
 import './kiosk-entrance.css';
 
@@ -27,6 +28,9 @@ export function KioskApp() {
   const [status, setStatus] = useState<KioskStatus>('ready');
   const [message, setMessage] = useState('');
   const [qrScanning, setQrScanning] = useState(false);
+  const [guestReady, setGuestReady] = useState(false);
+  const [authPrompt, setAuthPrompt] = useState(false);
+  const browseScrollY = useRef(0);
   const authenticating = useRef(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -160,18 +164,48 @@ export function KioskApp() {
     // Clear a stale rejection as soon as staff changes a card or reader record.
     if (!authenticating.current) { setMessage(''); setStatus('ready'); }
   }), []);
-  useEffect(() => { void clearSession(); }, [clearSession]);
+  useEffect(() => { void clearSession().finally(() => setGuestReady(true)); }, [clearSession]);
 
-  return <main className="reader-world kiosk-entrance text-umber"><KioskHeader />
-    <div className="kiosk-entrance-stage">
-      <WelcomeView status={status} message={message} startPhysicalScan={startPhysicalScan} startQrScan={startQrScan} qrScanning={qrScanning} stopQrScan={() => { setQrScanning(false); setStatus('ready'); setMessage(''); }} videoRef={videoRef} />
-    </div>
+  const requestAuth = useCallback((reason: string) => {
+    browseScrollY.current = window.scrollY;
+    setAuthPrompt(true);
+    setQrScanning(false);
+    setStatus('ready');
+    setMessage(reason);
+    document.getElementById('kiosk-sign-in')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    document.getElementById('kiosk-physical-card')?.focus();
+  }, []);
+  const continueBrowsing = useCallback(() => {
+    setAuthPrompt(false);
+    setMessage('');
+    setStatus('ready');
+    window.scrollTo({ top: browseScrollY.current, behavior: 'smooth' });
+    const volumeId = sessionStorage.getItem('sora.kiosk.selected-volume');
+    if (volumeId) {
+      sessionStorage.removeItem('sora.kiosk.selected-volume');
+      window.setTimeout(() => window.dispatchEvent(new CustomEvent('tankobonbon:open-volume', { detail: { volumeId } })), 200);
+    }
+  }, []);
+  useEffect(() => {
+    const onOpenAuth = (event: Event) => {
+      const volumeId = (event as CustomEvent<{ volumeId?: string }>).detail?.volumeId;
+      if (volumeId) sessionStorage.setItem('sora.kiosk.selected-volume', volumeId);
+      requestAuth(volumeId ? 'Sign in to start reading this book.' : 'Sign in to continue your reading adventure.');
+    };
+    window.addEventListener('tankobonbon:open-auth', onOpenAuth);
+    return () => window.removeEventListener('tankobonbon:open-auth', onOpenAuth);
+  }, [requestAuth]);
+
+  return <div className="reader-world kiosk-entrance text-umber"><KioskHeader />
+    {guestReady && <AppShell guest bonAutoPeek={false} catalogLayout="grid" onRequestAuth={requestAuth} guestHero={
+      <WelcomeView status={status} message={message} authPrompt={authPrompt} onContinueBrowsing={continueBrowsing} startPhysicalScan={startPhysicalScan} startQrScan={startQrScan} qrScanning={qrScanning} stopQrScan={() => { setQrScanning(false); setStatus('ready'); setMessage(''); }} videoRef={videoRef} />
+    } />}
     {status === 'entering' && <div className="kiosk-door-reveal" role="status">
       <span className="kiosk-door-leaf kiosk-door-leaf--left" aria-hidden="true" />
       <span className="kiosk-door-leaf kiosk-door-leaf--right" aria-hidden="true" />
       <span className="kiosk-door-reveal-caption">Card verified. Opening the library…</span>
     </div>}
-  </main>;
+  </div>;
 }
 
 function KioskHeader() {
@@ -192,6 +226,8 @@ function KioskHeader() {
 interface WelcomeViewProps {
   status: KioskStatus;
   message: string;
+  authPrompt: boolean;
+  onContinueBrowsing: () => void;
   startPhysicalScan: () => Promise<void>;
   startQrScan: () => void;
   qrScanning: boolean;
@@ -199,7 +235,7 @@ interface WelcomeViewProps {
   videoRef: RefObject<HTMLVideoElement>;
 }
 
-function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanning, stopQrScan, videoRef }: WelcomeViewProps) {
+function WelcomeView({ status, message, authPrompt, onContinueBrowsing, startPhysicalScan, startQrScan, qrScanning, stopQrScan, videoRef }: WelcomeViewProps) {
   if (qrScanning) return <section aria-labelledby="scan-title" className="kiosk-entrance-frame max-w-5xl">
     <div className="relative min-h-[320px] bg-umber p-4 sm:p-6 lg:min-h-[480px]">
       <div className="relative mx-auto h-full min-h-[288px] w-full overflow-hidden rounded-2xl border border-sun/60 bg-[#24150d] shadow-[inset_0_0_50px_rgba(0,0,0,.45)] sm:min-h-[410px]">
@@ -225,19 +261,20 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
     <div className="reader-archive-copy kiosk-archive-copy">
       <p className="reader-kicker">Welcome to the Archive</p>
       <h1 id="kiosk-welcome-title">Your next<br />chapter<br /><em>awaits.</em></h1>
-      <p className="reader-archive-description">Every great adventure begins with a page. Sign in to begin your reading journey.</p>
+      <p className="reader-archive-description">Discover your next story. Your adventure starts here.</p>
+      <button type="button" onClick={() => { sessionStorage.setItem('sora.kiosk.browse', sessionStorage.getItem('sora.kiosk.browse') ?? '{}'); document.getElementById('guest-catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="reader-gold-button kiosk-explore-button">Explore the Collection <ArrowRightIcon aria-hidden="true" /></button>
     </div>
 
-    <div className="kiosk-entry-card kiosk-signin-panel">
+    <div id="kiosk-sign-in" className="kiosk-entry-card kiosk-signin-panel">
       <p className="kiosk-signin-eyebrow">Reader sign-in</p>
-      <h2>Begin your adventure.</h2>
-      <p className="kiosk-signin-intro">Present your reader ID to continue.</p>
+      <h2>{authPrompt ? 'Ready to begin your chapter?' : 'Begin your adventure.'}</h2>
+      <p className="kiosk-signin-intro">Sign in when you're ready to read.</p>
       <div className="kiosk-entry-actions" aria-busy={busy}>
-        <button type="button" onClick={() => void startPhysicalScan()} disabled={busy} className="kiosk-entry-action kiosk-entry-action--primary">
+        <button id="kiosk-physical-card" type="button" onClick={() => void startPhysicalScan()} disabled={busy} className="kiosk-entry-action kiosk-entry-action--primary">
           <span className="kiosk-entry-icon">
             {status === 'authorizing' ? <LoaderCircleIcon aria-hidden="true" className="motion-safe:animate-spin" /> : <NfcIcon aria-hidden="true" />}
           </span>
-          <span className="kiosk-entry-action-copy"><strong>Tap physical ID</strong><small>Use the card reader beside you</small></span>
+          <span className="kiosk-entry-action-copy"><strong>Tap physical ID</strong><small>Use the card reader.</small></span>
           <ArrowRightIcon aria-hidden="true" className="kiosk-entry-arrow" />
         </button>
         <button type="button" onClick={startQrScan} disabled={busy} className="kiosk-entry-action">
@@ -248,6 +285,7 @@ function WelcomeView({ status, message, startPhysicalScan, startQrScan, qrScanni
       </div>
       {status === 'authorizing' && <p role="status" className="kiosk-entry-feedback">Verifying your card…</p>}
       {message && <p role={status === 'error' ? 'alert' : 'status'} className={`kiosk-entry-feedback ${status === 'error' ? 'is-error' : ''}`}>{message}</p>}
+      {authPrompt && <button type="button" onClick={onContinueBrowsing} className="kiosk-continue-browsing">Continue Browsing</button>}
       <p className="kiosk-entry-privacy"><ShieldCheckIcon aria-hidden="true" /> Private reader session</p>
     </div>
   </section>;

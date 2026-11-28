@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { BookOpenIcon, LayoutGridIcon, ListIcon, SearchIcon, SlidersHorizontalIcon, XIcon } from 'lucide-react';
 import { CatalogGrid } from '../components/CatalogGrid';
 import { VolumeDrawer } from '../components/VolumeDrawer';
@@ -11,6 +11,21 @@ import type { Volume } from '../types/library';
 type Sort = 'relevance' | 'title' | 'newest' | 'availability';
 const PAGE_SIZE = 24;
 type Props = { query: string; onQueryChange: (value: string) => void; initialLayout: 'grid' | 'list' };
+type SavedBrowse = { query?: string; format?: string; genre?: string; subject?: string; availability?: string; sort?: Sort; layout?: 'grid' | 'list'; page?: number; expandedId?: string | null };
+function savedBrowse(): SavedBrowse {
+  try {
+    const value = JSON.parse(sessionStorage.getItem('sora.kiosk.browse') ?? '{}') as SavedBrowse;
+    const safeText = (input: unknown) => typeof input === 'string' ? input.slice(0, 200) : 'All';
+    return {
+      format: safeText(value.format), genre: safeText(value.genre), subject: safeText(value.subject),
+      availability: safeText(value.availability),
+      sort: ['relevance', 'title', 'newest', 'availability'].includes(value.sort ?? '') ? value.sort : 'relevance',
+      layout: value.layout === 'list' ? 'list' : 'grid',
+      page: Number.isSafeInteger(value.page) && Number(value.page) > 0 ? Math.min(Number(value.page), 10000) : 1,
+      expandedId: typeof value.expandedId === 'string' ? value.expandedId.slice(0, 100) : null,
+    };
+  } catch { return {}; }
+}
 
 export function Catalog({ query, onQueryChange, initialLayout }: Props) {
   const { volumes } = useGame();
@@ -19,20 +34,35 @@ export function Catalog({ query, onQueryChange, initialLayout }: Props) {
   const genres = useMemo(() => genreOptions(volumes), [volumes]);
   const subjects = useMemo(() => subjectOptions(volumes), [volumes]);
   const [draft, setDraft] = useState(query);
-  const [format, setFormat] = useState('All');
-  const [genre, setGenre] = useState('All');
-  const [subject, setSubject] = useState('All');
-  const [availability, setAvailability] = useState('All');
-  const [sort, setSort] = useState<Sort>('relevance');
-  const [layout, setLayout] = useState<'grid'|'list'>(initialLayout);
+  const [format, setFormat] = useState(() => savedBrowse().format ?? 'All');
+  const [genre, setGenre] = useState(() => savedBrowse().genre ?? 'All');
+  const [subject, setSubject] = useState(() => savedBrowse().subject ?? 'All');
+  const [availability, setAvailability] = useState(() => savedBrowse().availability ?? 'All');
+  const [sort, setSort] = useState<Sort>(() => savedBrowse().sort ?? 'relevance');
+  const [layout, setLayout] = useState<'grid'|'list'>(() => savedBrowse().layout ?? initialLayout);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [selected, setSelected] = useState<Volume|null>(null);
-  const [expandedId, setExpandedId] = useState<string|null>(null);
-  const [page, setPage] = useState(1);
+  const [expandedId, setExpandedId] = useState<string|null>(() => savedBrowse().expandedId ?? null);
+  const [page, setPage] = useState(() => savedBrowse().page ?? 1);
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return; }
+    if (window.location.pathname.startsWith('/kiosk')) {
+      sessionStorage.setItem('sora.kiosk.browse', JSON.stringify({ query, format, genre, subject, availability, sort, layout, page, expandedId }));
+    }
+  }, [query, format, genre, subject, availability, sort, layout, page, expandedId]);
   useEffect(() => setDraft(query), [query]);
   useEffect(() => { const timer = window.setTimeout(() => onQueryChange(draft), 250); return () => window.clearTimeout(timer); }, [draft, onQueryChange]);
   useEffect(() => { const open = (event: Event) => { const id = (event as CustomEvent<{volumeId?:string}>).detail?.volumeId; const found = volumes.find(volume => volume.id === id); if (found) setSelected(found); }; window.addEventListener('tankobonbon:open-volume', open); return () => window.removeEventListener('tankobonbon:open-volume', open); }, [volumes]);
+  useEffect(() => {
+    if (window.location.pathname.startsWith('/kiosk') || !volumes.length) return;
+    const id = sessionStorage.getItem('sora.kiosk.selected-volume');
+    if (!id) return;
+    sessionStorage.removeItem('sora.kiosk.selected-volume');
+    const found = volumes.find(volume => volume.id === id);
+    if (found) setSelected(found);
+  }, [volumes]);
   useEffect(() => { if (!filtersOpen) return; const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setFiltersOpen(false); }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close); }, [filtersOpen]);
   const results = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
@@ -44,7 +74,8 @@ export function Catalog({ query, onQueryChange, initialLayout }: Props) {
   }, [groups, query, format, genre, subject, availability, sort]);
   const pages = Math.max(1, Math.ceil(results.length / PAGE_SIZE));
   const visible = results.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  useEffect(() => { setPage(1); setExpandedId(null); }, [query, format, genre, subject, availability, sort]);
+  const initialFilters = useRef(true);
+  useEffect(() => { if (initialFilters.current) { initialFilters.current = false; return; } setPage(1); setExpandedId(null); }, [query, format, genre, subject, availability, sort]);
   useEffect(() => { if (page > pages) setPage(pages); }, [page, pages]);
   const clear = () => { setDraft(''); onQueryChange(''); setFormat('All'); setGenre('All'); setSubject('All'); setAvailability('All'); };
   const chips = [[format,setFormat,'Format'],[genre,setGenre,'Genre'],[subject,setSubject,'Subject'],[availability,setAvailability,'Availability']] as const;

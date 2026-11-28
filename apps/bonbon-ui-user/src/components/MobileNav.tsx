@@ -3,7 +3,7 @@ import {
   LibraryBigIcon,
   ScrollTextIcon,
   SwordsIcon,
-  MapPinnedIcon } from
+  MapPinnedIcon, LockKeyholeIcon } from
 'lucide-react';
 import { navItems } from '../data/commissions';
 import { useGame } from '../contexts/GameContext';
@@ -19,7 +19,7 @@ const ICONS: Record<SectionId, typeof CompassIcon> = {
 const MOBILE_LABELS: Record<SectionId, string> = { archive: 'Home', catalog: 'Catalog', shelf: 'Shelf', commissions: 'Quests', guide: 'Seats' };
 
 /** Bottom tab bar shown below the lg breakpoint, mirroring the SideRail. */
-export function MobileNav() {
+export function MobileNav({ guest = false, onNavigate }: { guest?: boolean; onNavigate?: (id: SectionId) => void }) {
   const { section, setSection } = useGame();
 
   return (
@@ -35,10 +35,11 @@ export function MobileNav() {
             <li key={item.id} className="relative flex-1">
               <button
                 type="button"
-                onClick={() => setSection(item.id)}
+                onClick={() => onNavigate ? onNavigate(item.id) : setSection(item.id)}
                 aria-current={isActive ? 'page' : undefined}
                 className="reader-tab relative flex min-h-[60px] w-full flex-col items-center justify-center gap-1 px-1 py-1.5">
                 
+                {guest && (item.id === 'shelf' || item.id === 'commissions' || item.id === 'guide') && <LockKeyholeIcon aria-hidden="true" className="absolute right-1 top-1 h-2.5 w-2.5" />}
                 <Icon
                   aria-hidden="true"
                   className="h-5 w-5 shrink-0" />
