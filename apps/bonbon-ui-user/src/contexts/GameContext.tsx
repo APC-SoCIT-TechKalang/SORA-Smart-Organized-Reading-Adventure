@@ -22,6 +22,7 @@ interface LibraryState {
 const empty: LibraryState = { volumes: [], commissions: [], profile: null, logs: [], rank: 'F', rankPoints:0, coins: 0, streak: 0, claimed: [], enrolled: [], questUpdatedAt: null, nextRank: null, rewards: [], redemptions:[] };
 
 function initialSection(): SectionId {
+  if (window.location.pathname.startsWith('/kiosk')) return 'archive';
   if (new URLSearchParams(window.location.search).has('reading')) return 'shelf';
   return 'archive';
 }
@@ -106,7 +107,7 @@ function useLibraryState() {
       const books = await readRows<BookRow>('books', 'book_id,title,author,volume_number,description,cover_image_url,isbn,publisher,original_title,book_genres(genre),book_copies(status)', 'book_id');
       // Keep the browse experience useful for visitors while the live catalog is
       // empty or still being seeded. Signed-in actions continue to use Supabase.
-      const catalog = books.length || currentSession ? books.map(book => bookToVolume(book, !!currentSession)) : demoVolumes;
+      const catalog = books.length || currentSession || window.location.pathname.startsWith('/kiosk') ? books.map(book => bookToVolume(book, !!currentSession)) : demoVolumes;
       let next: LibraryState = { ...empty, volumes: catalog };
       if (currentSession) {
         const results = await Promise.all([
@@ -131,7 +132,7 @@ function useLibraryState() {
       if (current === generation.current) {
         // A background refresh failure must not erase or replace data that was
         // already loaded. Demo books are only an initial guest fallback.
-        if (!currentSession && !usesReplacementSchema) setState(previous => previous.volumes.length ? previous : { ...empty, volumes: demoVolumes });
+        if (!currentSession && !usesReplacementSchema && !window.location.pathname.startsWith('/kiosk')) setState(previous => previous.volumes.length ? previous : { ...empty, volumes: demoVolumes });
         setError(errorMessage(err));
       }
     }
@@ -189,6 +190,8 @@ function useLibraryState() {
       applySession(null);
       window.sessionStorage.removeItem('sora.kiosk.session-started-at');
       window.sessionStorage.removeItem('sora.kiosk.account');
+      window.sessionStorage.removeItem('sora.kiosk.browse');
+      window.sessionStorage.removeItem('sora.kiosk.selected-volume');
       if (kioskSession) window.location.replace('/kiosk');
       else {
         setSection('archive');

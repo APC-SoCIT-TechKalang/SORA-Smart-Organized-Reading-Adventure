@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { GameHUD } from './GameHUD';
 import { SideRail } from './SideRail';
 import { MobileNav } from './MobileNav';
@@ -17,12 +17,33 @@ import '../reader-world.css';
 interface AppShellProps {
   bonAutoPeek: boolean;
   catalogLayout: 'grid' | 'list';
+  guest?: boolean;
+  guestHero?: ReactNode;
+  onRequestAuth?: (reason: string) => void;
 }
 
-export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
-  const { section, setSection, error, refresh } = useGame();
-  const [query, setQuery] = useState('');
+export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero, onRequestAuth }: AppShellProps) {
+  const { section, setSection, error, refresh, session, volumes } = useGame();
+  const [query, setQuery] = useState(() => {
+    try {
+      const value = JSON.parse(sessionStorage.getItem('sora.kiosk.browse') ?? '{}').query;
+      return typeof value === 'string' ? value.slice(0, 200) : '';
+    } catch { return ''; }
+  });
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  const navigate = useCallback((id: SectionId) => {
+    if (guest && (id === 'shelf' || id === 'commissions' || id === 'guide')) {
+      onRequestAuth?.(id === 'shelf' ? 'Sign in to view your shelf.' : id === 'commissions' ? 'Sign in to track your reading quests.' : 'Sign in to choose a seat.');
+      return;
+    }
+    if (guest && id === 'catalog') {
+      sessionStorage.setItem('sora.kiosk.browse', sessionStorage.getItem('sora.kiosk.browse') ?? '{}');
+      document.getElementById('guest-catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    setSection(id);
+  }, [guest, onRequestAuth, setSection]);
 
   useEffect(() => {
     // Navigation must reveal the new page even after scrolling the previous one.
@@ -30,22 +51,36 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
   }, [section]);
 
   useEffect(() => {
+    // HID card scanners send digits as keystrokes; guest navigation must not intercept them.
+    if (guest) return;
     function onKey(event: KeyboardEvent) {
       const target = event.target as HTMLElement | null;
       if (target && ['INPUT', 'TEXTAREA'].includes(target.tagName)) return;
       const match = navItems.find((item) => item.shortcut === event.key);
-      if (match) setSection(match.id as SectionId);
+      if (match) navigate(match.id as SectionId);
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [setSection]);
+  }, [guest, navigate]);
+
+  useEffect(() => {
+    if (guest || !session || !volumes.length) return;
+    const hasBrowseIntent = sessionStorage.getItem('sora.kiosk.browse');
+    const volumeId = sessionStorage.getItem('sora.kiosk.selected-volume');
+    if (!volumeId) {
+      if (hasBrowseIntent) setSection('catalog');
+      return;
+    }
+    if (!volumes.some(volume => volume.id === volumeId)) return;
+    setSection('catalog');
+  }, [guest, session, setSection, volumes]);
 
   return (
     <div className="reader-world relative min-h-screen w-full">
       <a href="#main" className="skip-link">Skip to main content</a>
-      <GameHUD />
+      {!guest && <GameHUD />}
       <main id="main" tabIndex={-1} className="reader-main tb-main-stage relative z-10 mx-auto flex max-w-[1440px] gap-5 px-3 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-4 min-[390px]:px-4 sm:px-6 sm:pt-6 lg:gap-6 lg:pb-24">
-        <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} />
+        <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} guest={guest} onNavigate={guest ? navigate : undefined} />
         <div className="min-w-0 flex-1">
           {error && (
             <div className="tb-cut-sm mb-5 flex flex-wrap items-center justify-between gap-3 border border-rust/35 bg-cream/90 px-4 py-3 font-body text-sm font-600 text-umber/75 shadow-sm" role="alert">
@@ -55,17 +90,17 @@ export function AppShell({ bonAutoPeek, catalogLayout }: AppShellProps) {
           )}
           {/* Mount pages immediately; a suspended exit animation must not hide navigation. */}
           <div key={section} className="reader-scene">
-              {section === 'archive' ? <Archive /> : null}
+              {section === 'archive' ? <><Archive hero={guestHero} guest={guest} />{guest && <div id="guest-catalog" className="mt-10 scroll-mt-24"><Catalog query={query} onQueryChange={setQuery} initialLayout={catalogLayout} /></div>}</> : null}
               {section === 'catalog' ? <Catalog query={query} onQueryChange={setQuery} initialLayout={catalogLayout} /> : null}
-              {section === 'shelf' ? <Shelf /> : null}
-              {section === 'commissions' ? <Commissions /> : null}
-              {section === 'guide' ? <VisitorGuide /> : null}
+              {section === 'shelf' && !guest ? <Shelf /> : null}
+              {section === 'commissions' && !guest ? <Commissions /> : null}
+              {section === 'guide' && !guest ? <VisitorGuide /> : null}
           </div>
         </div>
       </main>
       <ToastStack />
-      <MobileNav />
-      {section !== 'shelf' ? <BonChatbot autoPeek={bonAutoPeek} /> : null}
+      <MobileNav guest={guest} onNavigate={guest ? navigate : undefined} />
+      {!guest && section !== 'shelf' ? <BonChatbot autoPeek={bonAutoPeek} /> : null}
     </div>
   );
 }

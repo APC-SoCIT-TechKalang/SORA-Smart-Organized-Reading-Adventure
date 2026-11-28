@@ -33,7 +33,7 @@ export function CatalogGrid({ items, layout, expandedId, onToggle, onSelect }: C
   }, [layout, items.length]);
 
   const startReading = (id: string) => {
-    if (!session) { window.dispatchEvent(new Event('tankobonbon:open-auth')); return; }
+    if (!session) { window.dispatchEvent(new CustomEvent('tankobonbon:open-auth', { detail: { volumeId: id } })); return; }
     void borrow(id);
   };
   const actionLabel = (volume: Volume) => !session ? 'Sign in to read' : isBorrowed(volume.id) ? 'On your shelf' : volume.copies > 0 ? 'Start reading' : 'Ask staff';

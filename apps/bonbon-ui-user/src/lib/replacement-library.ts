@@ -77,7 +77,7 @@ async function readAll<T>(table: string, columns: string, order: string): Promis
   }
 }
 
-function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
+function toVolume(book: ReplacementBook, signedIn: boolean, publicAvailable?: number): Volume {
   return {
     physicalCopies: signedIn ? (book.book_copies ?? []).map(copy => ({ copyId: copy.copy_id, status: copy.copy_status, shelfLocation: copy.shelf_location })) : undefined,
     id: String(book.book_id),
@@ -92,7 +92,7 @@ function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
     chapters: 0,
     rating: 0,
     rarity: 3,
-    copies: signedIn ? (book.book_copies ?? []).filter(copy => copy.copy_status === 'In-Shelf').length : -1,
+    copies: signedIn ? (book.book_copies ?? []).filter(copy => copy.copy_status === 'In-Shelf').length : publicAvailable ?? -1,
     synopsis: book.book_description ?? 'No description recorded.',
     plate: [book.title.toUpperCase()],
     plateColor: '#59351e',
@@ -111,8 +111,24 @@ export async function loadReplacementLibrary(session: Session | null): Promise<R
       + (session ? ',book_copies(copy_id,copy_status,shelf_location)' : ''),
     'book_id',
   );
+  // The public RPC exposes aggregate availability only; copy IDs and locations stay private.
+  let publicAvailability: Map<number, number> | undefined;
+  if (!session) {
+    const availability = new Map<number, number>();
+    let complete = true;
+    for (let offset = 0; offset < books.length; offset += 500) {
+      const { data, error } = await api().rpc('public_catalog_availability', {
+        book_ids: books.slice(offset, offset + 500).map(book => book.book_id),
+      });
+      if (error || !Array.isArray(data)) { complete = false; break; }
+      for (const item of data as { book_id: number; available_count: number }[]) {
+        availability.set(Number(item.book_id), Number(item.available_count));
+      }
+    }
+    if (complete) publicAvailability = availability;
+  }
   const base: ReplacementLibraryData = {
-    volumes: books.map(book => toVolume(book, !!session)),
+    volumes: books.map(book => toVolume(book, !!session, publicAvailability?.get(book.book_id))),
     profile: null, logs: [], rank: 'F', rankPoints: 0, coins: 0, streak: 0,
     claimed: [], enrolled: [], commissions: [],
     questUpdatedAt: null, nextRank: null, rewards: [], redemptions: [],

@@ -1,7 +1,8 @@
-import { CompassIcon, LibraryBigIcon, ScrollTextIcon, SwordsIcon, MapPinnedIcon, MenuIcon, XIcon } from 'lucide-react';
+import { CompassIcon, LibraryBigIcon, ScrollTextIcon, SwordsIcon, MapPinnedIcon, MenuIcon, XIcon, LockKeyholeIcon } from 'lucide-react';
 import { navItems } from '../data/commissions';
 import { useGame } from '../contexts/GameContext';
 import type { SectionId } from '../types/library';
+import { groupCatalog } from '../lib/catalog-series';
 
 const ICONS: Record<SectionId, typeof CompassIcon> = {
   archive: CompassIcon,
@@ -11,16 +12,17 @@ const ICONS: Record<SectionId, typeof CompassIcon> = {
   guide: MapPinnedIcon,
 };
 
-export function SideRail({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+export function SideRail({ open, onToggle, guest = false, onNavigate }: { open: boolean; onToggle: () => void; guest?: boolean; onNavigate?: (id: SectionId) => void }) {
   const { section, setSection, borrowed, claimed, commissions, volumes, loading } = useGame();
-  const catalogCount = loading ? 'Loading catalog…' : `${volumes.length} ${volumes.length === 1 ? 'title' : 'titles'}`;
+  const titleCount = groupCatalog(volumes).length;
+  const catalogCount = loading ? 'Loading catalog…' : `${titleCount} ${titleCount === 1 ? 'title' : 'titles'}`;
   const openQuestCount = commissions.filter((quest) => !claimed.includes(quest.id)).length;
   const counts: Record<SectionId, string> = {
     archive: 'Reading hall',
     catalog: catalogCount,
-    shelf: `${borrowed.length} reading`,
-    commissions: `${openQuestCount} ${openQuestCount === 1 ? 'quest' : 'quests'} open`,
-    guide: 'Seat availability',
+    shelf: guest ? 'Sign in to view' : `${borrowed.length} reading`,
+    commissions: guest ? 'Sign in to view' : `${openQuestCount} ${openQuestCount === 1 ? 'quest' : 'quests'} open`,
+    guide: guest ? 'Sign in to choose' : 'Seat availability',
   };
 
   return (
@@ -37,13 +39,13 @@ export function SideRail({ open, onToggle }: { open: boolean; onToggle: () => vo
             const isActive = item.id === section;
             return (
               <li key={item.id} className="relative">
-                <button type="button" onClick={() => setSection(item.id)} aria-current={isActive ? 'page' : undefined} className={`reader-rail-item relative flex min-h-[58px] w-full items-center gap-2.5 px-2.5 py-2 text-left ${isActive ? 'text-sand' : 'text-cream'}`}>
+                <button type="button" onClick={() => onNavigate ? onNavigate(item.id) : setSection(item.id)} aria-current={isActive ? 'page' : undefined} className={`reader-rail-item relative flex min-h-[58px] w-full items-center gap-2.5 px-2.5 py-2 text-left ${isActive ? 'text-sand' : 'text-cream'}`}>
                   <Icon aria-hidden="true" className={`h-[18px] w-[18px] shrink-0 ${isActive ? 'text-sun' : 'text-gold'}`} />
                   <span className="min-w-0 flex-1">
                     <span className="block font-display text-xs font-800 tracking-[.04em]">{item.label}</span>
                     <span className="mt-0.5 block truncate text-[11px] font-600 text-sand/80">{counts[item.id]}</span>
                   </span>
-                  <span aria-hidden="true" className="rounded border border-sand/20 px-1.5 py-0.5 text-[9px] font-800 text-sand/75">{item.shortcut}</span>
+                  {guest && (item.id === 'shelf' || item.id === 'commissions' || item.id === 'guide') ? <LockKeyholeIcon aria-hidden="true" className="h-3.5 w-3.5 text-sand/75" /> : <span aria-hidden="true" className="rounded border border-sand/20 px-1.5 py-0.5 text-[9px] font-800 text-sand/75">{item.shortcut}</span>}
                 </button>
               </li>
             );

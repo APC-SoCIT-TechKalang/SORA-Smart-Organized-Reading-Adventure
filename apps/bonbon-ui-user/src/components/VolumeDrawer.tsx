@@ -48,7 +48,7 @@ export function VolumeDrawer({ volume, coverImage, onClose }: VolumeDrawerProps)
     if (!volume) return;
     if (!session) {
       onClose();
-      window.dispatchEvent(new Event('tankobonbon:open-auth'));
+      window.dispatchEvent(new CustomEvent('tankobonbon:open-auth', { detail: { volumeId: volume.id } }));
       return;
     }
     void borrow(volume.id);
