@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpenIcon, LayoutGridIcon, ListIcon, SearchIcon, SlidersHorizontalIcon, XIcon } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { BookOpenIcon, ChevronDownIcon, LayoutGridIcon, ListIcon, SearchIcon, SlidersHorizontalIcon, XIcon } from 'lucide-react';
 import { CatalogGrid } from '../components/CatalogGrid';
 import { VolumeDrawer } from '../components/VolumeDrawer';
 import { ReaderPageHeading } from '../components/ReaderPageHeading';
@@ -7,6 +8,7 @@ import { useGame } from '../contexts/GameContext';
 import { groupCatalog, matchesCatalogGroup } from '../lib/catalog-series';
 import { formatOf, genreMatches, genreOptions, subjectMatches, subjectOptions } from '../lib/catalog-filters';
 import type { Volume } from '../types/library';
+import './catalog-filters.css';
 
 type Sort = 'relevance' | 'title' | 'newest' | 'availability';
 const PAGE_SIZE = 24;
@@ -64,6 +66,7 @@ export function Catalog({ query, onQueryChange, initialLayout }: Props) {
     if (found) setSelected(found);
   }, [volumes]);
   useEffect(() => { if (!filtersOpen) return; const close = (event: KeyboardEvent) => { if (event.key === 'Escape') setFiltersOpen(false); }; window.addEventListener('keydown', close); return () => window.removeEventListener('keydown', close); }, [filtersOpen]);
+  useEffect(() => { if (!filtersOpen) return; const overflow = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = overflow; }; }, [filtersOpen]);
   const results = useMemo(() => {
     const needle = query.trim().toLocaleLowerCase();
     const score = (title: string) => !needle ? 0 : title.toLocaleLowerCase() === needle ? 3 : title.toLocaleLowerCase().startsWith(needle) ? 2 : title.toLocaleLowerCase().includes(needle) ? 1 : 0;
@@ -97,7 +100,35 @@ export function Catalog({ query, onQueryChange, initialLayout }: Props) {
       {chips.map(([value,setValue,label]) => value !== 'All' && <Chip key={label} text={`${label}: ${value}`} remove={() => setValue('All')} />)}
       {(query || chips.some(([value]) => value !== 'All')) && <button type="button" onClick={clear} className="min-h-10 px-2 text-xs font-800 text-rust underline">Clear all</button>}
     </div>
-    {filtersOpen && <div className="fixed inset-0 z-[90] bg-umber/70 p-3 sm:grid sm:place-items-center" onMouseDown={event => { if (event.target === event.currentTarget) setFiltersOpen(false); }}><section role="dialog" aria-modal="true" aria-labelledby="catalog-filter-title" className="ml-auto flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-cream shadow-2xl"><header className="flex items-center justify-between border-b border-gold/25 p-5"><h2 id="catalog-filter-title" className="font-display text-xl font-900">Filter books</h2><button type="button" onClick={() => setFiltersOpen(false)} aria-label="Close filters"><XIcon/></button></header><div className="space-y-5 overflow-y-auto p-5"><Filter label="Format" value={format} options={formats} onChange={setFormat}/><Filter label="Genre" value={genre} options={genres} onChange={setGenre}/><Filter label="Subject" value={subject} options={subjects} onChange={setSubject}/><Filter label="Availability" value={availability} options={volumes.some(v => v.copies >= 0) ? ['Available','Unavailable'] : []} onChange={setAvailability}/></div><footer className="flex gap-2 border-t border-gold/25 p-5"><button type="button" onClick={clear} className="tb-button-secondary tb-cut-sm min-h-11 flex-1">Clear all</button><button type="button" onClick={() => setFiltersOpen(false)} className="tb-button-primary tb-cut-sm min-h-11 flex-1">Show {results.length.toLocaleString()} results</button></footer></section></div>}
+    {filtersOpen && createPortal(
+      <div className="catalog-filter-overlay" onMouseDown={event => { if (event.target === event.currentTarget) setFiltersOpen(false); }}>
+        <section role="dialog" aria-modal="true" aria-labelledby="catalog-filter-title" aria-describedby="catalog-filter-description" className="catalog-filter-dialog">
+          <header className="catalog-filter-header">
+            <div className="catalog-filter-header-copy">
+              <span className="catalog-filter-mark" aria-hidden="true"><SlidersHorizontalIcon /></span>
+              <div>
+                <p className="catalog-filter-eyebrow">Explore the collection</p>
+                <h2 id="catalog-filter-title">Find your next read</h2>
+                <p id="catalog-filter-description">Choose what matters to you. Your results update as you go.</p>
+              </div>
+            </div>
+            <button type="button" onClick={() => setFiltersOpen(false)} aria-label="Close filters" className="catalog-filter-close" autoFocus><XIcon aria-hidden="true" /></button>
+          </header>
+          <div className="catalog-filter-body">
+            <div className="catalog-filter-summary"><BookOpenIcon aria-hidden="true" /><span><strong>{results.length.toLocaleString()}</strong> {results.length === 1 ? 'title matches' : 'titles match'} your choices</span></div>
+            <div className="catalog-filter-grid">
+              <Filter number="01" label="Format" hint="Choose the kind of book" value={format} options={formats} onChange={setFormat}/>
+              <Filter number="02" label="Genre" hint="Find the mood you want" value={genre} options={genres} onChange={setGenre}/>
+              <Filter number="03" label="Subject" hint="Follow your interests" value={subject} options={subjects} onChange={setSubject}/>
+              <Filter number="04" label="Availability" hint="See what is on the shelves" value={availability} options={volumes.some(v => v.copies >= 0) ? ['Available','Unavailable'] : []} onChange={setAvailability}/>
+            </div>
+          </div>
+          <footer className="catalog-filter-footer">
+            <button type="button" onClick={clear} className="catalog-filter-reset">Clear all</button>
+            <button type="button" onClick={() => setFiltersOpen(false)} className="catalog-filter-apply">Show {results.length.toLocaleString()} {results.length === 1 ? 'book' : 'books'} <span aria-hidden="true">→</span></button>
+          </footer>
+        </section>
+      </div>, document.body)}
     {visible.length ? <CatalogGrid items={visible} layout={layout} expandedId={expandedId} onToggle={id => setExpandedId(current => current === id ? null : id)} onSelect={setSelected}/> : <div className="tb-state tb-cut-sm text-center"><BookOpenIcon className="mx-auto h-9 w-9 text-gold"/><h2 className="mt-3 font-display text-xl font-900">No books match these choices</h2><p className="mt-2 text-sm text-umber/60">Try removing a format, genre, subject, or search term.</p><button type="button" onClick={clear} className="tb-button-primary tb-cut-sm mt-4 min-h-11 px-5">Show all books</button></div>}
     {pages > 1 && <nav aria-label="Collection pages" className="flex items-center justify-center gap-3 pb-5 text-sm font-700"><button type="button" disabled={page === 1} onClick={() => setPage(page - 1)} className="tb-button-secondary tb-cut-sm min-h-11 px-4 disabled:opacity-40">Previous</button><span>Page {page} of {pages}</span><button type="button" disabled={page === pages} onClick={() => setPage(page + 1)} className="tb-button-secondary tb-cut-sm min-h-11 px-4 disabled:opacity-40">Next</button></nav>}
     <VolumeDrawer volume={selected ? volumes.find(v => v.id === selected.id) ?? selected : null} onClose={() => setSelected(null)}/>
@@ -105,4 +136,4 @@ export function Catalog({ query, onQueryChange, initialLayout }: Props) {
 }
 
 function Chip({text,remove}:{text:string;remove:()=>void}) { return <button type="button" onClick={remove} aria-label={`Remove ${text}`} className="inline-flex min-h-10 items-center gap-1 rounded-full border border-gold/40 bg-parch/30 px-3 text-xs font-800 text-umber">{text}<XIcon className="h-3 w-3"/></button>; }
-function Filter({label,value,options,onChange}:{label:string;value:string;options:string[];onChange:(value:string)=>void}) { return <label className="block text-sm font-800 text-umber">{label}<select value={value} onChange={event => onChange(event.target.value)} className="tb-input mt-2 min-h-12 w-full rounded-lg px-3"><option value="All">All {label.toLowerCase()}s</option>{options.map(option => <option key={option} value={option}>{option}</option>)}</select></label>; }
+function Filter({number,label,hint,value,options,onChange}:{number:string;label:string;hint:string;value:string;options:string[];onChange:(value:string)=>void}) { return <label className={`catalog-filter-field ${value !== 'All' ? 'is-active' : ''}`}><span className="catalog-filter-field-top"><span className="catalog-filter-number">{number}</span><span><strong>{label}</strong><small>{hint}</small></span></span><span className="catalog-filter-select-wrap"><select value={value} onChange={event => onChange(event.target.value)}><option value="All">All {label.toLowerCase()}s</option>{options.map(option => <option key={option} value={option}>{option}</option>)}</select><ChevronDownIcon aria-hidden="true" /></span></label>; }

@@ -1,0 +1,90 @@
+.catalog-filter-overlay {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  background: #21120fc7;
+  backdrop-filter: blur(8px);
+}
+
+.catalog-filter-dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 45rem);
+  max-height: calc(100dvh - 2rem);
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid #eac88c;
+  border-radius: 22px;
+  background: #fff8e9;
+  box-shadow: 0 30px 90px #160a07ad, 0 0 0 1px #fff6da35;
+}
+
+.catalog-filter-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: clamp(1.25rem, 3vw, 2rem);
+  color: #fff3db;
+  background:
+    radial-gradient(circle at 100% 0%, #c47b3a44, transparent 45%),
+    repeating-linear-gradient(115deg, transparent 0 44px, #f3c57409 45px 46px),
+    linear-gradient(125deg, #3a2118, #6a3c24);
+}
+.catalog-filter-header-copy { display: flex; align-items: flex-start; gap: 1rem; min-width: 0; }
+.catalog-filter-mark { display: grid; flex: none; place-items: center; width: 3rem; height: 3rem; border: 1px solid #f1c57d73; border-radius: 12px; color: #ffd377; background: #fff1ca12; }
+.catalog-filter-mark svg { width: 1.35rem; height: 1.35rem; }
+.catalog-filter-eyebrow { margin: 0 0 .35rem; color: #f6cb79; font-size: .7rem; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
+.catalog-filter-header h2 { margin: 0; font: 900 clamp(1.6rem, 3vw, 2.25rem)/1.14 Cinzel, Georgia, serif; letter-spacing: -.025em; }
+.catalog-filter-header p:last-child { margin: .55rem 0 0; color: #efd5b8; font-size: .88rem; line-height: 1.5; }
+.catalog-filter-close { display: grid; flex: none; place-items: center; width: 2.7rem; height: 2.7rem; border: 1px solid #ffdda354; border-radius: 50%; color: #fff0d8; background: #fff2da13; transition: background .2s, transform .2s; }
+.catalog-filter-close:hover { background: #fff2da28; transform: rotate(90deg); }
+.catalog-filter-close svg { width: 1.15rem; height: 1.15rem; }
+
+.catalog-filter-body { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: clamp(1rem, 2.8vw, 1.7rem); background: radial-gradient(circle at 100% 0%, #f8e6c4, transparent 50%), #fff9ee; }
+.catalog-filter-summary { display: flex; align-items: center; gap: .7rem; margin-bottom: 1.15rem; padding: .8rem 1rem; border: 1px solid #e9c98e; border-radius: 12px; color: #57351f; background: #faedd2; font-size: .85rem; font-weight: 700; }
+.catalog-filter-summary svg { width: 1.15rem; height: 1.15rem; color: #a45b22; }
+.catalog-filter-summary strong { font-size: 1.05rem; font-variant-numeric: tabular-nums; }
+.catalog-filter-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .85rem; }
+.catalog-filter-field { display: block; min-width: 0; padding: 1rem; border: 1px solid #e8d1ae; border-radius: 14px; background: #fffdf8; box-shadow: 0 6px 18px #6a3d160b; transition: border-color .2s, box-shadow .2s; }
+.catalog-filter-field:hover, .catalog-filter-field:focus-within { border-color: #c68b42; box-shadow: 0 7px 18px #6a3d1619; }
+.catalog-filter-field.is-active { border-color: #c98b3c; background: #fff8e7; }
+.catalog-filter-field-top { display: flex; align-items: center; gap: .7rem; margin-bottom: .8rem; }
+.catalog-filter-number { display: grid; flex: none; place-items: center; width: 2rem; height: 2rem; border: 1px solid #e5c790; border-radius: 50%; color: #a45b22; background: #fff3d8; font: 800 .66rem/1 Cinzel, Georgia, serif; }
+.catalog-filter-field-top strong { display: block; color: #43291c; font-size: .94rem; }
+.catalog-filter-field-top small { display: block; margin-top: .1rem; color: #8b715c; font-size: .73rem; line-height: 1.3; }
+.catalog-filter-select-wrap { position: relative; display: block; }
+.catalog-filter-select-wrap select { display: block; width: 100%; min-height: 3rem; appearance: none; padding: .65rem 2.5rem .65rem .85rem; border: 1px solid #dec39e; border-radius: 9px; color: #493020; background: #fffaf1; font-family: inherit; font-size: .85rem; font-weight: 700; line-height: 1.3; cursor: pointer; }
+.catalog-filter-select-wrap svg { position: absolute; top: 50%; right: .85rem; width: 1rem; height: 1rem; color: #8d532b; pointer-events: none; transform: translateY(-50%); }
+.catalog-filter-select-wrap select:focus-visible { outline: 3px solid #c07834; outline-offset: 2px; }
+.catalog-filter-footer { display: flex; justify-content: flex-end; gap: .7rem; padding: 1rem clamp(1rem, 2.8vw, 1.7rem); border-top: 1px solid #e7d0ab; background: #fffaf0; box-shadow: 0 -8px 22px #6a3d160b; }
+.catalog-filter-footer button { display: inline-flex; align-items: center; justify-content: center; min-height: 3rem; border-radius: 10px; font-size: .9rem; font-weight: 800; transition: transform .18s, box-shadow .18s, background .18s; }
+.catalog-filter-footer button:hover { transform: translateY(-1px); }
+.catalog-filter-footer button:active { transform: translateY(0); }
+.catalog-filter-footer button:focus-visible, .catalog-filter-close:focus-visible { outline: 3px solid #e3a349; outline-offset: 2px; }
+.catalog-filter-reset { min-width: 7.5rem; padding: .7rem 1rem; border: 1px solid #d7b88f; color: #603b25; background: #fffdf8; }
+.catalog-filter-reset:hover { background: #f9edda; }
+.catalog-filter-apply { gap: .8rem; min-width: 12rem; padding: .7rem 1.2rem; border: 1px solid #d48d30; color: #361d12; background: linear-gradient(105deg, #ffe39b, #f3bb55); box-shadow: 0 7px 16px #b9742930; }
+.catalog-filter-apply:hover { box-shadow: 0 9px 20px #b9742948; }
+.catalog-filter-apply span { font-size: 1.1rem; }
+
+@media (max-width: 580px) {
+  .catalog-filter-overlay { align-items: end; padding: 0; }
+  .catalog-filter-dialog { width: 100%; max-height: calc(100dvh - env(safe-area-inset-top)); border-radius: 22px 22px 0 0; }
+  .catalog-filter-header { padding: 1.15rem; }
+  .catalog-filter-mark { width: 2.5rem; height: 2.5rem; }
+  .catalog-filter-header h2 { font-size: 1.55rem; }
+  .catalog-filter-header p:last-child { font-size: .78rem; }
+  .catalog-filter-grid { grid-template-columns: 1fr; }
+  .catalog-filter-field { padding: .8rem; }
+  .catalog-filter-footer { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
+  .catalog-filter-footer button { flex: 1; min-width: 0; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .catalog-filter-dialog { animation: catalog-filter-enter .22s ease-out both; }
+  @keyframes catalog-filter-enter { from { opacity: 0; transform: translateY(10px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+}
