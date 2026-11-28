@@ -4,7 +4,7 @@ import { BookOpenIcon, CalendarDaysIcon, Clock3Icon, HistoryIcon, QrCodeIcon, Ro
 import { createPortal } from 'react-dom';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGame } from '../contexts/GameContext';
-import { createKioskQrPayload } from '../lib/kioskQr';
+import { useAssignedCardQr } from '../lib/use-assigned-card-qr';
 import { type StatsPeriod } from '../lib/reading-stats';
 import { useReadingStats } from '../lib/use-reading-stats';
 import { ReadingStatsData } from './ReadingStatsData';
@@ -26,10 +26,7 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
   const [qrExpanded, setQrExpanded] = useState(false);
   const displayName = profile?.first_name || session?.user.user_metadata?.first_name || 'Reader';
   const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : displayName;
-  let qrPayload = '';
-  if (open && session && readerAccess === 'active') {
-    try { qrPayload = createKioskQrPayload(session.user.id); } catch { /* Invalid IDs cannot be used for kiosk login. */ }
-  }
+  const { qrPayload, error: cardError, loading: loadingCard } = useAssignedCardQr(profile?.user_id, open && readerAccess === 'active');
   const cards = [
     { label: 'Reading time', value: duration(stats.totalMinutes), icon: Clock3Icon, detail: 'From completed sessions' },
     { label: 'Books returned', value: stats.completed, icon: HistoryIcon, detail: 'Completed book reading records' },
@@ -86,7 +83,7 @@ export function MyProfileDialog({ open, onClose, onOpenReadingStats }: MyProfile
                   ) : (
                     <div className="grid h-32 w-32 place-items-center rounded-xl bg-white p-2 text-center text-xs text-rust shadow-lg"><QrCodeIcon aria-hidden="true" />QR unavailable</div>
                   )}
-                  <p className="rounded bg-white/90 px-3 py-1 text-center text-xs font-800 text-umber">{qrPayload ? 'Scan to log in at the kiosk' : 'QR login is unavailable'}</p>
+                  <p className="rounded bg-white/90 px-3 py-1 text-center text-xs font-800 text-umber">{qrPayload ? 'Scan to log in at the kiosk' : loadingCard ? 'Loading assigned card...' : cardError || 'QR login is unavailable'}</p>
                 </div>
               </article>
             </div>

@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
-import { BookOpenIcon, ChevronDownIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, HistoryIcon, LogOutIcon, Settings2Icon, UserRoundIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { AccountDialog } from './AccountDialog';
 import { ManageAccountDialog } from './ManageAccountDialog';
 import { ReadingStatsDialog } from './ReadingStatsDialog';
 import { MyProfileDialog } from './MyProfileDialog';
+import { SessionHistoryDialog } from './SessionHistoryDialog';
 
 export function GameHUD() {
   const [mode, setMode] = useState<'login' | null>(null);
@@ -12,6 +13,7 @@ export function GameHUD() {
   const [manageAccountOpen, setManageAccountOpen] = useState(false);
   const [readingStatsOpen, setReadingStatsOpen] = useState(false);
   const [myProfileOpen, setMyProfileOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const { session, profile, coins, rank, setSection, signOut, busy, readerAccess } = useGame();
   const displayName = profile?.first_name || session?.user.user_metadata?.first_name || 'Reader';
   const initial = displayName.slice(0, 1).toUpperCase();
@@ -50,7 +52,10 @@ export function GameHUD() {
             </span>
           </button>
 
-          <div className="min-w-0 justify-self-end">
+          <div className="flex min-w-0 items-center gap-2 justify-self-end">
+            {session && readerAccess === 'active' && <button type="button" aria-label="Session history" title="Session history" aria-haspopup="dialog" onClick={() => { setAccountOpen(false); setHistoryOpen(true); }} className="reader-account-button tb-button-secondary h-11 w-11 shrink-0 !p-0">
+              <HistoryIcon aria-hidden="true" className="h-[18px] w-[18px] text-gold" />
+            </button>}
             {session ? (
               <div className="relative">
                 <button type="button" aria-expanded={accountOpen} aria-haspopup="menu" aria-label={`${displayName}’s account`} onClick={() => setAccountOpen((value) => !value)} className="reader-account-button tb-button-secondary min-h-11 px-2.5 py-1.5 text-left">
@@ -86,6 +91,7 @@ export function GameHUD() {
       <ManageAccountDialog open={manageAccountOpen} onClose={() => setManageAccountOpen(false)} />
       <ReadingStatsDialog open={readingStatsOpen} onClose={() => setReadingStatsOpen(false)} />
       <MyProfileDialog open={myProfileOpen} onClose={() => setMyProfileOpen(false)} onOpenReadingStats={goToReadingStats} />
+      {historyOpen && session && readerAccess === 'active' && <SessionHistoryDialog key={session.user.id} onClose={() => setHistoryOpen(false)} />}
     </>
   );
 }

@@ -35,18 +35,15 @@ export function ReaderCheckIn() {
     setBusy(true); setError(""); setStatus("Verifying reader...");
     try {
       const payload = sanitizeCardPayload(rawPayload);
-      const userId = parseDigitalCardPayload(payload);
-      if (!userId && isDigitalCardPayload(payload)) throw new Error("That Digital ID is invalid. Ask the reader to reopen their current card.");
+      const digitalCardUid = parseDigitalCardPayload(payload);
+      if (!digitalCardUid && isDigitalCardPayload(payload)) throw new Error("That Digital ID is invalid. Ask the reader to reopen their current card.");
 
       let query = api().from("librarycard")
         .select("librarycard_rfid,users(first_name,last_name,is_active,user_role,membership_status,membership_expires_at)")
         .eq("is_active", true).is("deactivated_at", null);
-      if (userId) query = query.eq("user_id", userId);
-      else {
-        const uid = normalizePhysicalCardUid(payload);
-        if (uid.length < 4 || uid.length > 50) throw new Error("Scan a valid RFID card or library card barcode.");
-        query = query.eq("librarycard_rfid", uid);
-      }
+      const uid = digitalCardUid ?? normalizePhysicalCardUid(payload);
+      if (uid.length < 4 || uid.length > 50) throw new Error("Scan a valid RFID card or library card barcode.");
+      query = query.eq("librarycard_rfid", uid);
       const cardResult = await query.limit(1).maybeSingle();
       if (cardResult.error) throw cardResult.error;
       const card = cardResult.data as unknown as Card | null;
@@ -55,7 +52,7 @@ export function ReaderCheckIn() {
       setStatus("Recording attendance...");
       const result = await api().rpc("admin_reader_station_scan", { p_rfid: cardUid });
       if (result.error) throw result.error;
-      const completed = { ...(result.data as Omit<StationScanResult, "scan_method">), scan_method: userId ? "Digital QR" : "Physical RFID" } as StationScanResult;
+      const completed = { ...(result.data as Omit<StationScanResult, "scan_method">), scan_method: digitalCardUid ? "Digital QR" : "Physical RFID" } as StationScanResult;
       setCameraOpen(false);
       setStatus(completed.action === "CHECKIN" ? "Check-in complete." : "Check-out complete.");
       setScanResult(completed);

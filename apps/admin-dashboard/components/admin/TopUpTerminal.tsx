@@ -128,21 +128,19 @@ export function TopUpTerminal({ data, name, run }: {
     setMessage("");
     try {
       const payload = sanitizeCardPayload(rawPayload);
-      const digitalUserId = parseDigitalCardPayload(payload);
-      if (!digitalUserId && isDigitalCardPayload(payload)) throw new Error("This digital card is invalid. Ask the reader to reopen their current Digital ID.");
+      const digitalCardUid = parseDigitalCardPayload(payload);
+      if (!digitalCardUid && isDigitalCardPayload(payload)) throw new Error("This digital card is invalid. Ask the reader to reopen their current Digital ID.");
 
-      let userId = digitalUserId;
+      let userId = "";
       let cardUid = "";
-      if (!userId) {
-        const physicalUid = normalizePhysicalCardUid(payload);
-        if (physicalUid.length < 4) throw new Error("The card reader returned an invalid UID.");
-        const cardResult = await api().from("librarycard").select("user_id,librarycard_rfid")
-          .eq("librarycard_rfid", physicalUid).eq("is_active", true).is("deactivated_at", null).maybeSingle();
-        if (cardResult.error) throw cardResult.error;
-        if (!cardResult.data) throw new Error("Card not recognized. Confirm that it is assigned and active.");
-        userId = cardResult.data.user_id as string;
-        cardUid = String(cardResult.data.librarycard_rfid ?? physicalUid);
-      }
+      const scannedUid = digitalCardUid ?? normalizePhysicalCardUid(payload);
+      if (scannedUid.length < 4 || scannedUid.length > 50) throw new Error("The card reader returned an invalid UID.");
+      const cardResult = await api().from("librarycard").select("user_id,librarycard_rfid")
+        .eq("librarycard_rfid", scannedUid).eq("is_active", true).is("deactivated_at", null).maybeSingle();
+      if (cardResult.error) throw cardResult.error;
+      if (!cardResult.data) throw new Error("Card not recognized. Confirm that it is assigned and active.");
+      userId = cardResult.data.user_id as string;
+      cardUid = String(cardResult.data.librarycard_rfid ?? scannedUid);
 
       const userResult = await api().from("users")
         .select("id,first_name,last_name,is_active,user_role,membership_type,membership_status,membership_expires_at,remaining_minutes")
@@ -152,13 +150,6 @@ export function TopUpTerminal({ data, name, run }: {
       if (!user || !user.is_active || user.user_role !== "Reader") throw new Error("This reader account is inactive or unavailable.");
       if (user.membership_status !== "ACTIVE" || !user.membership_expires_at || new Date(user.membership_expires_at).getTime() <= Date.now()) throw new Error("This reader does not have an active, unexpired membership.");
       if (user.membership_type === "Guild Adventurer") throw new Error("This membership already includes unlimited reading time and does not need a top-up.");
-
-      if (!cardUid) {
-        const cardResult = await api().from("librarycard").select("librarycard_rfid")
-          .eq("user_id", user.id).eq("is_active", true).is("deactivated_at", null).limit(1).maybeSingle();
-        if (cardResult.error) throw cardResult.error;
-        cardUid = String(cardResult.data?.librarycard_rfid ?? "Digital card verified");
-      }
 
       setCameraOpen(false);
       setReader({

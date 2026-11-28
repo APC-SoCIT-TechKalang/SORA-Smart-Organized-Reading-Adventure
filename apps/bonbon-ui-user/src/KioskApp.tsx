@@ -51,7 +51,7 @@ export function KioskApp() {
     } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
 
-  const authenticate = useCallback(async (credential: { rfidUid: string } | { userId: string }) => {
+  const authenticate = useCallback(async (credential: { rfidUid: string }) => {
     if (authenticating.current) return;
     authenticating.current = true;
     setStatus('authorizing'); setMessage('');
@@ -71,12 +71,11 @@ export function KioskApp() {
     const rfidUid = normalizePhysicalCardUid(rawUid);
     if (rfidUid.length >= 4) void authenticate({ rfidUid });
   }, [authenticate]);
-  const authenticateUser = useCallback((userId: string) => authenticate({ userId }), [authenticate]);
   const authenticateScannerPayload = useCallback((payload: string) => {
     if (authenticating.current) return;
-    const userId = parseKioskQrPayload(payload);
-    if (userId) {
-      void authenticateUser(userId);
+    const cardUid = parseKioskQrPayload(payload);
+    if (cardUid) {
+      void authenticateUid(cardUid);
       return;
     }
     if (payload.startsWith('tankobonbon:')) {
@@ -85,7 +84,7 @@ export function KioskApp() {
       return;
     }
     void authenticateUid(payload);
-  }, [authenticateUid, authenticateUser]);
+  }, [authenticateUid]);
 
   const startPhysicalScan = useCallback(async () => {
     if (!supportsWebNfc()) { setMessage('USB card scanning is enabled. Keep this window focused and tap your card on the reader.'); setStatus('scanning'); return; }
@@ -126,14 +125,14 @@ export function KioskApp() {
           video,
           result => {
             if (disposed || !result) return;
-            const userId = parseKioskQrPayload(result.getText());
-            if (!userId) {
+            const cardUid = parseKioskQrPayload(result.getText());
+            if (!cardUid) {
               setMessage('That QR code is not a Tankobonbon digital card.');
               return;
             }
             controls?.stop();
             setQrScanning(false);
-            void authenticateUser(userId);
+            void authenticateUid(cardUid);
           },
         );
         if (disposed) controls.stop();
@@ -148,7 +147,7 @@ export function KioskApp() {
     };
     void openCamera();
     return stop;
-  }, [authenticateUser, qrScanning]);
+  }, [authenticateUid, qrScanning]);
 
   useEffect(() => subscribeToReaderBridge(authentication => {
     if (authenticating.current) return;
