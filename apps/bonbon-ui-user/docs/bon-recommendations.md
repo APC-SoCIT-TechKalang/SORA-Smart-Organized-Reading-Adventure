@@ -1,6 +1,6 @@
 # BON recommendation data
 
-BON searches the reader catalog already loaded from `sora_v2.books` (or the legacy `books` schema). It ranks the complete local list, groups volumes by recorded series and format, and sends at most 50 candidates to `/api/bon-chat`. The API recomputes matches and writes reasons from stored fields. Book recommendation requests do not use the language model. Other BON features keep their existing request flow.
+BON searches the reader catalog loaded from `sora_v2.books` (or the legacy `books` schema). It ranks the complete local list, groups volumes by recorded series and format, then checks at most 50 candidates. Recommendation cards and reasons are built from stored catalog fields in the reader app, so a temporary `/api/bon-chat` failure does not stop catalog recommendations. Book recommendation requests do not use the language model. Other BON features keep their existing API request flow. The catalog refreshes every 30 seconds while the app is visible and again when Bonbon opens, so newly registered books enter the same search without a hard-coded title list.
 
 ## Metadata audit
 

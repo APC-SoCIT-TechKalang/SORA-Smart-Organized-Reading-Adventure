@@ -74,3 +74,9 @@ test('availability constraints never present an unavailable exact match', () => 
   const { result } = ask('I have only an hour. What available book can I start today?');
   assert.ok(result.selected.every(item => item.book.availableCopies > 0 || !result.exact));
 });
+
+test('new catalog records become searchable without a hard-coded title list', () => {
+  const newBook: BonBook = { id: 'new-cyberpunk', title: 'Neon Harbor', author: 'F. Author', genre: 'Science Fiction', themes: 'Cyberpunk', synopsis: 'A cyberpunk story.', bookType: 'Manga', volume: 1, availableCopies: 1 };
+  const state = updateRecommendationState('Find a cyberpunk manga');
+  assert.equal(chooseRecommendations([...books, newBook], state).selected[0].book.id, newBook.id);
+});

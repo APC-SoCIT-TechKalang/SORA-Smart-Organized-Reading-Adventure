@@ -1,10 +1,9 @@
-import { chooseRecommendations, recommendationReason, type BonBook, type RecommendationState } from '../src/lib/bon-recommendations.ts';
-
 type RequestLike = { method?: string; body?: unknown; headers: Record<string, string | string[] | undefined> };
 type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unknown) => void; setHeader: (name: string, value: string) => void };
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 type Intent = 'BOOK' | 'PROGRESS' | 'QUEST' | 'REWARD' | 'ACCOUNT' | 'IDENTITY' | 'PROJECT' | 'GENERAL';
-type CatalogBook = BonBook;
+type CatalogBook = { id: string; title: string; seriesName?: string | null; author: string; genre: string; themes?: string | null; synopsis: string; bookType?: string | null; volume?: number | null; availableCopies: number };
+type RecommendationState = { constraints: Array<{ key: string; label: string; terms: string[]; firm: boolean; negative?: boolean; field?: 'format' | 'availability' }>; referenceTitle?: string; seenIds: string[]; conflict?: string };
 type Quest = { id: string; name: string; detail: string; points: number; status: string; currentValue?: number; targetValue?: number };
 type Reading = { id?: string; title: string; minutes: number; status: string };
 type ReadingHistory = { title: string; genre: string };
@@ -104,12 +103,16 @@ async function completeAiRequest(request: RequestLike, requestId: string | undef
   const url = process.env.VITE_SUPABASE_URL;
   const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
   if (!requestId || !authorization?.startsWith('Bearer ') || !url || !key) return;
-  const result = await fetch(`${url}/rest/v1/rpc/complete_ai_request`, {
-    method: 'POST',
-    headers: { apikey: key, Authorization: authorization, 'Content-Type': 'application/json', 'Content-Profile': 'sora_v2' },
-    body: JSON.stringify({ p_request_id: requestId, p_response_text: responseText }),
-  });
-  if (!result.ok) console.error('AI response audit failed', result.status, (await result.text()).slice(0, 200));
+  try {
+    const result = await fetch(`${url}/rest/v1/rpc/complete_ai_request`, {
+      method: 'POST',
+      headers: { apikey: key, Authorization: authorization, 'Content-Type': 'application/json', 'Content-Profile': 'sora_v2' },
+      body: JSON.stringify({ p_request_id: requestId, p_response_text: responseText }),
+    });
+    if (!result.ok) console.error('AI response audit failed', result.status, (await result.text()).slice(0, 200));
+  } catch (error) {
+    console.error('AI response audit failed', error);
+  }
 }
 
 function parseQuest(value: unknown): Quest | null {
@@ -383,27 +386,15 @@ export default async function handler(request: RequestLike, response: ResponseLi
   if (!input) return response.status(400).json({ error: 'Enter a message for BON.' });
   const localRejection = guardMessage(input.message, input.intent);
   const auditedPrompt = input.intent === 'BOOK' ? `Book recommendation request: ${input.message}` : input.message;
-  const audit = await recordAiRequest(request, auditedPrompt, input.intent);
+  let audit: AiAudit | null;
+  try { audit = await recordAiRequest(request, auditedPrompt, input.intent); }
+  catch (error) {
+    console.error('AI request audit failed', error);
+    return response.status(503).json({ error: 'BON’s online service is unavailable right now. Please try again later.' });
+  }
   const rejection = localRejection || (audit?.status === 'REJECTED' ? audit.reason : null);
   if (rejection) return response.status(400).json({ error: rejection });
   const recommendationRequest=wantsRecommendation(input);
-  if (recommendationRequest) {
-    const catalog = input.context.catalog ?? [];
-    const state = input.context.recommendationState ?? { constraints: [], seenIds: [] };
-    const { selected, exact } = chooseRecommendations(catalog, state);
-    const recommendations = selected.map(item => ({ id: item.book.id, reason: recommendationReason(item) }));
-    const firm = state.constraints.filter(item => item.firm).map(item => item.label);
-    const message = state.conflict ? `${state.conflict} Choose one format and I will search again.` : !catalog.length
-      ? 'I cannot search the catalog right now. Please try again when the library list has loaded.'
-      : !selected.length
-        ? `I could not find a catalog title supported by those details${firm.length ? ` (${firm.join(', ')})` : ''}. Try removing one requirement or ask staff about missing book details.`
-        : exact
-          ? 'These catalog titles fit the details I can verify. Open a card to inspect the book and its current availability.'
-          : `I cannot verify every requirement${firm.length ? ` (${firm.join(', ')})` : ''}. These are the closest catalog alternatives; each card names what I cannot confirm.`;
-    const payload = { message, navigateTo: null, recommendations, recommendationIds: recommendations.map(item => item.id), suggestions: selected.length ? ['Only available', 'Make it less dark', ...(selected.length > 1 ? ['Show more like the second one'] : [])] : [...(firm.length ? [`Remove ${firm[0]}`] : []), 'Try something funny', 'Reset book preferences'], recommendationState: { ...state, seenIds: [...state.seenIds, ...recommendations.map(item => item.id)].slice(-20) } };
-    await completeAiRequest(request, audit?.request_id, message);
-    return response.status(200).json(payload);
-  }
   const direct = recommendationRequest?null:directReply(input);
   if (direct) {
     await completeAiRequest(request, audit?.request_id, direct.message);

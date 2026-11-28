@@ -3,9 +3,10 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircleIcon, SendIcon, XIcon } from 'lucide-react';
 import type { BonMessage, BonWidget, SectionId } from '../types/library';
 import { useGame } from '../contexts/GameContext';
-import { shortlistCatalogBooks, updateRecommendationState, type BonBook, type RecommendationState } from '../lib/bon-recommendations';
+import { chooseRecommendations, recommendationReason, shortlistCatalogBooks, updateRecommendationState, type BonBook, type RecommendationState } from '../lib/bon-recommendations';
 import { supabase } from '../lib/supabase';
 import { usesReplacementSchema } from '../lib/replacement-library';
+import { readBonPayload } from '../lib/bon-response';
 
 
 // Pixel-art BON cutout with a transparent background.
@@ -36,7 +37,7 @@ interface BonChatbotProps {
 }
 
 export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
-  const { section, setSection, session, profile, borrowed, rank, rankPoints, coins, streak, nextRank, rewards, volumeById, volumes, commissions, logs, claimed, enrolled } = useGame();
+  const { section, setSection, session, profile, borrowed, rank, rankPoints, coins, streak, nextRank, rewards, volumeById, volumes, commissions, logs, claimed, enrolled, refresh } = useGame();
   const [peeking, setPeeking] = useState(autoPeek);
   const [open, setOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -45,6 +46,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   const showBonSparkles = false;
   const [draft, setDraft] = useState('');
   const [thinking, setThinking] = useState(false);
+  const [catalogRefreshing, setCatalogRefreshing] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>(DEFAULT_SUGGESTIONS);
   const [messages, setMessages] = useState<BonMessage[]>([
   {
@@ -68,6 +70,15 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
       document.body.style.overflow = previous;
     };
   }, [open]);
+
+  // Include books registered since the reader first opened the app.
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    setCatalogRefreshing(true);
+    void refresh().catch(() => {}).finally(() => { if (active) setCatalogRefreshing(false); });
+    return () => { active = false; };
+  }, [open, refresh]);
 
   useEffect(() => {
     if (!autoPeek) {
@@ -159,14 +170,14 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   function fallbackAnswer(reason?: string) {
     addBonReply(reason === 'BON is not configured yet.'
       ? 'BON’s AI service is not configured yet. I can still answer catalog, progress, quest, and reward questions from the data available to me.'
-      : reason && !reason.includes('connection') && !reason.includes('request failed')
+      : reason && !/connection|request failed|failed to fetch|unexpected token|not valid json|server error/i.test(reason)
         ? reason
         : 'Looks like my library connection is taking a moment. Try asking me again.');
   }
 
   async function askBon(text: string) {
     const trimmed = text.trim().slice(0, 500);
-    if (!trimmed || thinking) return;
+    if (!trimmed || thinking || catalogRefreshing) return;
     if (/^(reset|start over|reset book preferences)$/i.test(trimmed)) {
       preferencesRef.current = { constraints: [], seenIds: [] };
       lastRecommendationIds.current = [];
@@ -213,6 +224,30 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
         } catch {
           for (const book of catalogForBon) book.availableCopies = -1;
         }
+      }
+      if (isRecommendation) {
+        const { selected, exact } = chooseRecommendations(catalogForBon, nextPreferences);
+        const recommendations: NonNullable<BonMessage['recommendations']> = selected.map(item => ({
+          volumeId: item.book.id,
+          reason: recommendationReason(item),
+          availableCopies: session && item.book.availableCopies >= 0 ? item.book.availableCopies : null,
+        }));
+        const firm = nextPreferences.constraints.filter(item => item.firm).map(item => item.label);
+        const answer = nextPreferences.conflict ? `${nextPreferences.conflict} Choose one format and I will search again.`
+          : !catalogForBon.length ? 'The catalog is still loading. Please try again in a moment.'
+          : !selected.length ? `I could not find a catalog title supported by those details${firm.length ? ` (${firm.join(', ')})` : ''}. Try removing one requirement or ask staff about missing book details.`
+          : exact ? 'These catalog titles fit the details I can verify. Open a card to inspect the book and its current availability.'
+          : `I cannot verify every requirement${firm.length ? ` (${firm.join(', ')})` : ''}. These are the closest catalog alternatives; each card names what I cannot confirm.`;
+        preferencesRef.current = { ...nextPreferences, seenIds: [...nextPreferences.seenIds, ...recommendations.map(item => item.volumeId)].slice(-20) };
+        lastRecommendationIds.current = recommendations.map(item => item.volumeId);
+        lastRecommendationTitles.current = recommendations.flatMap(item => {
+          const volume = volumes.find(candidate => candidate.id === item.volumeId);
+          return volume ? [volume.seriesName || volume.title] : [];
+        });
+        addBonReply(answer, undefined, recommendations);
+        setSuggestions((selected.length ? ['Only available', 'Make it less dark', ...(selected.length > 1 ? ['Show more like the second one'] : [])]
+          : [...(firm.length ? [`Remove ${firm[0]}`] : []), 'Try something funny', 'Reset book preferences']).slice(0, 3).map(label => ({ label })));
+        return;
       }
       const response = await fetch('/api/bon-chat', {
         method: 'POST',
@@ -269,10 +304,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
           },
         }),
       });
-      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; recommendations?: unknown; recommendationState?: RecommendationState; widgets?: unknown; error?: unknown };
-      if (!response.ok || typeof payload.message !== 'string' || !payload.message.trim()) {
-        throw new Error(typeof payload.error === 'string' ? payload.error : 'BON request failed');
-      }
+      const payload = await readBonPayload(response);
       const destination = typeof payload.navigateTo === 'string' && ['archive', 'catalog', 'shelf', 'commissions', 'guide'].includes(payload.navigateTo)
         ? payload.navigateTo as SectionId
         : undefined;
@@ -284,7 +316,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
         return volumeId && reason && volumes.some((volume) => volume.id === volumeId) ? [{ volumeId, reason }] : [];
       }).slice(0, 5) : [];
       if (isRecommendation && payload.recommendationState) {
-        preferencesRef.current = payload.recommendationState;
+        preferencesRef.current = payload.recommendationState as RecommendationState;
         lastRecommendationTitles.current = recommendations.flatMap(item => {
           const volume = volumes.find(candidate => candidate.id === item.volumeId);
           return volume ? [volume.seriesName || volume.title] : [];
@@ -425,9 +457,9 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             </div>
             )}
 
-              {thinking ?
+              {thinking || catalogRefreshing ?
               <p role="status" aria-live="polite" className="tb-cut-sm w-fit rounded-2xl rounded-tl-sm border border-gold/45 bg-parch/40 px-3.5 py-2.5 font-body text-[13px] font-600 text-umber/65 shadow-sm sm:text-sm">
-                BON is searching the stacks...
+                {catalogRefreshing ? 'Updating the catalog...' : 'BON is searching the stacks...'}
               </p> : null}
 
               {/* Empty-state hint lives inside the scrollable log so it can
@@ -449,7 +481,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               <button
                 key={suggestion.label}
                 type="button"
-                disabled={thinking}
+                disabled={thinking || catalogRefreshing}
                 onClick={() => void askBon(suggestion.label)}
                 className="min-h-10 shrink-0 whitespace-nowrap rounded-full border border-gold/50 bg-parch/20 px-3.5 py-2 font-body text-[12px] font-700 leading-tight text-umber/80 transition-all duration-150 ease-out hover:-translate-y-px hover:border-gold hover:bg-parch/60 hover:text-umber disabled:cursor-wait disabled:opacity-50 lg:min-h-9 lg:py-1.5">
 
@@ -478,7 +510,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               <input
               id="bon-input"
               value={draft}
-              disabled={thinking}
+              disabled={thinking || catalogRefreshing}
               maxLength={500}
               onChange={(event) => setDraft(event.target.value)}
               placeholder="Ask BON…"
@@ -486,7 +518,7 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
             
               <button
               type="submit"
-              disabled={thinking || !draft.trim()}
+              disabled={thinking || catalogRefreshing || !draft.trim()}
               className="group flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gold bg-rust text-sand shadow-[0_3px_0_rgba(84,56,34,0.2)] transition-all duration-150 ease-out hover:-translate-y-0.5 hover:bg-umber active:translate-y-0 active:scale-95 disabled:cursor-wait disabled:opacity-50"
               aria-label="Send message">
               
