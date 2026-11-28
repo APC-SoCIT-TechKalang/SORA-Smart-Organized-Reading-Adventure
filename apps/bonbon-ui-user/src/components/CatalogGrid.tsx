@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useRef, useState } from 'react';
 import { motion, useReducedMotion } from 'framer-motion';
-import { BookOpenIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, XIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, SearchIcon, XIcon } from 'lucide-react';
 import type { Volume } from '../types/library';
 import { catalogVolumeNumber, type CatalogSeries } from '../lib/catalog-series';
 import { formatOf, genreOptions, subjectOptions } from '../lib/catalog-filters';
 import { useGame } from '../contexts/GameContext';
+import './catalog-volume-panel.css';
 
 interface CatalogGridProps {
   items: CatalogSeries[];
@@ -14,7 +15,7 @@ interface CatalogGridProps {
   onSelect: (volume: Volume) => void;
 }
 
-const VOLUMES_PER_PAGE = 8;
+const VOLUMES_PER_PAGE = 10;
 
 export function CatalogGrid({ items, layout, expandedId, onToggle, onSelect }: CatalogGridProps) {
   const { isBorrowed, borrow, session, busy } = useGame();
@@ -75,13 +76,44 @@ function VolumePanel({ group, onClose, onSelect, onStart, actionLabel, busy, isB
   actionLabel: (volume: Volume) => string; busy: boolean; isBorrowed: (id: string) => boolean; session: boolean;
 }) {
   const [page, setPage] = useState(1);
-  const pages = Math.ceil(group.volumes.length / VOLUMES_PER_PAGE);
-  const volumes = group.volumes.slice((page - 1) * VOLUMES_PER_PAGE, page * VOLUMES_PER_PAGE);
-  return <section aria-label={`${group.title} volumes`} className="rounded-xl border border-gold/45 bg-cream/95 p-3 shadow-[0_12px_28px_rgba(84,56,34,.12)] sm:p-5">
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gold/25 pb-3"><div><h3 className="font-display text-lg font-900 text-umber">{group.title}</h3><p className="text-xs font-700 text-umber/60">{group.volumes.length} volumes in the collection</p></div><button type="button" onClick={onClose} aria-label={`Close ${group.title} volumes`} className="inline-flex min-h-10 items-center gap-1 rounded-lg px-3 text-xs font-800 text-rust hover:bg-parch/35 focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold"><XIcon className="h-4 w-4" aria-hidden="true" /> Close</button></div>
-    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-umber/70"><span>Volumes {(page - 1) * VOLUMES_PER_PAGE + 1}–{Math.min(page * VOLUMES_PER_PAGE, group.volumes.length)} of {group.volumes.length}</span>{pages > 1 && <label className="flex items-center gap-2">Jump to volume<select aria-label={`Jump to a ${group.title} volume`} value="" onChange={event => setPage(Math.floor(Number(event.target.value) / VOLUMES_PER_PAGE) + 1)} className="tb-input max-w-40 rounded-lg px-2 py-1 text-xs"><option value="" disabled>Choose volume</option>{group.volumes.map((item, index) => <option key={item.id} value={index}>Volume {catalogVolumeNumber(item) ?? index + 1}</option>)}</select></label>}</div>
-    <ul className="catalog-volume-grid mt-3 grid gap-2">{volumes.map(volume => <li key={volume.id} className="reader-volume-card flex min-w-0 flex-col rounded-lg border border-gold/25 bg-white/55 p-2.5"><button type="button" onClick={() => onSelect(volume)} aria-label={`View ${volume.title} details`} className="flex min-h-16 min-w-0 items-center gap-3 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-gold"><Cover volume={volume} compact /><span className="flex min-w-0 flex-1 flex-col"><strong className="reader-volume-card-title line-clamp-2 font-display text-xs font-800 text-umber">{volume.title}</strong><span className="mt-1 text-[11px] text-umber/60">Volume {catalogVolumeNumber(volume) ?? '—'}</span><span className={`reader-volume-card-status ${volume.copies < 0 ? 'is-locked' : volume.copies === 0 ? 'is-unavailable' : ''}`}>{volume.copies < 0 ? 'Sign in for availability' : volume.copies > 0 ? `${volume.copies} available` : 'Ask staff'}</span></span></button>{!(session && volume.copies <= 0) && <button type="button" disabled={busy || isBorrowed(volume.id)} onClick={() => onStart(volume.id)} className="mt-2 min-h-11 border-t border-gold/20 pt-2 text-left text-xs font-800 text-rust underline underline-offset-2 disabled:opacity-50">{actionLabel(volume)}</button>}</li>)}</ul>
-    {pages > 1 && <nav aria-label={`${group.title} volume pages`} className="mt-4 flex items-center justify-end gap-2 text-xs font-700 text-umber"><button type="button" aria-label="Previous volumes" disabled={page === 1} onClick={() => setPage(value => value - 1)} className="grid h-11 w-11 place-items-center rounded-lg border border-gold/35 disabled:opacity-40"><ChevronLeftIcon className="h-4 w-4" /></button><span>{page} / {pages}</span><button type="button" aria-label="Next volumes" disabled={page === pages} onClick={() => setPage(value => value + 1)} className="grid h-11 w-11 place-items-center rounded-lg border border-gold/35 disabled:opacity-40"><ChevronRightIcon className="h-4 w-4" /></button></nav>}
+  const [search, setSearch] = useState('');
+  const [targetId, setTargetId] = useState<string | null>(null);
+  const needle = search.trim().toLocaleLowerCase();
+  const matching = needle ? group.volumes.filter(volume => {
+    const number = catalogVolumeNumber(volume);
+    return volume.title.toLocaleLowerCase().includes(needle) || (number !== null && String(number).includes(needle));
+  }) : group.volumes;
+  const pages = Math.max(1, Math.ceil(matching.length / VOLUMES_PER_PAGE));
+  const currentPage = Math.min(page, pages);
+  const volumes = matching.slice((currentPage - 1) * VOLUMES_PER_PAGE, currentPage * VOLUMES_PER_PAGE);
+  const jumpToVolume = (id: string) => {
+    const index = group.volumes.findIndex(volume => volume.id === id);
+    if (index < 0) return;
+    setSearch('');
+    setPage(Math.floor(index / VOLUMES_PER_PAGE) + 1);
+    setTargetId(id);
+  };
+  return <section aria-label={`${group.title} volumes`} className="catalog-volume-panel overflow-hidden rounded-2xl border border-gold/45 bg-cream/95 shadow-[0_16px_36px_rgba(62,32,18,.18)]">
+    <div className="catalog-volume-panel-header">
+      <div className="min-w-0"><p className="catalog-volume-eyebrow">Series collection</p><h3 className="font-display text-xl font-900 text-cream sm:text-2xl">{group.title}</h3><p className="mt-1 text-sm text-cream/75">{group.volumes.length} volumes · {group.author || 'Author not recorded'}</p></div>
+      <button type="button" onClick={onClose} aria-label={`Close ${group.title} volumes`} className="catalog-volume-close"><XIcon className="h-4 w-4" aria-hidden="true" /> Close</button>
+    </div>
+    <div className="catalog-volume-panel-body">
+      <div className="catalog-volume-toolbar">
+        <label className="catalog-volume-search"><SearchIcon className="h-5 w-5 shrink-0 text-rust" aria-hidden="true" /><span className="sr-only">Find a volume in {group.title}</span><input type="search" value={search} onChange={event => { setSearch(event.target.value); setPage(1); setTargetId(null); }} placeholder="Find a volume by number or title" /></label>
+        <label className="catalog-volume-jump"><span>Jump to</span><select value={targetId ?? ''} onChange={event => jumpToVolume(event.target.value)} aria-label={`Jump to a volume of ${group.title}`}><option value="" disabled>Choose volume</option>{group.volumes.map((volume, index) => <option key={volume.id} value={volume.id}>Volume {catalogVolumeNumber(volume) ?? index + 1}</option>)}</select></label>
+      </div>
+      <p aria-live="polite" className="catalog-volume-result-count">{needle ? `${matching.length} ${matching.length === 1 ? 'volume' : 'volumes'} found` : `Browse ${group.volumes.length} volumes · ${VOLUMES_PER_PAGE} at a time`}</p>
+      {volumes.length ? <ul className="catalog-volume-grid">{volumes.map(volume => {
+        const number = catalogVolumeNumber(volume);
+        return <li key={volume.id} className={`catalog-volume-item reader-volume-card ${targetId === volume.id ? 'is-target' : ''}`}>
+          <span className="catalog-volume-number" aria-label={number === null ? 'Volume number not recorded' : `Volume ${number}`}>{number === null ? '—' : String(number).padStart(2, '0')}</span>
+          <div className="catalog-volume-item-main"><Cover volume={volume} compact /><div className="min-w-0"><p className="catalog-volume-item-kicker">{number === null ? 'Collection edition' : `Volume ${number}`}</p><h4 className="catalog-volume-item-title">{volume.title}</h4><span className={`reader-volume-card-status ${volume.copies < 0 ? 'is-locked' : volume.copies === 0 ? 'is-unavailable' : ''}`}>{volume.copies < 0 ? 'Sign in for availability' : volume.copies > 0 ? `${volume.copies} ${volume.copies === 1 ? 'copy' : 'copies'} available` : 'Ask staff'}</span></div></div>
+          <div className="catalog-volume-item-actions"><button type="button" onClick={() => onSelect(volume)} className="catalog-volume-details">View details <ChevronRightIcon className="h-4 w-4" aria-hidden="true" /></button>{!(session && volume.copies <= 0) && <button type="button" disabled={busy || isBorrowed(volume.id)} onClick={() => onStart(volume.id)} className="catalog-volume-read">{actionLabel(volume)}</button>}</div>
+        </li>;
+      })}</ul> : <div className="catalog-volume-empty"><BookOpenIcon className="h-7 w-7" aria-hidden="true" /><p>No volumes match “{search.trim()}”.</p><button type="button" onClick={() => { setSearch(''); setPage(1); setTargetId(null); }}>Show all volumes</button></div>}
+      {pages > 1 && <nav aria-label={`${group.title} volume pages`} className="catalog-volume-pagination"><span>Showing {(currentPage - 1) * VOLUMES_PER_PAGE + 1}–{Math.min(currentPage * VOLUMES_PER_PAGE, matching.length)} of {matching.length}</span><div><button type="button" aria-label="Previous volumes" disabled={currentPage === 1} onClick={() => { setTargetId(null); setPage(value => value - 1); }}><ChevronLeftIcon className="h-4 w-4" /></button><span aria-live="polite">Page {currentPage} of {pages}</span><button type="button" aria-label="Next volumes" disabled={currentPage === pages} onClick={() => { setTargetId(null); setPage(value => value + 1); }}><ChevronRightIcon className="h-4 w-4" /></button></div></nav>}
+    </div>
   </section>;
 }
 
