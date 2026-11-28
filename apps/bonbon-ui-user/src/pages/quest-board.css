@@ -252,7 +252,7 @@
   font-weight: 800;
 }
 
-.quest-objective, .quest-target, .quest-verification, .quest-wallet-note, .quest-updated {
+.quest-objective, .quest-target, .quest-verification, .quest-wallet-note {
   color: var(--quest-muted);
   font-size: .83rem;
   line-height: 1.55;
@@ -287,9 +287,8 @@
 .quest-empty h3 { font: 800 1.15rem/1.2 'Cinzel', Georgia, serif; }
 .quest-empty p { color: var(--quest-muted); font-size: .83rem; }
 .quest-notice { padding: .7rem .9rem; color: var(--quest-muted); font-size: .8rem; }
-.quest-verification, .quest-updated { display: flex; align-items: flex-start; gap: .5rem; margin-top: .65rem; font-size: .73rem; }
-.quest-verification svg, .quest-updated svg { flex: none; color: #8c401d; }
-.quest-updated { margin-top: 0; }
+.quest-verification { display: flex; align-items: flex-start; gap: .5rem; margin-top: .65rem; font-size: .73rem; }
+.quest-verification svg { flex: none; color: #8c401d; }
 
 .quest-rewards {
   align-self: stretch;

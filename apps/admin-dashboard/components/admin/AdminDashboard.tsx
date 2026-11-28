@@ -195,7 +195,7 @@ export function AdminDashboard() {
     ) : page === "Challenges" ? (
       <QuestManagement data={data} name={name} run={run} />
     ) : page === "Rewards" ? (
-      <RewardManagement data={data} name={name} run={run} />
+      <RewardManagement data={data} name={name} run={run} refresh={refresh} />
     ) : page === "Readers" ? (
       <Readers data={data} active={active} name={name} run={run} />
     ) : (

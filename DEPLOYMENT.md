@@ -202,6 +202,13 @@ and enable each item in Admin → Rewards. Reader rank uses lifetime quest point
 while the separately displayed available balance subtracts non-cancelled
 redemptions, so spending never lowers rank.
 
+For librarian counter redemption, apply
+`supabase/replacement/036_admin_counter_reward_redemption.sql` after `035`.
+It adds two librarian-only functions using the existing tables; no new tables
+are required. In Admin → Rewards, select an active reader and a stocked reward,
+confirm identity and handoff, then submit. The database checks points and stock
+atomically, records a fulfilled redemption, and retains lifetime rank points.
+
 Validation uses an isolated PostgreSQL engine and mocked browser requests:
 
 ```powershell

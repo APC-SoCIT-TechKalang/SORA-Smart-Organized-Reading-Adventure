@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpenIcon, ChevronDownIcon, GiftIcon, HistoryIcon, ShieldCheckIcon, SparklesIcon, SwordsIcon, TrophyIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, GiftIcon, HistoryIcon, ShieldCheckIcon, SwordsIcon, TrophyIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { CommissionCard } from '../components/CommissionCard';
 import { GuestPrompt } from '../components/GuestPrompt';
@@ -77,7 +77,6 @@ export function Commissions() {
         <div className="quest-card-grid">{history.map(quest => <CommissionCard key={quest.assignmentId ?? quest.id} commission={quest} />)}</div>
       </details>}
       {rewardsOpen && <RewardsGallery rewards={rewards} points={coins} loading={loading} onClose={() => setRewardsOpen(false)} />}
-      {questUpdatedAt && <p className="quest-updated"><SparklesIcon size={13} aria-hidden="true" /> Updated <time dateTime={questUpdatedAt}>{new Date(questUpdatedAt).toLocaleString()}</time></p>}
     </>}
   </div>;
 }

@@ -4,13 +4,15 @@ import { useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "rea
 import { Check, Gift, ImagePlus, PackageCheck, Pencil, Plus, Search, X } from "lucide-react";
 import { database } from "../../lib/supabase";
 import type { DashboardData, Redemption, Reward } from "./dashboard-data";
+import { CounterRewardRedemption } from "./CounterRewardRedemption";
 
 type Run = (action: () => PromiseLike<{ error: unknown }>, success: string) => Promise<boolean>;
 type Draft = { reward_id:number|null; reward_name:string; reward_category:"Snacks"|"Drinks"; points_cost:string; stock_quantity:string; is_available:boolean; image_url:string };
 const blank: Draft = { reward_id:null, reward_name:"", reward_category:"Snacks", points_cost:"", stock_quantity:"0", is_available:false, image_url:"" };
 
-export function RewardManagement({data,name,run}:{data:DashboardData;name:(id:string|null)=>string;run:Run}) {
+export function RewardManagement({data,name,run,refresh}:{data:DashboardData;name:(id:string|null)=>string;run:Run;refresh:()=>Promise<void>}) {
   const [draft,setDraft]=useState<Draft|null>(null);
+  const [counterOpen,setCounterOpen]=useState(false);
   const [query,setQuery]=useState("");
   const [status,setStatus]=useState<"ALL"|"PENDING"|"FULFILLED"|"CANCELLED">("ALL");
   const [uploading,setUploading]=useState(false);
@@ -45,6 +47,8 @@ export function RewardManagement({data,name,run}:{data:DashboardData;name:(id:st
 
   return <div className="space-y-6">
     <section className="grid gap-3 sm:grid-cols-3"><Metric label="Products" value={data.rewards.length}/><Metric label="Available" value={data.rewards.filter(item=>item.is_available&&item.stock_quantity>0).length}/><Metric label="Awaiting pickup" value={pending} accent/></section>
+    <div className="flex justify-end"><button type="button" onClick={()=>setCounterOpen(true)} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-[#543822] px-5 text-sm font-bold text-white"><Gift size={16}/>Redeem for a reader</button></div>
+    {counterOpen && <CounterRewardRedemption data={data} onComplete={refresh} onClose={()=>setCounterOpen(false)}/>}
     <section className="overflow-hidden rounded-2xl border border-[#eadfd3] bg-white/75 shadow-[0_16px_45px_rgba(84,56,34,.06)]">
       <div className="flex flex-col gap-3 border-b border-[#eadfd3] p-5 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="font-serif text-xl font-semibold">Reward products</h2><p className="mt-1 text-xs text-[#806b59]">Images, points, stock, category, and reader availability.</p></div><button onClick={()=>edit()} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-[#953410] px-4 text-sm font-bold text-white"><Plus size={16}/>Add product</button></div>
       <div className="p-5"><label className="flex max-w-md items-center gap-2 rounded-xl border border-[#dfcdbb] bg-white px-3"><Search size={16}/><input value={query} onChange={event=>setQuery(event.target.value)} placeholder="Search products" className="min-h-11 w-full bg-transparent text-sm outline-none"/></label>
