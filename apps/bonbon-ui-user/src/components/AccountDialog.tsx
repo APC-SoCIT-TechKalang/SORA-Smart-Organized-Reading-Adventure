@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import { ArrowLeftIcon, LockKeyholeIcon, XIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 
-export function AccountDialog({ mode, onClose }: { mode: 'login' | null; onClose: () => void }) {
+export function AccountDialog({ mode, onClose, onSignedIn }: { mode: 'login' | null; onClose: () => void; onSignedIn?: () => void }) {
   const { signIn } = useGame();
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
@@ -27,6 +27,7 @@ export function AccountDialog({ mode, onClose }: { mode: 'login' | null; onClose
     setBusy(false);
     if (!result.ok) { setError(result.error); return; }
     onClose();
+    onSignedIn?.();
   }
 
   useEffect(() => {

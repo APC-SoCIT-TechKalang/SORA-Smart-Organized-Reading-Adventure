@@ -18,11 +18,12 @@ interface AppShellProps {
   bonAutoPeek: boolean;
   catalogLayout: 'grid' | 'list';
   guest?: boolean;
+  showGuestNavigation?: boolean;
   guestHero?: ReactNode;
   onRequestAuth?: (reason: string) => void;
 }
 
-export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero, onRequestAuth }: AppShellProps) {
+export function AppShell({ bonAutoPeek, catalogLayout, guest = false, showGuestNavigation = false, guestHero, onRequestAuth }: AppShellProps) {
   const { section, setSection, error, refresh } = useGame();
   const [query, setQuery] = useState(() => {
     try {
@@ -37,13 +38,13 @@ export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero,
       onRequestAuth?.(id === 'shelf' ? 'Sign in to view your shelf.' : id === 'commissions' ? 'Sign in to track your reading quests.' : 'Sign in to choose a seat.');
       return;
     }
-    if (guest && id === 'catalog') {
+    if (guest && !showGuestNavigation && id === 'catalog') {
       sessionStorage.setItem('sora.kiosk.browse', sessionStorage.getItem('sora.kiosk.browse') ?? '{}');
       document.getElementById('guest-catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       return;
     }
     setSection(id);
-  }, [guest, onRequestAuth, setSection]);
+  }, [guest, showGuestNavigation, onRequestAuth, setSection]);
 
   useEffect(() => {
     // Navigation must reveal the new page even after scrolling the previous one.
@@ -67,8 +68,8 @@ export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero,
     <div className="reader-world relative min-h-screen w-full">
       <a href="#main" className="skip-link">Skip to main content</a>
       {!guest && <GameHUD />}
-      <main id="main" tabIndex={-1} className={`reader-main tb-main-stage relative z-10 mx-auto flex max-w-[1440px] gap-5 px-3 pt-4 min-[390px]:px-4 sm:px-6 sm:pt-6 lg:gap-6 ${guest ? 'pb-16 sm:pb-20' : 'pb-[calc(8rem+env(safe-area-inset-bottom))] lg:pb-24'}`}>
-        {!guest && <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} onNavigate={navigate} />}
+      <main id="main" tabIndex={-1} className={`reader-main tb-main-stage relative z-10 mx-auto flex max-w-[1440px] gap-5 px-3 pt-4 min-[390px]:px-4 sm:px-6 sm:pt-6 lg:gap-6 ${guest && !showGuestNavigation ? 'pb-16 sm:pb-20' : 'pb-[calc(8rem+env(safe-area-inset-bottom))] lg:pb-24'}`}>
+        {(!guest || showGuestNavigation) && <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} onNavigate={navigate} guest={guest} />}
         <div className="min-w-0 flex-1">
           {error && (
             <div className="tb-cut-sm mb-5 flex flex-wrap items-center justify-between gap-3 border border-rust/35 bg-cream/90 px-4 py-3 font-body text-sm font-600 text-umber/75 shadow-sm" role="alert">
@@ -87,7 +88,7 @@ export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero,
         </div>
       </main>
       <ToastStack />
-      {!guest && <MobileNav />}
+      {(!guest || showGuestNavigation) && <MobileNav guest={guest} onNavigate={navigate} />}
       {!guest && section !== 'shelf' ? <BonChatbot autoPeek={bonAutoPeek} /> : null}
     </div>
   );
