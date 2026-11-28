@@ -76,7 +76,7 @@ export interface BonMessage {
   id: string;
   from: 'bon' | 'user';
   text: string;
-  recommendations?: Array<{ volumeId: string; reason: string }>;
+  recommendations?: Array<{ volumeId: string; reason: string; availableCopies?: number | null }>;
   widgets?: BonWidget[];
 }
 

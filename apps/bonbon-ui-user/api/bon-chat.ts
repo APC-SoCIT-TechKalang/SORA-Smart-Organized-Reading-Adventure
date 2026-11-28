@@ -1,14 +1,16 @@
+import { chooseRecommendations, recommendationReason, type BonBook, type RecommendationState } from '../src/lib/bon-recommendations.ts';
+
 type RequestLike = { method?: string; body?: unknown; headers: Record<string, string | string[] | undefined> };
 type ResponseLike = { status: (code: number) => ResponseLike; json: (body: unknown) => void; setHeader: (name: string, value: string) => void };
 type ChatMessage = { role: 'user' | 'assistant'; content: string };
 type Intent = 'BOOK' | 'PROGRESS' | 'QUEST' | 'REWARD' | 'ACCOUNT' | 'IDENTITY' | 'PROJECT' | 'GENERAL';
-type CatalogBook = { id: string; title: string; author: string; genre: string; synopsis: string; availableCopies: number };
+type CatalogBook = BonBook;
 type Quest = { id: string; name: string; detail: string; points: number; status: string; currentValue?: number; targetValue?: number };
 type Reading = { id?: string; title: string; minutes: number; status: string };
 type ReadingHistory = { title: string; genre: string };
 type CatalogSummary = { totalTitles: number; availableTitles: number; availabilityPending: number };
 type Reward = { id: string; name: string; points: number; available: boolean };
-type ChatContext = { section: string; signedIn?: boolean; userName?: string; rank?: string; points?: number; nextRank?: string; pointsToNext?: number; streak?: number; booksCompleted?: number; activeReading?: Reading[]; readingHistory?: ReadingHistory[]; quests?: Quest[]; availableRewards?: Quest[]; rewards?: Reward[]; catalog?: CatalogBook[]; catalogSummary?: CatalogSummary };
+type ChatContext = { section: string; signedIn?: boolean; userName?: string; rank?: string; points?: number; nextRank?: string; pointsToNext?: number; streak?: number; booksCompleted?: number; activeReading?: Reading[]; readingHistory?: ReadingHistory[]; quests?: Quest[]; availableRewards?: Quest[]; rewards?: Reward[]; catalog?: CatalogBook[]; catalogSummary?: CatalogSummary; recommendationState?: RecommendationState };
 type AiAudit = { request_id?: string; status?: 'ALLOWED' | 'REJECTED'; reason?: string | null };
 type Recommendation = { id: string; reason: string };
 
@@ -54,6 +56,7 @@ export function detectIntent(message: string): Intent {
   if (/\b(who am i|what(?:'s| is) my name|do you know me)\b/.test(value)) return 'IDENTITY';
   if (/\b(rewards?|claim|prizes?|unlocks?)\b/.test(value)) return 'REWARD';
   if (/\b(quests?|commissions?|challenges?)\b/.test(value)) return 'QUEST';
+  if (/\b(light novels?|ranobe|mangas?|cooking|female protagonist|main character|love triangle|mystery|fantasy|series|short read|available|story|stories)\b|\bi liked\b/.test(value)) return 'BOOK';
   if (/\b(progress|reading|finished|completed|minutes?|history|streak)\b/.test(value)) return 'PROGRESS';
   if (/\b(xp|points?|ranks?|levels?|achievements?)\b/.test(value)) return 'ACCOUNT';
   if (/\b(books?|mangas?|titles?|authors?|genres?|mood|read next|recomm?e?n?d?\w*|similar|available|catalog|action|comedy|romance|fantasy|horror|sports?|mystery|thriller|supernatural|isekai|funny|cozy|comfort|exciting|adventure|emotional|darker|lighter)\b|\b(do you have|is there|in the library|in your library|something light|something dark|looking for|more like)\b/.test(value)) return 'BOOK';
@@ -187,12 +190,12 @@ export function parseBody(body: unknown) {
     }) : [];
   }
   if (intent === 'BOOK') {
-    context.catalog = Array.isArray(raw.catalog) ? raw.catalog.slice(0, 30).flatMap((value): CatalogBook[] => {
+    context.catalog = Array.isArray(raw.catalog) ? raw.catalog.slice(0, 50).flatMap((value): CatalogBook[] => {
       if (!value || typeof value !== 'object') return [];
       const book = value as Record<string, unknown>;
       const id = cleanText(book.id, 40);
       const title = cleanText(book.title, 160);
-      return id && title ? [{ id, title, author: cleanText(book.author, 120) || 'Unknown author', genre: cleanText(book.genre, 100) || 'Uncategorized', synopsis: cleanText(book.synopsis, 240), availableCopies: boundedNumber(book.availableCopies, 999) }] : [];
+      return id && title ? [{ id, title, seriesName: cleanText(book.seriesName, 160), bookType: cleanText(book.bookType, 40), themes: cleanText(book.themes, 240), volume: boundedNumber(book.volume, 10000), author: cleanText(book.author, 120) || 'Unknown author', genre: cleanText(book.genre, 100) || 'Uncategorized', synopsis: cleanText(book.synopsis, 700), availableCopies: boundedNumber(book.availableCopies, 999) }] : [];
     }) : [];
     context.activeReading = Array.isArray(raw.activeReading) ? raw.activeReading.slice(0, 3).map(parseReading).filter((item): item is Reading => Boolean(item)) : [];
     context.readingHistory = Array.isArray(raw.readingHistory) ? raw.readingHistory.slice(0, 12).map(parseReadingHistory).filter((item): item is ReadingHistory => Boolean(item)) : [];
@@ -201,6 +204,19 @@ export function parseBody(body: unknown) {
       totalTitles: boundedNumber(summary.totalTitles, 100_000),
       availableTitles: boundedNumber(summary.availableTitles, 100_000),
       availabilityPending: boundedNumber(summary.availabilityPending, 100_000),
+    };
+    const state = raw.recommendationState && typeof raw.recommendationState === 'object' ? raw.recommendationState as Record<string, unknown> : {};
+    context.recommendationState = {
+      constraints: Array.isArray(state.constraints) ? state.constraints.slice(0, 12).flatMap((entry) => {
+        if (!entry || typeof entry !== 'object') return [];
+        const item = entry as Record<string, unknown>;
+        const key = cleanText(item.key, 40), label = cleanText(item.label, 80);
+        const terms = Array.isArray(item.terms) ? item.terms.slice(0, 12).map(term => cleanText(term, 50)).filter(Boolean) : [];
+        return key && label ? [{ key, label, terms, firm: item.firm === true, negative: item.negative === true, field: item.field === 'format' || item.field === 'availability' ? item.field : undefined }] : [];
+      }) : [],
+      referenceTitle: cleanText(state.referenceTitle, 160) || undefined,
+      seenIds: Array.isArray(state.seenIds) ? state.seenIds.slice(0, 20).map(id => cleanText(id, 40)).filter(Boolean) : [],
+      conflict: cleanText(state.conflict, 160) || undefined,
     };
   }
   return { message, history, intent, context };
@@ -332,7 +348,7 @@ function directReply(input: ReturnType<typeof parseBody>) {
   return null;
 }
 
-export function wantsRecommendation(input:NonNullable<ReturnType<typeof parseBody>>){return input.intent==='BOOK'&&/recomm?e?n?d?\w*|read next|suggest|similar|something|looking for|mood|like .+ because|enjoy|more like|darker|lighter|only available|manga|light novel|\b(action|comedy|romance|fantasy|horror|sports?|mystery|thriller|supernatural|isekai)\b/.test(input.message.toLowerCase());}
+export function wantsRecommendation(input:NonNullable<ReturnType<typeof parseBody>>){return input.intent==='BOOK'&&!/\b(how many|total|count|number of)\b/.test(input.message.toLowerCase())&&/recomm?e?n?d?\w*|read next|suggest|find|something|looking for|i want|i liked|like .+ because|enjoy|more like|show more|remove |darker|lighter|less dark|which of those|only available|manga|light novel|love triangle|female|women|clever|adult characters|violent|completed|similar|\b(action|comedy|romance|fantasy|horror|sports?|mystery|thriller|supernatural|isekai|funny|family|cooking|short|available|cozy)\b/.test(input.message.toLowerCase());}
 
 function cleanGeneratedText(value: unknown, max: number) {
   return cleanText(value, max).replace(/[\u2013\u2014]/g, ',').replace(/â€[“”]/g, ',').replace(/\s+,/g, ',');
@@ -371,6 +387,23 @@ export default async function handler(request: RequestLike, response: ResponseLi
   const rejection = localRejection || (audit?.status === 'REJECTED' ? audit.reason : null);
   if (rejection) return response.status(400).json({ error: rejection });
   const recommendationRequest=wantsRecommendation(input);
+  if (recommendationRequest) {
+    const catalog = input.context.catalog ?? [];
+    const state = input.context.recommendationState ?? { constraints: [], seenIds: [] };
+    const { selected, exact } = chooseRecommendations(catalog, state);
+    const recommendations = selected.map(item => ({ id: item.book.id, reason: recommendationReason(item) }));
+    const firm = state.constraints.filter(item => item.firm).map(item => item.label);
+    const message = state.conflict ? `${state.conflict} Choose one format and I will search again.` : !catalog.length
+      ? 'I cannot search the catalog right now. Please try again when the library list has loaded.'
+      : !selected.length
+        ? `I could not find a catalog title supported by those details${firm.length ? ` (${firm.join(', ')})` : ''}. Try removing one requirement or ask staff about missing book details.`
+        : exact
+          ? 'These catalog titles fit the details I can verify. Open a card to inspect the book and its current availability.'
+          : `I cannot verify every requirement${firm.length ? ` (${firm.join(', ')})` : ''}. These are the closest catalog alternatives; each card names what I cannot confirm.`;
+    const payload = { message, navigateTo: null, recommendations, recommendationIds: recommendations.map(item => item.id), suggestions: selected.length ? ['Only available', 'Make it less dark', ...(selected.length > 1 ? ['Show more like the second one'] : [])] : [...(firm.length ? [`Remove ${firm[0]}`] : []), 'Try something funny', 'Reset book preferences'], recommendationState: { ...state, seenIds: [...state.seenIds, ...recommendations.map(item => item.id)].slice(-20) } };
+    await completeAiRequest(request, audit?.request_id, message);
+    return response.status(200).json(payload);
+  }
   const direct = recommendationRequest?null:directReply(input);
   if (direct) {
     await completeAiRequest(request, audit?.request_id, direct.message);

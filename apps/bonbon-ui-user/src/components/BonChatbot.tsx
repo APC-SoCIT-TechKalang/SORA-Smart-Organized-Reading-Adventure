@@ -3,6 +3,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { MessageCircleIcon, SendIcon, XIcon } from 'lucide-react';
 import type { BonMessage, BonWidget, SectionId } from '../types/library';
 import { useGame } from '../contexts/GameContext';
+import { shortlistCatalogBooks, updateRecommendationState, type BonBook, type RecommendationState } from '../lib/bon-recommendations';
+import { supabase } from '../lib/supabase';
+import { usesReplacementSchema } from '../lib/replacement-library';
 
 
 // Pixel-art BON cutout with a transparent background.
@@ -20,9 +23,10 @@ interface Suggestion {
 }
 
 const DEFAULT_SUGGESTIONS: Suggestion[] = [
-  { label: 'What should I read next?' },
-  { label: 'Show my progress' },
-  { label: 'Any rewards ready?' },
+  { label: 'Find a cooking manga' },
+  { label: 'Only light novels' },
+  { label: 'A funny story about family' },
+  { label: 'What is available today?' },
 ];
 
 
@@ -51,6 +55,9 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   );
   const logRef = useRef<HTMLDivElement>(null);
   const hoverIntentTimer = useRef<number | null>(null);
+  const preferencesRef = useRef<RecommendationState>({ constraints: [], seenIds: [] });
+  const lastRecommendationTitles = useRef<string[]>([]);
+  const lastRecommendationIds = useRef<string[]>([]);
 
   // Lock body scroll while the mobile sheet is open
   useEffect(() => {
@@ -160,21 +167,53 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
   async function askBon(text: string) {
     const trimmed = text.trim().slice(0, 500);
     if (!trimmed || thinking) return;
+    if (/^(reset|start over|reset book preferences)$/i.test(trimmed)) {
+      preferencesRef.current = { constraints: [], seenIds: [] };
+      lastRecommendationIds.current = [];
+      lastRecommendationTitles.current = [];
+      setDraft('');
+      setSuggestions(DEFAULT_SUGGESTIONS);
+      addBonReply('Book preferences cleared. Tell me what you feel like reading.');
+      return;
+    }
     const recentHistory = messages.slice(-6).map((message) => ({
       role: message.from === 'bon' ? 'assistant' : 'user',
       content: message.text.slice(0, 300),
     }));
-    const queryWords = trimmed.toLowerCase().match(/[a-z0-9]+/g)?.filter((word) => word.length > 2 && !['book', 'books', 'what', 'which', 'there', 'about', 'should', 'read'].includes(word)) ?? [];
-    const matchingBooks = queryWords.length ? volumes.filter((volume) => {
-      const searchable = `${volume.title} ${volume.author} ${volume.genre} ${volume.synopsis}`.toLowerCase();
-      return queryWords.some((word) => searchable.includes(word));
-    }) : [];
-    const availableBooks = volumes.filter((volume) => volume.copies > 0);
-    const catalogForBon = [...matchingBooks, ...availableBooks.filter((book)=>!matchingBooks.some((match)=>match.id===book.id)), ...volumes.filter((book)=>!matchingBooks.some((match)=>match.id===book.id)&&!availableBooks.some((available)=>available.id===book.id))].slice(0, 30);
+    const isRecommendation = /recommend|read next|suggest|find|something|looking for|i want|i liked|enjoy|more like|show more|remove |darker|lighter|which of those|only available|manga|novel|funny|family|cooking|short|mystery|fantasy|romance|available|love triangle|female|women|clever|adult characters|violent|completed|similar|sports|cozy/i.test(trimmed);
+    const bookData: BonBook[] = volumes.map(volume => ({ id: volume.id, title: volume.title, seriesName: volume.seriesName, author: volume.author, genre: volume.genre, themes: volume.themes, synopsis: volume.synopsis === 'No description recorded.' ? '' : volume.synopsis, bookType: volume.bookType, volume: volume.volume, availableCopies: volume.copies }));
+    const nextPreferences = isRecommendation ? updateRecommendationState(trimmed, preferencesRef.current, [
+      ...lastRecommendationTitles.current,
+      ...volumes.map(volume => volume.title),
+      ...volumes.map(volume => volume.seriesName || volume.title.replace(/(?:,?\s+(?:vol(?:ume)?\.?|#)\s*\d+|\s+\d+)$/i, '')),
+    ]) : preferencesRef.current;
+    const sourceBooks = /which of those/i.test(trimmed) && lastRecommendationIds.current.length ? bookData.filter(book => lastRecommendationIds.current.includes(book.id)) : bookData;
+    const catalogForBon = isRecommendation ? shortlistCatalogBooks(sourceBooks, nextPreferences, 50) : bookData.slice(0, 30);
     setMessages((current) => [...current, { id: `u-${crypto.randomUUID()}`, from: 'user', text: trimmed }]);
     setDraft('');
     setThinking(true);
     try {
+      if (isRecommendation && session && supabase && catalogForBon.length) {
+        try {
+          const ids = catalogForBon.map(book => book.id);
+          const query = usesReplacementSchema
+            ? supabase.schema('sora_v2').from('book_copies').select('book_id,copy_status').in('book_id', ids)
+            : supabase.from('book_copies').select('book_id,status').in('book_id', ids);
+          const { data, error } = await query;
+          if (error) throw error;
+          const current = new Map<string, number>(ids.map(id => [id, 0]));
+          for (const copy of data ?? []) {
+            const row = copy as Record<string, unknown>;
+            if (usesReplacementSchema ? row.copy_status === 'In-Shelf' : row.status === 'available') {
+              const id = String(row.book_id);
+              current.set(id, (current.get(id) ?? 0) + 1);
+            }
+          }
+          for (const book of catalogForBon) book.availableCopies = current.get(book.id) ?? 0;
+        } catch {
+          for (const book of catalogForBon) book.availableCopies = -1;
+        }
+      }
       const response = await fetch('/api/bon-chat', {
         method: 'POST',
         headers: {
@@ -225,31 +264,58 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
               availableTitles: volumes.filter((volume) => volume.copies > 0).length,
               availabilityPending: volumes.filter((volume) => volume.copies <= 0).length,
             },
-            catalog: catalogForBon.map((volume) => ({
-              id: volume.id,
-              title: volume.title,
-              author: volume.author,
-              genre: volume.genre,
-              synopsis: volume.synopsis,
-              availableCopies: volume.copies,
-            })),
+            recommendationState: nextPreferences,
+            catalog: catalogForBon,
           },
         }),
       });
-      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; recommendations?: unknown; widgets?: unknown; error?: unknown };
+      const payload = await response.json() as { message?: unknown; navigateTo?: unknown; suggestions?: unknown; recommendations?: unknown; recommendationState?: RecommendationState; widgets?: unknown; error?: unknown };
       if (!response.ok || typeof payload.message !== 'string' || !payload.message.trim()) {
         throw new Error(typeof payload.error === 'string' ? payload.error : 'BON request failed');
       }
       const destination = typeof payload.navigateTo === 'string' && ['archive', 'catalog', 'shelf', 'commissions', 'guide'].includes(payload.navigateTo)
         ? payload.navigateTo as SectionId
         : undefined;
-      const recommendations = Array.isArray(payload.recommendations) ? payload.recommendations.flatMap((item) => {
+      let recommendations: NonNullable<BonMessage['recommendations']> = Array.isArray(payload.recommendations) ? payload.recommendations.flatMap((item) => {
         if (!item || typeof item !== 'object') return [];
         const value = item as Record<string, unknown>;
         const volumeId = typeof value.id === 'string' ? value.id : '';
-        const reason = typeof value.reason === 'string' ? value.reason.trim().slice(0, 180) : '';
+        const reason = typeof value.reason === 'string' ? value.reason.trim().slice(0, 350) : '';
         return volumeId && reason && volumes.some((volume) => volume.id === volumeId) ? [{ volumeId, reason }] : [];
       }).slice(0, 5) : [];
+      if (isRecommendation && payload.recommendationState) {
+        preferencesRef.current = payload.recommendationState;
+        lastRecommendationTitles.current = recommendations.flatMap(item => {
+          const volume = volumes.find(candidate => candidate.id === item.volumeId);
+          return volume ? [volume.seriesName || volume.title] : [];
+        });
+        lastRecommendationIds.current = recommendations.map(item => item.volumeId);
+      }
+      // One fresh batch read checks the displayed copies after the answer is chosen.
+      // Guests and failed reads get an unknown state rather than a stale promise.
+      if (recommendations.length && session && supabase) {
+        try {
+          const ids = recommendations.map(item => item.volumeId);
+          const query = usesReplacementSchema
+            ? supabase.schema('sora_v2').from('book_copies').select('book_id,copy_status').in('book_id', ids)
+            : supabase.from('book_copies').select('book_id,status').in('book_id', ids);
+          const { data, error } = await query;
+          if (error) throw error;
+          const available = new Map<string, number>(ids.map(id => [id, 0]));
+          for (const copy of data ?? []) {
+            const row = copy as Record<string, unknown>;
+            if ((usesReplacementSchema ? row.copy_status === 'In-Shelf' : row.status === 'available')) {
+              const id = String(row.book_id);
+              available.set(id, (available.get(id) ?? 0) + 1);
+            }
+          }
+          recommendations = recommendations.map(item => ({ ...item, availableCopies: available.get(item.volumeId) ?? null }));
+        } catch {
+          recommendations = recommendations.map(item => ({ ...item, availableCopies: null }));
+        }
+      } else {
+        recommendations = recommendations.map(item => ({ ...item, availableCopies: null }));
+      }
       const widgets = Array.isArray(payload.widgets) ? payload.widgets.filter((widget): widget is BonWidget => Boolean(widget && typeof widget === 'object' && typeof (widget as Record<string, unknown>).type === 'string')).slice(0, 4) : [];
       addBonReply(payload.message, destination, recommendations, widgets);
       if (Array.isArray(payload.suggestions)) {
@@ -341,12 +407,13 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
                       window.setTimeout(() => window.dispatchEvent(new CustomEvent('tankobonbon:open-volume', { detail: { volumeId: volume.id } })), 350);
                     }} className="group grid w-full grid-cols-[52px_minmax(0,1fr)] gap-3 rounded-xl border border-gold/40 bg-cream/90 p-2.5 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-gold focus-visible:outline focus-visible:outline-2 focus-visible:outline-rust">
                       <span className="h-[70px] overflow-hidden rounded-md border border-gold/25 bg-parch/40">
-                        <img src={volume.coverImage || '/book-placeholder.svg'} alt="" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.src = '/book-placeholder.svg'; }} />
+                        <img src={volume.coverImage || '/book-placeholder.svg'} alt="" loading="lazy" className="h-full w-full object-contain" onError={(event) => { event.currentTarget.src = '/book-placeholder.svg'; }} />
                       </span>
                       <span className="min-w-0 py-0.5">
-                        <strong className="line-clamp-1 block font-display text-[13px] text-umber">{volume.title}</strong>
-                        <span className="mt-1 line-clamp-2 block font-body text-[11px] leading-4 text-umber/70">{recommendation.reason}</span>
-                        <span className={`mt-1.5 block font-body text-[10px] font-800 uppercase tracking-[0.08em] ${volume.copies > 0 ? 'text-emerald-700' : 'text-rust'}`}>{volume.copies > 0 ? `${volume.copies} ${volume.copies === 1 ? 'copy' : 'copies'} available` : 'Currently unavailable'}</span>
+                        <strong className="line-clamp-2 block font-display text-[13px] text-umber">{volume.seriesName || volume.title}</strong>
+                        <span className="mt-0.5 block font-body text-[11px] text-umber/70">{volume.bookType || 'Format unrecorded'}{volume.volume === 1 ? ' · Start with volume 1' : volume.volume > 1 ? ` · Volume ${volume.volume}` : ''}</span>
+                        <span className="mt-1 block font-body text-[11px] leading-4 text-umber/80">{recommendation.reason}</span>
+                        <span className={`mt-1.5 block font-body text-[10px] font-800 uppercase tracking-[0.08em] ${recommendation.availableCopies && recommendation.availableCopies > 0 ? 'text-emerald-700' : 'text-rust'}`}>{recommendation.availableCopies == null ? 'Check availability in catalog' : recommendation.availableCopies > 0 ? `${recommendation.availableCopies} ${recommendation.availableCopies === 1 ? 'copy' : 'copies'} available` : 'Currently unavailable'}</span>
                       </span>
                     </button>;
                   })}
@@ -389,6 +456,13 @@ export function BonChatbot({ autoPeek = true }: BonChatbotProps) {
                     {suggestion.label}
                   </button>
               )}
+              {preferencesRef.current.constraints.length ? <button type="button" disabled={thinking} onClick={() => {
+                preferencesRef.current = { constraints: [], seenIds: [] };
+                lastRecommendationIds.current = [];
+                lastRecommendationTitles.current = [];
+                setSuggestions(DEFAULT_SUGGESTIONS);
+                addBonReply('Book preferences cleared. Tell me what you feel like reading.');
+              }} className="min-h-10 shrink-0 rounded-full border border-gold/50 px-3 font-body text-xs font-bold text-rust focus-visible:outline focus-visible:outline-2 focus-visible:outline-rust">Reset book preferences</button> : null}
               </div>
 
               <form
