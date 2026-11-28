@@ -23,7 +23,7 @@ interface AppShellProps {
 }
 
 export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero, onRequestAuth }: AppShellProps) {
-  const { section, setSection, error, refresh, session, volumes } = useGame();
+  const { section, setSection, error, refresh } = useGame();
   const [query, setQuery] = useState(() => {
     try {
       const value = JSON.parse(sessionStorage.getItem('sora.kiosk.browse') ?? '{}').query;
@@ -63,24 +63,12 @@ export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero,
     return () => window.removeEventListener('keydown', onKey);
   }, [guest, navigate]);
 
-  useEffect(() => {
-    if (guest || !session || !volumes.length) return;
-    const hasBrowseIntent = sessionStorage.getItem('sora.kiosk.browse');
-    const volumeId = sessionStorage.getItem('sora.kiosk.selected-volume');
-    if (!volumeId) {
-      if (hasBrowseIntent) setSection('catalog');
-      return;
-    }
-    if (!volumes.some(volume => volume.id === volumeId)) return;
-    setSection('catalog');
-  }, [guest, session, setSection, volumes]);
-
   return (
     <div className="reader-world relative min-h-screen w-full">
       <a href="#main" className="skip-link">Skip to main content</a>
       {!guest && <GameHUD />}
-      <main id="main" tabIndex={-1} className="reader-main tb-main-stage relative z-10 mx-auto flex max-w-[1440px] gap-5 px-3 pb-[calc(8rem+env(safe-area-inset-bottom))] pt-4 min-[390px]:px-4 sm:px-6 sm:pt-6 lg:gap-6 lg:pb-24">
-        <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} guest={guest} onNavigate={guest ? navigate : undefined} />
+      <main id="main" tabIndex={-1} className={`reader-main tb-main-stage relative z-10 mx-auto flex max-w-[1440px] gap-5 px-3 pt-4 min-[390px]:px-4 sm:px-6 sm:pt-6 lg:gap-6 ${guest ? 'pb-16 sm:pb-20' : 'pb-[calc(8rem+env(safe-area-inset-bottom))] lg:pb-24'}`}>
+        {!guest && <SideRail open={sidebarOpen} onToggle={() => setSidebarOpen((value) => !value)} onNavigate={navigate} />}
         <div className="min-w-0 flex-1">
           {error && (
             <div className="tb-cut-sm mb-5 flex flex-wrap items-center justify-between gap-3 border border-rust/35 bg-cream/90 px-4 py-3 font-body text-sm font-600 text-umber/75 shadow-sm" role="alert">
@@ -99,7 +87,7 @@ export function AppShell({ bonAutoPeek, catalogLayout, guest = false, guestHero,
         </div>
       </main>
       <ToastStack />
-      <MobileNav guest={guest} onNavigate={guest ? navigate : undefined} />
+      {!guest && <MobileNav />}
       {!guest && section !== 'shelf' ? <BonChatbot autoPeek={bonAutoPeek} /> : null}
     </div>
   );

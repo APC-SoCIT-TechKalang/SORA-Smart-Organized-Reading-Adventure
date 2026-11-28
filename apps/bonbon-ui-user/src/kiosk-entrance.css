@@ -134,6 +134,83 @@
 .kiosk-entry-privacy { display: flex; align-items: center; gap: .35rem; margin-top: 1rem; color: #68452f; font-size: .74rem; font-weight: 700; }
 .kiosk-entry-privacy svg { width: .96rem; height: .96rem; color: #356449; }
 
+/* A single, full-width entrance replaces the guest navigation rail. */
+.kiosk-archive {
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 24rem);
+  min-height: clamp(34rem, 68vh, 43rem);
+  gap: clamp(1.5rem, 4vw, 4rem);
+  padding: clamp(1.5rem, 4.2vw, 4rem);
+  overflow: hidden;
+  border-color: #d4a262;
+  border-radius: clamp(20px, 2.4vw, 34px);
+  box-shadow: 0 26px 70px #32190f54, inset 0 0 0 1px #f3cc8a24;
+  --archive-shade: linear-gradient(90deg, #1d0e09f5 0%, #25120ddc 36%, #29160d83 68%, #29160d9e 100%);
+  --archive-position: center 48%;
+}
+.kiosk-archive::after {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  border: 1px solid #f8ce8657;
+  border-radius: inherit;
+  background: linear-gradient(125deg, #f8dcaa10, transparent 38%, #f5b96c12);
+  content: '';
+}
+.kiosk-arch-outline {
+  position: absolute;
+  z-index: -1;
+  width: min(48vw, 44rem);
+  height: 115%;
+  top: 8%;
+  left: 29%;
+  pointer-events: none;
+  border: 1px solid #e8ac6370;
+  border-radius: 50% 50% 0 0 / 40% 40% 0 0;
+  box-shadow: 0 0 0 14px #e7aa4d0c, 0 0 0 15px #e8ac6329, inset 0 0 60px #e6aa3f15;
+}
+.kiosk-archive-copy { position: relative; z-index: 1; max-width: 40rem; }
+.kiosk-archive .reader-kicker { gap: .7rem; color: #f8d28d; letter-spacing: .16em; }
+.kiosk-chapter-mark {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  border: 1px solid #f5cb7380;
+  border-radius: 50%;
+  color: #ffe6aa;
+  background: #f5cb731a;
+  font: 800 .7rem/1 Cinzel, Georgia, serif;
+}
+.kiosk-archive h1 { max-width: 13ch; margin: 1.4rem 0 1.2rem; font-size: clamp(2.65rem, 5.3vw, 5.15rem); line-height: 1.04; letter-spacing: -.045em; text-wrap: balance; }
+.kiosk-archive h1 em { color: #ffd17e; }
+.kiosk-archive .reader-archive-description { max-width: 32ch; font-size: clamp(1rem, 1.45vw, 1.25rem); line-height: 1.6; }
+.kiosk-hero-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem 1.2rem; margin-top: clamp(1.5rem, 3vw, 2.5rem); }
+.kiosk-explore-button { margin-top: 0; min-height: 3.4rem; padding-inline: 1.2rem; }
+.kiosk-hero-aside { max-width: 12rem; color: #f7d6a6bc; font-size: .76rem; line-height: 1.45; }
+.kiosk-signin-panel {
+  z-index: 2;
+  max-width: 24rem;
+  padding: clamp(1.3rem, 2.5vw, 2rem);
+  border: 1px solid #f2c58a;
+  border-radius: 22px;
+  background: radial-gradient(circle at top right, #fffefa, transparent 55%), linear-gradient(155deg, #fff8e9f7, #efd0a8f5);
+  box-shadow: 0 26px 50px #170a07a8, inset 0 0 0 1px #ffffffb0;
+}
+.kiosk-signin-heading { padding-bottom: 1.2rem; border-bottom: 1px solid #d9b4888a; }
+.kiosk-signin-seal { display: grid; place-items: center; width: 3.5rem; height: 3.5rem; margin-bottom: 1.2rem; border: 1px solid #c6924d; border-radius: 15px; color: #ffc56a; background: linear-gradient(135deg, #804525, #3c2118); box-shadow: 0 9px 18px #71401f31; }
+.kiosk-signin-seal svg { width: 1.7rem; height: 1.7rem; }
+.kiosk-signin-panel h2 { margin-top: .35rem; font-size: clamp(1.7rem, 2.5vw, 2.25rem); }
+.kiosk-signin-intro { margin-top: .6rem; }
+.kiosk-entry-actions { gap: .7rem; margin-top: 1.2rem; }
+.kiosk-entry-action { min-height: 5rem; padding: .8rem .9rem; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease, background .18s ease; }
+.kiosk-entry-action:hover:not(:disabled) { transform: translateY(-2px); }
+.kiosk-entry-action:active:not(:disabled) { transform: translateY(0); }
+.kiosk-entry-action--primary { background: linear-gradient(115deg, #88411e, #4d2819); box-shadow: 0 12px 24px #5c2f2740; }
+.kiosk-entry-icon { width: 2.8rem; }
+.kiosk-entry-action-copy strong { font-size: .98rem; }
+.kiosk-entry-privacy { margin-top: 1.3rem; padding-top: .9rem; border-top: 1px solid #d9b4888a; }
+
 .kiosk-door-reveal {
   position: fixed;
   z-index: 60;
@@ -197,13 +274,14 @@
   .kiosk-archive {
     grid-template-columns: minmax(0, 1fr);
     min-height: 0;
-    gap: 1.35rem;
+    gap: 2rem;
     --archive-shade: linear-gradient(180deg, #25130dd9, #25130de8);
     --archive-position: 64% center;
   }
   .kiosk-archive-copy { align-self: end; }
   .kiosk-archive h1 { max-width: none; font-size: clamp(2.2rem, 7vw, 3.8rem); }
   .kiosk-signin-panel { max-width: 30rem; justify-self: stretch; }
+  .kiosk-arch-outline { left: 40%; width: 65vw; }
 }
 
 @media (max-width: 600px) {
@@ -213,6 +291,10 @@
   .kiosk-archive h1 { margin: .55rem 0; font-size: clamp(2rem, 9vw, 2.8rem); }
   .kiosk-archive .reader-archive-description { font-size: .84rem; line-height: 1.45; }
   .kiosk-signin-panel { padding: 1.1rem; }
+  .kiosk-signin-seal { width: 2.7rem; height: 2.7rem; margin-bottom: .7rem; }
+  .kiosk-signin-seal svg { width: 1.35rem; height: 1.35rem; }
+  .kiosk-signin-heading { padding-bottom: .9rem; }
+  .kiosk-hero-aside { display: none; }
   .kiosk-entry-action { min-height: 4rem; }
   .kiosk-entry-card h2 { font-size: clamp(1.25rem, 6vw, 1.65rem); }
 }

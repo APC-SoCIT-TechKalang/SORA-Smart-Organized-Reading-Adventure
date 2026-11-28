@@ -52,6 +52,8 @@ export function KioskApp() {
         await new Promise<void>(resolve => window.setTimeout(resolve, ENTRANCE_DURATION_MS));
       }
       window.sessionStorage.setItem(SESSION_STARTED_KEY, String(Date.now()));
+      window.sessionStorage.removeItem('sora.kiosk.browse');
+      window.sessionStorage.removeItem('sora.kiosk.selected-volume');
       window.location.replace('/');
     } catch (cause) { await clearSession(); setMessage(errorMessage(cause)); setStatus('error'); }
   }, [clearSession]);
@@ -258,28 +260,35 @@ function WelcomeView({ status, message, authPrompt, onContinueBrowsing, startPhy
   const busy = status === 'authorizing' || status === 'entering';
   return <section aria-labelledby="kiosk-welcome-title" className="reader-archive kiosk-archive">
     <ReaderAtmosphere />
+    <div aria-hidden="true" className="kiosk-arch-outline" />
     <div className="reader-archive-copy kiosk-archive-copy">
-      <p className="reader-kicker">Welcome to the Archive</p>
-      <h1 id="kiosk-welcome-title">Your next<br />chapter<br /><em>awaits.</em></h1>
-      <p className="reader-archive-description">Discover your next story. Your adventure starts here.</p>
-      <button type="button" onClick={() => { sessionStorage.setItem('sora.kiosk.browse', sessionStorage.getItem('sora.kiosk.browse') ?? '{}'); document.getElementById('guest-catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="reader-gold-button kiosk-explore-button">Explore the Collection <ArrowRightIcon aria-hidden="true" /></button>
+      <p className="reader-kicker"><span className="kiosk-chapter-mark">01</span> Your library adventure begins here</p>
+      <h1 id="kiosk-welcome-title">Open the door<br />to your <em>next story.</em></h1>
+      <p className="reader-archive-description">A world of stories is waiting. Tap your library card to step inside.</p>
+      <div className="kiosk-hero-footer">
+        <button type="button" onClick={() => { sessionStorage.setItem('sora.kiosk.browse', sessionStorage.getItem('sora.kiosk.browse') ?? '{}'); document.getElementById('guest-catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }} className="reader-gold-button kiosk-explore-button">Explore the Collection <ArrowRightIcon aria-hidden="true" /></button>
+        <span className="kiosk-hero-aside">Find your next favorite before you sign in</span>
+      </div>
     </div>
 
     <div id="kiosk-sign-in" className="kiosk-entry-card kiosk-signin-panel">
-      <p className="kiosk-signin-eyebrow">Reader sign-in</p>
-      <h2>{authPrompt ? 'Ready to begin your chapter?' : 'Begin your adventure.'}</h2>
-      <p className="kiosk-signin-intro">Sign in when you're ready to read.</p>
+      <div className="kiosk-signin-heading">
+        <span aria-hidden="true" className="kiosk-signin-seal"><NfcIcon /></span>
+        <p className="kiosk-signin-eyebrow">The entrance</p>
+        <h2>{authPrompt ? 'Your story starts here.' : 'Ready to step inside?'}</h2>
+        <p className="kiosk-signin-intro">Choose how you want to enter the library.</p>
+      </div>
       <div className="kiosk-entry-actions" aria-busy={busy}>
         <button id="kiosk-physical-card" type="button" onClick={() => void startPhysicalScan()} disabled={busy} className="kiosk-entry-action kiosk-entry-action--primary">
           <span className="kiosk-entry-icon">
             {status === 'authorizing' ? <LoaderCircleIcon aria-hidden="true" className="motion-safe:animate-spin" /> : <NfcIcon aria-hidden="true" />}
           </span>
-          <span className="kiosk-entry-action-copy"><strong>Tap physical ID</strong><small>Use the card reader.</small></span>
+          <span className="kiosk-entry-action-copy"><strong>Tap your library card</strong><small>Hold it near the reader</small></span>
           <ArrowRightIcon aria-hidden="true" className="kiosk-entry-arrow" />
         </button>
         <button type="button" onClick={startQrScan} disabled={busy} className="kiosk-entry-action">
           <span className="kiosk-entry-icon"><QrCodeIcon aria-hidden="true" /></span>
-          <span className="kiosk-entry-action-copy"><strong>Scan Digital ID</strong><small>Show your QR code</small></span>
+          <span className="kiosk-entry-action-copy"><strong>Scan your Digital ID</strong><small>Show your QR code</small></span>
           <ArrowRightIcon aria-hidden="true" className="kiosk-entry-arrow" />
         </button>
       </div>
