@@ -1,8 +1,7 @@
 const MAX_KEY_INTERVAL_MS = 100;
 const DUPLICATE_COOLDOWN_MS = 1_250;
 const MAX_PAYLOAD_LENGTH = 512;
-const DIGITAL_CARD_PREFIX = "tankobonbon:kiosk-user:";
-const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DIGITAL_CARD_PREFIX = "tankobonbon:card-uid:";
 
 export function sanitizeCardPayload(payload: string) {
   return payload
@@ -20,8 +19,8 @@ export function normalizePhysicalCardUid(payload: string) {
 export function parseDigitalCardPayload(payload: string) {
   const normalized = sanitizeCardPayload(payload);
   if (!normalized.startsWith(DIGITAL_CARD_PREFIX)) return null;
-  const userId = normalized.slice(DIGITAL_CARD_PREFIX.length);
-  return USER_ID_PATTERN.test(userId) ? userId : null;
+  const cardUid = normalized.slice(DIGITAL_CARD_PREFIX.length).toUpperCase();
+  return /^[A-Z0-9]{4,50}$/.test(cardUid) ? cardUid : null;
 }
 
 export function isDigitalCardPayload(payload: string) {

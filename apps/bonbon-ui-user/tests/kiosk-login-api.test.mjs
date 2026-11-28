@@ -11,22 +11,13 @@ const source = ts.transpileModule(readFileSync(new URL('../api/kiosk-rfid-login.
 }).outputText;
 
 function fixture(options = {}) {
-  const calls = { tokens: 0, rfid: [], readers: [] };
+  const calls = { tokens: 0, rfid: [] };
   const account = { auth_user_id: authId, user_id: readerId, email: 'reader@example.test', first_name: 'Test', last_name: 'Reader' };
-  const reader = { id: readerId, first_name: 'Test', last_name: 'Reader', is_active: true, user_role: 'Reader', membership_status: 'ACTIVE', membership_expires_at: new Date(Date.now() + 86_400_000).toISOString(), ...options.reader };
   const api = {
     rpc: async (name, args) => {
       assert.equal(name, 'resolve_kiosk_rfid');
       calls.rfid.push(args.p_rfid_uid);
       return { data: options.unknown ? [] : [account], error: null };
-    },
-    from: table => {
-      assert.equal(table, 'users');
-      return { select: () => ({ eq: (column, id) => {
-        assert.equal(column, 'id');
-        calls.readers.push(id);
-        return { maybeSingle: async () => ({ data: reader, error: null }) };
-      } }) };
     },
   };
   const module = { exports: {} };
@@ -65,13 +56,13 @@ function fixture(options = {}) {
   };
 }
 
-test('QR login returns a usable token and account without an RFID field', async () => {
+test('assigned card UID returns a usable token and account', async () => {
   const f = fixture();
-  const response = await f.scan({ userId: authId });
+  const response = await f.scan({ rfidUid: '0011223344' });
   assert.equal(response.code, 200);
   assert.equal(response.body.tokenHash, 'mock-one-time-token');
-  assert.deepEqual(response.body.account, { userId: readerId, firstName: 'Test', lastName: 'Reader' });
-  assert.deepEqual(f.calls.readers, [readerId], 'Use the linked library account, not the Auth ID');
+  assert.deepEqual(response.body.account, { userId: readerId, firstName: 'Test', lastName: 'Reader', rfidUid: '0011223344' });
+  assert.deepEqual(f.calls.rfid, ['0011223344']);
   assert.equal(f.calls.tokens, 1);
   assert.equal(response.headers['Cache-Control'], 'no-store, max-age=0');
 });
@@ -81,20 +72,15 @@ test('physical-card login returns the scanned RFID and a usable token', async ()
   const response = await f.scan({ rfidUid: 'CARD-12345' });
   assert.equal(response.code, 200);
   assert.equal(response.body.tokenHash, 'mock-one-time-token');
-  assert.equal(response.body.account.rfidUid, 'CARD-12345');
-  assert.deepEqual(f.calls.rfid, ['CARD-12345']);
+  assert.equal(response.body.account.rfidUid, 'CARD12345');
+  assert.deepEqual(f.calls.rfid, ['CARD12345']);
   assert.equal(f.calls.tokens, 1);
 });
 
-test('unactivated, disabled, expired and staff accounts cannot mint QR login tokens', async () => {
-  for (const reader of [
-    { membership_status: 'INACTIVE' }, { is_active: false }, { user_role: 'Librarian' },
-    { membership_expires_at: new Date(Date.now() - 1000).toISOString() }, { membership_expires_at: null },
-  ]) {
-    const f = fixture({ reader });
-    assert.equal((await f.scan({ userId: authId })).code, 403);
-    assert.equal(f.calls.tokens, 0);
-  }
+test('account UUID alone cannot mint a login token', async () => {
+  const f = fixture();
+  assert.equal((await f.scan({ userId: authId })).code, 400);
+  assert.equal(f.calls.tokens, 0);
 });
 
 test('unknown physical cards cannot mint login tokens', async () => {
@@ -105,7 +91,7 @@ test('unknown physical cards cannot mint login tokens', async () => {
 
 test('failed token issuance never returns a successful login', async () => {
   for (const options of [{ tokenError: true }, { wrongAuthUser: true }]) {
-    const response = await fixture(options).scan({ userId: authId });
+    const response = await fixture(options).scan({ rfidUid: '0011223344' });
     assert.equal(response.code, 503);
     assert.equal(response.body.tokenHash, undefined);
   }
@@ -113,7 +99,7 @@ test('failed token issuance never returns a successful login', async () => {
 
 test('invalid and cross-origin scans are rejected before token issuance', async () => {
   const f = fixture();
-  assert.equal((await f.scan({ userId: 'invalid' })).code, 400);
+  assert.equal((await f.scan({ rfidUid: '!' })).code, 400);
   assert.equal((await f.scan({ userId: authId }, 'https://other.example.test')).code, 403);
   assert.equal(f.calls.tokens, 0);
 });

@@ -1,16 +1,16 @@
-export const KIOSK_QR_PREFIX = 'tankobonbon:kiosk-user:';
+export const KIOSK_QR_PREFIX = 'tankobonbon:card-uid:';
 
-const USER_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CARD_UID_PATTERN = /^[A-Z0-9]{4,50}$/;
 
-export function createKioskQrPayload(userId: string) {
-  const normalized = userId.trim();
-  if (!USER_ID_PATTERN.test(normalized)) throw new Error('This reader account cannot be used for QR login.');
+export function createKioskQrPayload(cardUid: string) {
+  const normalized = cardUid.trim().toUpperCase();
+  if (!CARD_UID_PATTERN.test(normalized)) throw new Error('No valid assigned card UID is available for QR login.');
   return `${KIOSK_QR_PREFIX}${normalized}`;
 }
 
 export function parseKioskQrPayload(payload: string) {
   const normalized = payload.trim();
   if (!normalized.startsWith(KIOSK_QR_PREFIX)) return null;
-  const userId = normalized.slice(KIOSK_QR_PREFIX.length);
-  return USER_ID_PATTERN.test(userId) ? userId : null;
+  const cardUid = normalized.slice(KIOSK_QR_PREFIX.length).toUpperCase();
+  return CARD_UID_PATTERN.test(cardUid) ? cardUid : null;
 }

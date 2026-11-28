@@ -12,8 +12,9 @@ test("scanner formatting and separators cannot cause a false mismatch", () => {
 });
 
 test("Digital ID parsing accepts the reader QR format and rejects unrelated values", () => {
-  const userId = "2bd08bf8-e857-4cc7-9a65-15dcdbef7aad";
-  assert.equal(parseDigitalCardPayload(`tankobonbon:kiosk-user:${userId}`), userId);
+  const cardUid = "0011223344";
+  assert.equal(parseDigitalCardPayload(`tankobonbon:card-uid:${cardUid}`), cardUid);
+  assert.equal(parseDigitalCardPayload("tankobonbon:card-uid:!"), null);
   assert.equal(parseDigitalCardPayload("0011223344"), null);
 });
 

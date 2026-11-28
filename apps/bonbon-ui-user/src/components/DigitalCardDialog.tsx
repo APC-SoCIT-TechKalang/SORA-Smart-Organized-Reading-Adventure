@@ -3,23 +3,20 @@ import { createPortal } from 'react-dom';
 import { BookOpenIcon, QrCodeIcon, RotateCcwIcon, ShieldCheckIcon, XIcon } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { useGame } from '../contexts/GameContext';
-import { createKioskQrPayload } from '../lib/kioskQr';
+import { useAssignedCardQr } from '../lib/use-assigned-card-qr';
 
 interface DigitalCardDialogProps {
   open: boolean;
   onClose: () => void;
 }
 
-type CardCredential = { qrPayload: string; error: string };
-const emptyCredential: CardCredential = { qrPayload: '', error: '' };
 type WakeLockSentinel = { release: () => Promise<void> };
 
 export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
   const { session, profile, rank, readerAccess } = useGame();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [flipped, setFlipped] = useState(false);
-  const [credential, setCredential] = useState<CardCredential>(emptyCredential);
-  const [loadingCard, setLoadingCard] = useState(false);
+  const { qrPayload, error: cardError, loading: loadingCard } = useAssignedCardQr(profile?.user_id, open && readerAccess === 'active');
   const userId = session?.user.id;
 
   useEffect(() => {
@@ -36,23 +33,7 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
 
   useEffect(() => {
     if (!open || !session || !profile || readerAccess !== 'active') return;
-    let current = true;
     setFlipped(false);
-    setCredential(emptyCredential);
-    setLoadingCard(true);
-
-    const loadCard = () => {
-      try {
-        if (current) setCredential({ qrPayload: createKioskQrPayload(session.user.id), error: '' });
-      } catch (cause) {
-        if (current) setCredential({ qrPayload: '', error: cause instanceof Error ? cause.message : 'Your QR login card could not be loaded.' });
-      } finally {
-        if (current) setLoadingCard(false);
-      }
-    };
-
-    loadCard();
-    return () => { current = false; };
   }, [open, profile, readerAccess, session]);
 
   useEffect(() => {
@@ -91,7 +72,7 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
   const fullName = profile
     ? `${profile.first_name} ${profile.last_name}`.trim()
     : session.user.email || 'Reader';
-  const active = Boolean(credential.qrPayload);
+  const active = Boolean(qrPayload);
   const flip = () => setFlipped(value => !value);
 
   return createPortal(
@@ -174,8 +155,8 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
               <div className="digital-card-back-layout relative z-10 grid h-full grid-cols-[minmax(120px,.72fr)_1.28fr] gap-2.5 p-3 sm:grid-cols-[minmax(170px,.76fr)_1.24fr] sm:gap-4 sm:p-5">
                 <div className="digital-card-qr-panel flex min-w-0 flex-col rounded-xl border border-[#c4800c]/25 bg-white p-2 shadow-inner sm:p-3">
                   <div className="grid min-h-0 flex-1 place-items-center rounded-lg bg-white p-1.5 sm:p-2">
-                    {credential.qrPayload ? (
-                      <QRCodeSVG value={credential.qrPayload} level="H" marginSize={0} bgColor="#ffffff" fgColor="#321b0d" className="digital-card-qr h-auto w-full max-w-[155px]" title="Tankobonbon kiosk login QR code" />
+                    {qrPayload ? (
+                      <QRCodeSVG value={qrPayload} level="H" marginSize={0} bgColor="#ffffff" fgColor="#321b0d" className="digital-card-qr h-auto w-full max-w-[155px]" title="Tankobonbon kiosk login QR code" />
                     ) : (
                       <div className="text-center text-[#543822]/55">
                         <QrCodeIcon aria-hidden="true" className="mx-auto h-12 w-12" />
@@ -194,8 +175,8 @@ export function DigitalCardDialog({ open, onClose }: DigitalCardDialogProps) {
                     <ShieldCheckIcon aria-hidden="true" className="h-4 w-4 shrink-0 text-[#a33c12]" />
                     <p className="text-[9px] font-900 uppercase tracking-[.13em] sm:text-[11px]">Digital library card</p>
                   </div>
-                  {credential.error ? (
-                    <p role="alert" className="mt-3 text-[10px] leading-4 text-[#a33c12] sm:text-xs">{credential.error}</p>
+                  {cardError ? (
+                    <p role="alert" className="mt-3 text-[10px] leading-4 text-[#a33c12] sm:text-xs">{cardError}</p>
                   ) : (
                     <ul className="mt-2.5 list-disc space-y-1 pl-4 text-[8px] leading-3.5 text-[#543822]/85 sm:mt-3 sm:space-y-1.5 sm:pl-5 sm:text-[10px] sm:leading-4">
                       <li>This card is for the registered member only and is non-transferable.</li>

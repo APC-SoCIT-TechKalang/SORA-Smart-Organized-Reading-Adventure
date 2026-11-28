@@ -17,15 +17,6 @@ type ResolvedAccount = {
   first_name: string;
   last_name: string;
 };
-type ReaderRow = {
-  id: string;
-  first_name: string;
-  last_name: string;
-  is_active: boolean;
-  user_role: string;
-  membership_status: string;
-  membership_expires_at: string | null;
-};
 
 const WINDOW_MS = 60_000;
 const ATTEMPTS_PER_WINDOW = 10;
@@ -84,8 +75,6 @@ function credential(body: unknown) {
     const normalizedUid = normalizePhysicalCardUid(uid);
     if (/^[A-Z0-9]{4,128}$/.test(normalizedUid)) return { rfidUid: normalizedUid } as const;
   }
-  const userId = values.userId;
-  if (typeof userId === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(userId)) return { userId } as const;
   return null;
 }
 
@@ -103,31 +92,9 @@ export default async function handler(request: RequestLike, response: ResponseLi
 
   try {
     const admin = createClient(url, secret, { auth: { persistSession: false, autoRefreshToken: false } });
-    let account: ResolvedAccount | undefined;
-    if ('rfidUid' in loginCredential) {
-      const resolved = await admin.schema('sora_v2').rpc('resolve_kiosk_rfid', { p_rfid_uid: loginCredential.rfidUid });
-      if (resolved.error) return response.status(503).json({ error: 'The RFID database service is unavailable. Ask staff to apply the RFID login migration.' });
-      account = resolved.data?.[0] as ResolvedAccount | undefined;
-    } else {
-      const authUser = await admin.auth.admin.getUserById(loginCredential.userId);
-      const appUserId = authUser.data.user?.app_metadata?.sora_user_id;
-      if (!authUser.error && authUser.data.user?.email && typeof appUserId === 'string') {
-        const reader = await admin.schema('sora_v2').from('users')
-          .select('id,first_name,last_name,is_active,user_role,membership_status,membership_expires_at')
-          .eq('id', appUserId)
-          .maybeSingle();
-        const row = reader.data as ReaderRow | null;
-        const membershipExpiresAt = row?.membership_expires_at
-          ? Date.parse(row.membership_expires_at)
-          : Number.NaN;
-        const activeMembership = row?.membership_status === 'ACTIVE'
-          && Number.isFinite(membershipExpiresAt)
-          && membershipExpiresAt > Date.now();
-        if (!reader.error && row?.is_active && row.user_role === 'Reader' && activeMembership) {
-          account = { auth_user_id: authUser.data.user.id, user_id: row.id, email: authUser.data.user.email, first_name: row.first_name, last_name: row.last_name };
-        }
-      }
-    }
+    const resolved = await admin.schema('sora_v2').rpc('resolve_kiosk_rfid', { p_rfid_uid: loginCredential.rfidUid });
+    if (resolved.error) return response.status(503).json({ error: 'The RFID database service is unavailable. Ask staff to apply the RFID login migration.' });
+    const account = resolved.data?.[0] as ResolvedAccount | undefined;
     if (!account?.email) return response.status(403).json({ error: 'Card not recognized, account inactive, or membership expired. Please ask library staff.' });
 
     const authUser = await admin.auth.admin.getUserById(account.auth_user_id);
@@ -144,7 +111,7 @@ export default async function handler(request: RequestLike, response: ResponseLi
         userId: account.user_id,
         firstName: account.first_name,
         lastName: account.last_name,
-        ...('rfidUid' in loginCredential ? { rfidUid: loginCredential.rfidUid } : {}),
+        rfidUid: loginCredential.rfidUid,
       },
     });
   } catch {
