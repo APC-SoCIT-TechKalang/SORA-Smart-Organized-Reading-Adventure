@@ -1,6 +1,15 @@
 -- Apply after 033_admin_reader_station.sql. Reuses attendance activity logs.
 begin;
 
+do $$
+begin
+  if to_regprocedure('sora_v2.admin_reader_station_inspect(text)') is null
+     or to_regprocedure('sora_v2.admin_reader_station_complete_checkout(text,integer)') is null then
+    raise exception 'Apply 033_admin_reader_station.sql before 034_reader_station_scan_guard.sql';
+  end if;
+end;
+$$;
+
 create or replace function sora_v2.guard_reader_station_scan()
 returns trigger language plpgsql security definer set search_path = '' as $$
 declare latest record; elapsed_seconds numeric;
@@ -53,4 +62,5 @@ end;
 $$;
 revoke all on function sora_v2.admin_reader_station_override_checkout(text,integer) from public,anon,authenticated;
 grant execute on function sora_v2.admin_reader_station_override_checkout(text,integer) to authenticated;
+notify pgrst, 'reload schema';
 commit;

@@ -122,4 +122,9 @@ revoke all on function sora_v2.admin_reader_station_inspect(text),
   sora_v2.admin_reader_station_complete_checkout(text, integer) from public, anon, authenticated;
 grant execute on function sora_v2.admin_reader_station_inspect(text),
   sora_v2.admin_reader_station_complete_checkout(text, integer) to authenticated;
+
+-- Make newly created RPC functions available to PostgREST immediately. This is
+-- especially important when the migration is pasted into the Supabase SQL
+-- editor instead of being applied by the Supabase CLI.
+notify pgrst, 'reload schema';
 commit;
