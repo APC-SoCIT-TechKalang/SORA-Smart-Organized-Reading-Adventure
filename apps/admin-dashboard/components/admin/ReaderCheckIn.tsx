@@ -23,6 +23,8 @@ export function ReaderCheckIn() {
   const closeCameraRef = useRef<HTMLButtonElement>(null);
   const closeVisitRef = useRef<HTMLButtonElement>(null);
   const scanning = useRef(false);
+  const recentScan = useRef<{ card: string; at: number } | null>(null);
+  const [overrideCheckout, setOverrideCheckout] = useState(false);
   const closeVisit = useCallback(() => { setVisit(null); setError(""); setStatus("Ready for the next card"); }, []);
 
   const processScan = useCallback(async (rawPayload: string) => {
@@ -47,12 +49,20 @@ export function ReaderCheckIn() {
       if (cardResult.error) throw cardResult.error;
       const card = cardResult.data as unknown as Card | null;
       if (!card?.librarycard_rfid || !card.users) throw new Error("No active library card found. Ask staff to activate or link this card first.");
+      const cardUid = normalizePhysicalCardUid(card.librarycard_rfid);
+      if (recentScan.current?.card === cardUid && Date.now() - recentScan.current.at < 5_000) {
+        setStatus("Duplicate scan ignored.");
+        setMessage("This card was just scanned. Wait five seconds before scanning it again.");
+        return;
+      }
       const reader = card.users;
-      const inspected = await api().rpc("admin_reader_station_inspect", { p_rfid: normalizePhysicalCardUid(card.librarycard_rfid) });
+      const inspected = await api().rpc("admin_reader_station_inspect", { p_rfid: cardUid });
       if (inspected.error) throw inspected.error;
       const nextVisit = inspected.data as VisitInspection;
       setCameraOpen(false);
       if (nextVisit.action === "CHECKOUT") {
+        recentScan.current = { card: cardUid, at: Date.now() };
+        setOverrideCheckout(false);
         setVisit(nextVisit);
         setStatus("Card verified. Review check-out.");
         return;
@@ -64,6 +74,7 @@ export function ReaderCheckIn() {
       setStatus("Processing check-in...");
       const result = await api().rpc("approve_kiosk_checkin", { p_rfid: normalizePhysicalCardUid(card.librarycard_rfid) });
       if (result.error) throw result.error;
+      recentScan.current = { card: cardUid, at: Date.now() };
       setStatus("Check-in complete.");
       setMessage(`Check-in approved for ${reader.first_name} ${reader.last_name}. They can now choose a seat and scan a book.`);
     } catch (cause) {
@@ -80,8 +91,9 @@ export function ReaderCheckIn() {
     scanning.current = true;
     setBusy(true); setError(""); setStatus("Processing check-out...");
     try {
-      const result = await api().rpc("admin_reader_station_complete_checkout", { p_rfid: visit.card_uid, p_session_id: visit.session_id });
+      const result = await api().rpc(overrideCheckout ? "admin_reader_station_override_checkout" : "admin_reader_station_complete_checkout", { p_rfid: visit.card_uid, p_session_id: visit.session_id });
       if (result.error) throw result.error;
+      recentScan.current = { card: normalizePhysicalCardUid(visit.card_uid), at: Date.now() };
       setMessage(`Check-out complete for ${visit.name}. The station is ready for the next reader.`);
       setStatus("Check-out complete.");
       setVisit(null);
@@ -92,7 +104,7 @@ export function ReaderCheckIn() {
       scanning.current = false;
       setBusy(false);
     }
-  }, [visit, busy]);
+  }, [visit, busy, overrideCheckout]);
 
   useEffect(() => subscribeToCardScanner(payload => void processScan(payload)), [processScan]);
 
@@ -219,7 +231,7 @@ export function ReaderCheckIn() {
           {(visit.books_to_return > 0 || visit.disputed || (visit.total_charge > 0 && visit.payment_status !== "PAID")) && <p role="alert" className="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">{visit.books_to_return > 0 ? "Return all books before check-out." : visit.disputed ? "Resolve the disputed charge before check-out." : "Settle the charges before check-out."}</p>}
           {error && <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         </div>
-        <footer className="flex shrink-0 flex-wrap gap-2 border-t border-[#e4d2b9] bg-[#fcf5e9] p-4 sm:justify-end sm:px-6"><button type="button" disabled={busy} onClick={closeVisit} className="min-h-11 flex-1 rounded-xl border border-[#d8c3ad] bg-white px-4 text-sm font-bold sm:flex-none">Cancel</button><button type="button" disabled={busy || visit.books_to_return > 0 || visit.disputed || (visit.total_charge > 0 && visit.payment_status !== "PAID")} onClick={() => void confirmCheckout()} className="min-h-11 flex-1 rounded-xl bg-[#a83d12] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">{busy ? "Processing..." : "Confirm check-out"}</button></footer>
+        <footer className="flex shrink-0 flex-wrap gap-2 border-t border-[#e4d2b9] bg-[#fcf5e9] p-4 sm:justify-end sm:px-6"><label className="flex w-full items-center gap-2 text-xs text-[#704d34]"><input type="checkbox" checked={overrideCheckout} onChange={event => setOverrideCheckout(event.target.checked)} disabled={busy} />Librarian override for a legitimate check-out within 30 seconds</label><button type="button" disabled={busy} onClick={closeVisit} className="min-h-11 flex-1 rounded-xl border border-[#d8c3ad] bg-white px-4 text-sm font-bold sm:flex-none">Cancel</button><button type="button" disabled={busy || visit.books_to_return > 0 || visit.disputed || (visit.total_charge > 0 && visit.payment_status !== "PAID")} onClick={() => void confirmCheckout()} className="min-h-11 flex-1 rounded-xl bg-[#a83d12] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">{busy ? "Processing..." : "Confirm check-out"}</button></footer>
       </section>
     </div>, document.body)}
     {cameraOpen && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center bg-[#2d190c]/70 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setCameraOpen(false); }}>
