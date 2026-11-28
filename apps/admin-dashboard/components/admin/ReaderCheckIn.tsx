@@ -10,6 +10,7 @@ import { isDigitalCardPayload, normalizePhysicalCardUid, parseDigitalCardPayload
 type Reader = { first_name: string; last_name: string; is_active: boolean; user_role: string; membership_status: string; membership_expires_at: string | null };
 type Card = { librarycard_rfid: string; users: Reader };
 type VisitInspection = { action: "CHECKIN" | "CHECKOUT"; name: string; card_uid: string; session_id: number | null; session_status: string | null; checked_in_at: string | null; seat: { number?: string | number; area?: string; seat_id?: number } | null; books_to_return: number; minutes: number; remaining_minutes: number; total_charge: number; payment_status: string | null; disputed: boolean; can_check_in: boolean };
+type CheckInConfirmation = { name: string; card_uid: string };
 const api = () => database().schema("sora_v2");
 
 export function ReaderCheckIn() {
@@ -19,13 +20,16 @@ export function ReaderCheckIn() {
   const [message, setMessage] = useState("");
   const [status, setStatus] = useState("");
   const [visit, setVisit] = useState<VisitInspection | null>(null);
+  const [checkInConfirmation, setCheckInConfirmation] = useState<CheckInConfirmation | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const closeCameraRef = useRef<HTMLButtonElement>(null);
   const closeVisitRef = useRef<HTMLButtonElement>(null);
+  const closeCheckInRef = useRef<HTMLButtonElement>(null);
   const scanning = useRef(false);
   const recentScan = useRef<{ card: string; at: number } | null>(null);
   const [overrideCheckout, setOverrideCheckout] = useState(false);
   const closeVisit = useCallback(() => { setVisit(null); setError(""); setStatus("Ready for the next card"); }, []);
+  const closeCheckIn = useCallback(() => { setCheckInConfirmation(null); setError(""); setMessage(""); setStatus("Ready for the next card"); }, []);
 
   const processScan = useCallback(async (rawPayload: string) => {
     if (scanning.current || document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]:not([data-reader-checkin-camera])')) return;
@@ -75,8 +79,10 @@ export function ReaderCheckIn() {
       const result = await api().rpc("approve_kiosk_checkin", { p_rfid: normalizePhysicalCardUid(card.librarycard_rfid) });
       if (result.error) throw result.error;
       recentScan.current = { card: cardUid, at: Date.now() };
+      setCameraOpen(false);
       setStatus("Check-in complete.");
-      setMessage(`Check-in approved for ${reader.first_name} ${reader.last_name}. They can now choose a seat and scan a book.`);
+      setMessage("");
+      setCheckInConfirmation({ name: `${reader.first_name} ${reader.last_name}`.trim(), card_uid: cardUid });
     } catch (cause) {
       setError(errorMessage(cause));
       setStatus("Unable to verify card.");
@@ -131,6 +137,30 @@ export function ReaderCheckIn() {
       previousFocus?.focus();
     };
   }, [visit, closeVisit]);
+
+  useEffect(() => {
+    if (!checkInConfirmation) return;
+    const previousFocus = document.activeElement as HTMLElement | null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeCheckInRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeCheckIn();
+      if (event.key !== "Tab") return;
+      const dialog = closeCheckInRef.current?.closest('[role="dialog"]');
+      const focusable = dialog?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)');
+      if (!focusable?.length) return;
+      const first = focusable[0], last = focusable[focusable.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus();
+    };
+  }, [checkInConfirmation, closeCheckIn]);
 
   useEffect(() => {
     if (!cameraOpen) return;
@@ -232,6 +262,18 @@ export function ReaderCheckIn() {
           {error && <p role="alert" className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         </div>
         <footer className="flex shrink-0 flex-wrap gap-2 border-t border-[#e4d2b9] bg-[#fcf5e9] p-4 sm:justify-end sm:px-6"><label className="flex w-full items-center gap-2 text-xs text-[#704d34]"><input type="checkbox" checked={overrideCheckout} onChange={event => setOverrideCheckout(event.target.checked)} disabled={busy} />Librarian override for a legitimate check-out within 30 seconds</label><button type="button" disabled={busy} onClick={closeVisit} className="min-h-11 flex-1 rounded-xl border border-[#d8c3ad] bg-white px-4 text-sm font-bold sm:flex-none">Cancel</button><button type="button" disabled={busy || visit.books_to_return > 0 || visit.disputed || (visit.total_charge > 0 && visit.payment_status !== "PAID")} onClick={() => void confirmCheckout()} className="min-h-11 flex-1 rounded-xl bg-[#a83d12] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">{busy ? "Processing..." : "Confirm check-out"}</button></footer>
+      </section>
+    </div>, document.body)}
+    {checkInConfirmation && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[105] grid place-items-center overflow-y-auto bg-[#2d190c]/65 p-3 backdrop-blur-sm sm:p-5" onMouseDown={event => { if (event.target === event.currentTarget) closeCheckIn(); }}>
+      <section role="dialog" aria-modal="true" aria-labelledby="reader-station-checkin-title" className="terminal-modal-panel flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-[#d8b784] bg-[#fffaf1] text-[#543822] shadow-[0_25px_75px_rgba(35,19,9,.4)]">
+        <header className="flex items-start justify-between gap-3 bg-[#543822] px-5 py-4 text-white sm:px-6"><div><p className="text-[10px] font-bold uppercase tracking-[.18em] text-[#f3d793]">Reader visit</p><h3 id="reader-station-checkin-title" className="mt-1 font-serif text-xl font-semibold">Check-in complete</h3></div><button ref={closeCheckInRef} type="button" onClick={closeCheckIn} aria-label="Close check-in confirmation" className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-white/25 hover:bg-white/10"><X size={18} /></button></header>
+        <div className="p-5 sm:p-6">
+          <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-800"><CheckCircle2 className="shrink-0" size={24} aria-hidden="true" /><div><p className="font-bold">Check-in successful</p><p className="mt-1 text-xs">Reader entry has been recorded.</p></div></div>
+          <p className="mt-5 font-serif text-xl font-semibold">{checkInConfirmation.name}</p>
+          <p className="mt-1 break-all text-xs text-[#806b59]">Card {checkInConfirmation.card_uid}</p>
+          <div className="mt-4 rounded-xl border border-[#e4d2b9] bg-white p-4"><p className="text-xs font-bold uppercase tracking-[.12em] text-[#806b59]">Next step</p><p className="mt-2 text-sm leading-6">The reader can now choose a seat and scan a book.</p></div>
+        </div>
+        <footer className="flex justify-end border-t border-[#e4d2b9] bg-[#fcf5e9] p-4 sm:px-6"><button type="button" onClick={closeCheckIn} className="min-h-11 rounded-xl bg-[#a83d12] px-6 text-sm font-bold text-white transition hover:bg-[#96360f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f9d219]">Done</button></footer>
       </section>
     </div>, document.body)}
     {cameraOpen && createPortal(<div className="terminal-modal-backdrop fixed inset-0 z-[110] grid place-items-center bg-[#2d190c]/70 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget) setCameraOpen(false); }}>
