@@ -2,34 +2,33 @@
   display: flex;
   min-height: 100dvh;
   flex-direction: column;
-  background: radial-gradient(ellipse at 48% 60%, #ad714d6b, transparent 70%), #23140e;
+  background: radial-gradient(ellipse at 80% 15%, #f4dfb5, transparent 60%), linear-gradient(145deg, #ddc4a3, #c6a17d);
   --kiosk-brass: #efc682;
   --kiosk-hall: url('/reader-archive-hall.jpg');
 }
 .kiosk-entrance-header {
   position: relative;
-  z-index: 1;
-  border-bottom: 1px solid #bd895c53;
-  background: #26150f;
-  color: #fff0d7;
+  z-index: 40;
 }
-.kiosk-entrance-seal {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 2.55rem;
-  aspect-ratio: 1;
-  border: 1px solid #e2ab708c;
-  border-radius: 50%;
-  color: var(--kiosk-brass);
-  background: radial-gradient(ellipse at 30% 0%, #724726, #372017);
-  box-shadow: inset 0 0 0 3px #d5a26920;
+.kiosk-guest-indicator {
+  justify-self: end;
+  padding: .4rem .75rem;
+  border: 1px solid #cfae7d;
+  border-radius: 999px;
+  color: #5c3c25;
+  background: #fff8ed;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
 }
 .kiosk-entrance-stage {
   display: grid;
   flex: 1;
   place-items: center;
-  padding: clamp(.85rem, 3.4vw, 3.25rem);
+  width: min(100%, 1440px);
+  margin-inline: auto;
+  padding: clamp(1rem, 3.2vw, 3rem) clamp(.8rem, 3vw, 2rem);
 }
 .kiosk-entrance-frame {
   display: grid;
@@ -40,44 +39,37 @@
   background: #f5e4c7;
   box-shadow: 0 28px 75px #140801a7;
 }
-.kiosk-entrance-illustration {
-  --kiosk-illustration-shade: linear-gradient(0deg, #20110df5, #20110d32 88%);
-  --kiosk-illustration-position: right 56%;
+.kiosk-archive {
+  width: 100%;
+  min-height: min(39rem, calc(100dvh - 10rem));
+  grid-template-columns: minmax(0, 1fr) minmax(19rem, 24rem);
+  align-items: center;
+  padding: clamp(1.25rem, 4vw, 3.5rem);
+  --archive-shade: linear-gradient(90deg, #25130df2 0%, #25130dd8 42%, #25130d73 76%, #25130d9c 100%);
+  --archive-position: center 52%;
+}
+.kiosk-archive-copy { min-width: 0; }
+.kiosk-archive h1 { max-width: 10ch; font-size: clamp(2.4rem, 5vw, 4.4rem); }
+.kiosk-archive .reader-archive-description { max-width: 32ch; font-size: clamp(.9rem, 1.3vw, 1.05rem); }
+.kiosk-signin-panel {
   position: relative;
-  isolation: isolate;
-  display: flex;
-  align-items: flex-end;
-  min-height: clamp(13rem, 40vw, 20rem);
-  padding: clamp(1.4rem, 5vw, 3.5rem);
-  overflow: clip;
-  color: #fff2d9;
-  background: #3e2618;
+  justify-self: end;
+  width: 100%;
+  max-width: 24rem;
+  border: 1px solid #e2bf86;
+  border-radius: 18px;
+  background: linear-gradient(155deg, #fffaf0f7, #f6dfbef5);
+  box-shadow: 0 18px 40px #1b0d08a1;
+  backdrop-filter: blur(10px);
 }
-.kiosk-entrance-illustration::before {
-  position: absolute;
-  z-index: -2;
-  inset: 0;
-  background: var(--kiosk-illustration-shade), var(--kiosk-hall) var(--kiosk-illustration-position) / cover;
-  transform-origin: 75% 50%;
-  content: "";
+.kiosk-signin-eyebrow {
+  color: #a35a1d;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .15em;
+  text-transform: uppercase;
 }
-.kiosk-entrance-arch {
-  position: absolute;
-  z-index: -1;
-  inset: 1rem 1rem -2rem;
-  border: 1px solid #f3c8818c;
-  border-radius: 50% 50% 0 0 / 52% 52% 0 0;
-  background: radial-gradient(ellipse at 70% 29%, #f8b55835, transparent 57%);
-  box-shadow: 0 0 0 5px #7642226e, 0 0 0 6px #efbe7955, inset 0 0 28px #f4b76426;
-  pointer-events: none;
-}
-.kiosk-entrance-title h1 {
-  font: 900 clamp(1.75rem, 5vw, 3.7rem)/1.02 Cinzel, Georgia, serif;
-  letter-spacing: -.035em;
-  text-wrap: balance;
-}
-.kiosk-entrance-title em { display: block; color: var(--kiosk-brass); font-style: normal; }
-.kiosk-entrance-title p { margin-top: .65rem; color: #f4d9b5; font-size: clamp(.81rem, 2vw, 1rem); }
+.kiosk-signin-intro { margin-top: .5rem; color: #76533c; font-size: .9rem; line-height: 1.5; }
 .kiosk-entry-card {
   align-self: stretch;
   display: flex;
@@ -93,13 +85,13 @@
   font: 900 clamp(1.35rem, 2.6vw, 2.5rem)/1.12 Cinzel, Georgia, serif;
   text-wrap: balance;
 }
-.kiosk-entry-actions { display: grid; gap: .65rem; margin-top: clamp(.85rem, 2vw, 1.4rem); }
+.kiosk-entry-actions { display: grid; gap: .65rem; margin-top: clamp(1rem, 2vw, 1.4rem); }
 .kiosk-entry-action {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: clamp(.55rem, 1.5vw, .9rem);
-  min-height: 4.4rem;
+  min-height: 4.75rem;
   padding: .65rem .8rem;
   border: 1px solid #be9163;
   border-radius: 13px;
@@ -134,7 +126,7 @@
 .kiosk-entry-action--primary small { color: #f0d2b0; }
 .kiosk-entry-arrow { width: 1.05rem; color: #975025; }
 .kiosk-entry-action--primary .kiosk-entry-arrow { color: var(--kiosk-brass); }
-.kiosk-entry-feedback { margin-top: .8rem; padding: .6rem .7rem; border: 1px solid #b68156; border-radius: 8px; background: #fff2d9; color: #4f2f1f; font-size: .83rem; }
+.kiosk-entry-feedback { margin-top: .8rem; padding: .6rem .7rem; border: 1px solid #b68156; border-radius: 8px; background: #fff2d9; color: #4f2f1f; font-size: .83rem; overflow-wrap: anywhere; }
 .kiosk-entry-feedback.is-error { border-color: #b4725b; background: #fff0e6; color: #8c2e20; }
 .kiosk-entry-privacy { display: flex; align-items: center; gap: .35rem; margin-top: 1rem; color: #68452f; font-size: .74rem; font-weight: 700; }
 .kiosk-entry-privacy svg { width: .96rem; height: .96rem; color: #356449; }
@@ -196,12 +188,44 @@
 
 @media (min-width: 768px) {
   .kiosk-entrance-frame { grid-template-columns: minmax(0, 1.1fr) minmax(0, .9fr); }
-  .kiosk-entrance-illustration { min-height: clamp(24rem, 35vw, 35rem); }
+}
+
+@media (max-width: 900px) {
+  .kiosk-archive {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+    gap: 1.35rem;
+    --archive-shade: linear-gradient(180deg, #25130dd9, #25130de8);
+    --archive-position: 64% center;
+  }
+  .kiosk-archive-copy { align-self: end; }
+  .kiosk-archive h1 { max-width: none; font-size: clamp(2.2rem, 7vw, 3.8rem); }
+  .kiosk-signin-panel { max-width: 30rem; justify-self: stretch; }
+}
+
+@media (max-width: 600px) {
+  .kiosk-entrance-stage { align-items: start; padding: .85rem .7rem 1.25rem; }
+  .kiosk-archive { padding: 1.1rem; gap: 1rem; border-radius: 18px; }
+  .kiosk-archive .reader-kicker { font-size: .6rem; }
+  .kiosk-archive h1 { margin: .55rem 0; font-size: clamp(2rem, 9vw, 2.8rem); }
+  .kiosk-archive .reader-archive-description { font-size: .84rem; line-height: 1.45; }
+  .kiosk-signin-panel { padding: 1.1rem; }
+  .kiosk-entry-action { min-height: 4rem; }
+  .kiosk-entry-card h2 { font-size: clamp(1.25rem, 6vw, 1.65rem); }
+}
+
+@media (max-width: 380px) {
+  .kiosk-guest-indicator { padding: .3rem .5rem; font-size: .6rem; }
+  .kiosk-archive { padding: .9rem; }
+  .kiosk-archive h1 { font-size: 1.85rem; }
+  .kiosk-signin-panel { padding: .85rem; }
+  .kiosk-entry-action { gap: .4rem; padding: .5rem; }
+  .kiosk-entry-action-copy small { font-size: .68rem; }
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  .kiosk-entrance-illustration::before {
-    animation: reader-hall-drift var(--kiosk-drift-duration, 19s) ease-in-out infinite alternate;
+  .kiosk-archive .reader-atmosphere::before {
+    animation: reader-hall-drift 22s ease-in-out infinite alternate;
   }
   .kiosk-door-leaf { animation: kiosk-open-door .56s cubic-bezier(.35,.08,.2,1) both; }
   @keyframes kiosk-open-door {
