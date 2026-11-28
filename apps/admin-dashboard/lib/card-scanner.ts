@@ -28,11 +28,24 @@ export function isDigitalCardPayload(payload: string) {
   return sanitizeCardPayload(payload).startsWith("tankobonbon:");
 }
 
+export function createDuplicateScanGuard(cooldownMs = DUPLICATE_COOLDOWN_MS) {
+  let lastSubmitted = "";
+  let cooldownUntil = 0;
+  return (payload: string, now = performance.now()) => {
+    if (now < cooldownUntil && payload === lastSubmitted) {
+      cooldownUntil = now + cooldownMs;
+      return false;
+    }
+    lastSubmitted = payload;
+    cooldownUntil = now + cooldownMs;
+    return true;
+  };
+}
+
 export function subscribeToCardScanner(onScan: (payload: string) => void) {
   let buffer = "";
   let lastKeyAt = 0;
-  let lastSubmitted = "";
-  let cooldownUntil = 0;
+  const acceptScan = createDuplicateScanGuard();
   const reset = () => { buffer = ""; lastKeyAt = 0; };
 
   const receive = (event: KeyboardEvent) => {
@@ -44,9 +57,10 @@ export function subscribeToCardScanner(onScan: (payload: string) => void) {
       reset();
       if (!scannerSpeed || payload.length < 4) return;
       event.preventDefault();
-      if (now < cooldownUntil && payload === lastSubmitted) return;
-      lastSubmitted = payload;
-      cooldownUntil = now + DUPLICATE_COOLDOWN_MS;
+      // A keyboard-emulation RFID reader may repeat its UID while a card stays
+      // on the reader. Extend the quiet period for every repeated burst so one
+      // physical tap can never become a check-in followed by a check-out.
+      if (!acceptScan(payload, now)) return;
       onScan(payload);
       return;
     }
