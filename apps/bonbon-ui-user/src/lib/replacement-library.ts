@@ -6,6 +6,8 @@ export const usesReplacementSchema = import.meta.env.VITE_SORA_SCHEMA === 'sora_
 
 interface ReplacementBook {
   book_id: number;
+  series_name: string | null;
+  book_type: string | null;
   title: string;
   original_title: string | null;
   isbn: string | null;
@@ -77,6 +79,8 @@ function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
   return {
     physicalCopies: signedIn ? (book.book_copies ?? []).map(copy => ({ copyId: copy.copy_id, status: copy.copy_status, shelfLocation: copy.shelf_location })) : undefined,
     id: String(book.book_id),
+    seriesName: book.series_name,
+    bookType: book.book_type,
     title: book.title,
     author: book.authors ? `${book.authors.author_firstname} ${book.authors.author_lastname}`.trim() : 'Unknown author',
     genre: book.book_genre || 'General',
@@ -99,7 +103,7 @@ function toVolume(book: ReplacementBook, signedIn: boolean): Volume {
 export async function loadReplacementLibrary(session: Session | null): Promise<ReplacementLibraryData> {
   const books = await readAll<ReplacementBook>(
     'books',
-    'book_id,title,original_title,isbn,volume_number,publisher,book_description,coverimage_url,book_genre,authors(author_firstname,author_lastname)'
+    'book_id,title,series_name,book_type,original_title,isbn,volume_number,publisher,book_description,coverimage_url,book_genre,authors(author_firstname,author_lastname)'
       + (session ? ',book_copies(copy_id,copy_status,shelf_location)' : ''),
     'book_id',
   );

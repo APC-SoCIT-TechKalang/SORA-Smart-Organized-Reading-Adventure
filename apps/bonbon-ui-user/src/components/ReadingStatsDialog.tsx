@@ -22,12 +22,13 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
     const onKeyDown = (event: KeyboardEvent) => event.key === 'Escape' && onClose();
     document.addEventListener('keydown', onKeyDown);
     document.body.style.overflow = 'hidden';
     return () => {
       document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflow;
     };
   }, [open, onClose]);
 
@@ -64,7 +65,7 @@ export function ReadingStatsDialog({ open, onClose }: ReadingStatsDialogProps) {
               <h2 id="reading-stats-title" className="mt-1 font-display text-2xl font-900 uppercase tracking-[.06em]">My reading journal</h2>
               <p className="mt-1 text-xs text-sand/70">See where your library visits have taken you.</p>
             </div>
-            <button type="button" aria-label="Close reading journal" onClick={onClose} className="rounded-full p-2 text-sun transition hover:bg-cream/10"><XIcon /></button>
+            <button type="button" aria-label="Close reading journal" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sun transition hover:bg-cream/10"><XIcon /></button>
           </div>
 
           {readerAccess !== 'active' ? (

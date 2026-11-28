@@ -15,6 +15,7 @@ interface NewArrivalsProps {
 
 export function NewArrivals({ books, activeIndex, onSelect, onOpen }: NewArrivalsProps) {
   const touchOrigin = useRef<{ x: number; y: number } | null>(null);
+  const swipedAt = useRef(0);
   const book = books[activeIndex];
   if (!book) return null;
 
@@ -36,21 +37,27 @@ export function NewArrivals({ books, activeIndex, onSelect, onOpen }: NewArrival
     }
   }
 
+  function startSwipe(event: TouchEvent<HTMLDivElement>) {
+    if (event.touches.length !== 1) { touchOrigin.current = null; return; }
+    const touch = event.touches[0];
+    touchOrigin.current = { x: touch.clientX, y: touch.clientY };
+  }
+
   function finishSwipe(event: TouchEvent<HTMLDivElement>) {
     const origin = touchOrigin.current;
     touchOrigin.current = null;
     const touch = event.changedTouches[0];
     if (!origin || !touch) return;
     const distance = touch.clientX - origin.x;
-    if (Math.abs(distance) > 50 && Math.abs(distance) > Math.abs(touch.clientY - origin.y) * 1.5) {
-      event.preventDefault();
+    if (Math.abs(distance) > 45 && Math.abs(distance) > Math.abs(touch.clientY - origin.y) * 1.5) {
+      swipedAt.current = Date.now();
       move(distance < 0 ? 1 : -1);
     }
   }
 
   return (
     <div className="reader-arrivals" onKeyDown={navigate}>
-      <div className="reader-arrival-stage">
+      <div className="reader-arrival-stage" onTouchStart={startSwipe} onTouchEnd={finishSwipe} onTouchCancel={() => { touchOrigin.current = null; }}>
         <div className="reader-arrival-copy">
           <div className="reader-arrival-story" aria-live="polite" aria-atomic="true">
             <div key={book.id} className="reader-arrival-reveal">
@@ -65,23 +72,16 @@ export function NewArrivals({ books, activeIndex, onSelect, onOpen }: NewArrival
               </div>
             </div>
           </div>
-          <button type="button" className="reader-gold-button reader-arrival-action" onClick={() => onOpen(book)}>
+          <button type="button" className="reader-gold-button reader-arrival-action" onClick={() => { if (Date.now() - swipedAt.current > 350) onOpen(book); }}>
             <BookOpenIcon aria-hidden="true" /> View book details <ArrowRightIcon aria-hidden="true" />
           </button>
         </div>
 
-        <div className="reader-arrival-display" onTouchStart={event => {
-          if (event.touches.length !== 1) {
-            touchOrigin.current = null;
-            return;
-          }
-          const touch = event.touches[0];
-          touchOrigin.current = { x: touch.clientX, y: touch.clientY };
-        }} onTouchEnd={finishSwipe} onTouchCancel={() => { touchOrigin.current = null; }}>
+        <div className="reader-arrival-display" aria-label="Featured book. Swipe left or right to browse arrivals">
           {book.coverImage && <img key={book.id} className="reader-arrival-color" src={cover} alt="" aria-hidden="true" loading="lazy" />}
           <ReaderAtmosphere />
           <div className="reader-arrival-arch" aria-hidden="true" />
-          <button type="button" className="reader-arrival-cover" aria-label={`Open details for ${book.title}`} onClick={() => onOpen(book)}>
+          <button type="button" className="reader-arrival-cover" aria-label={`Open details for ${book.title}`} onClick={() => { if (Date.now() - swipedAt.current > 350) onOpen(book); }}>
             <img key={book.id} className="reader-arrival-reveal" src={cover} alt="" loading="lazy" onError={event => { event.currentTarget.src = '/book-placeholder.svg'; }} />
           </button>
         </div>

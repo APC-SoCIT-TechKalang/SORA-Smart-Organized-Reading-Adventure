@@ -21,6 +21,8 @@ const SCANNER_MAX_PAYLOAD_LENGTH = 512;
 export function sanitizeScannerPayload(payload: string) {
   return payload
     .normalize('NFKC')
+    // Scanner payloads may contain control characters that must not reach card lookup.
+    // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200d\u2060\ufeff]/g, '')
     .trim()
     .replace(/^][a-z]\d/i, '')

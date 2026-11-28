@@ -1,10 +1,11 @@
-import { ArrowRightIcon, BookOpenIcon, CalendarDaysIcon, CheckCircle2Icon, Clock3Icon, HistoryIcon } from 'lucide-react';
+import { ArrowRightIcon, BookOpenIcon, CheckCircle2Icon, Clock3Icon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useGame, type ReadingLog } from '../contexts/GameContext';
 import { GuestPrompt } from '../components/GuestPrompt';
 import { ReaderPageHeading } from '../components/ReaderPageHeading';
 import { usesReplacementSchema } from '../lib/replacement-library';
 import { ReturnBookPrompt } from '../components/ReturnBookPrompt';
+import { ReadingJournal } from '../components/ReadingJournal';
 
 export function Shelf() {
   const { session, profile, logs, volumeById, giveBack, busy, setSection } = useGame();
@@ -12,7 +13,7 @@ export function Shelf() {
   if (!session) return <div className="space-y-6"><ReaderPageHeading kind="shelf" title="My shelf" /><GuestPrompt title="Keep your reading adventure together" detail="Sign in to view active reading sessions, your history, membership details, and earned library points." /></div>;
 
   const active = logs.filter((log) => !log.returned_at);
-  const history = logs.filter((log) => log.returned_at).slice().reverse();
+  const history = logs.filter((log) => log.returned_at);
   const displayName = profile?.first_name?.trim() || 'Reader';
 
   return (
@@ -65,19 +66,7 @@ export function Shelf() {
             )}
           </section>
 
-          <section aria-labelledby="reading-history-title">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><HistoryIcon aria-hidden="true" className="h-5 w-5 text-gold" /><h2 id="reading-history-title" className="font-display text-xl font-900 text-umber">Reading history</h2></div>{history.length > 0 && <span className="text-xs font-700 text-umber/50">Most recent first</span>}</div>
-            <div className="reader-shelf-history overflow-hidden rounded-2xl border border-gold/25 bg-cream/75 shadow-[0_12px_30px_rgba(84,56,34,.07)]">
-              {history.length ? <div className="divide-y divide-gold/15">{history.map((log) => {
-                const volume = volumeById(String(log.book_id));
-                return <div key={log.reading_log_id} className="flex items-center gap-4 p-4 transition hover:bg-parch/20 sm:px-5">
-                  {volume?.coverImage ? <img src={volume.coverImage} alt="" loading="lazy" onError={event => { event.currentTarget.src = '/book-placeholder.svg'; }} className="h-12 w-8 shrink-0 rounded border border-gold/25 object-cover" /> : <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full border border-gold/20 bg-parch/25"><CheckCircle2Icon className="h-4 w-4 text-gold" /></span>}
-                  <div className="min-w-0 flex-1"><h3 className="truncate font-display text-sm font-800 text-umber sm:text-base">{volume?.title ?? `Book #${log.book_id}`}</h3><p className="mt-1 flex items-center gap-1.5 text-[10px] font-700 text-umber/50"><CalendarDaysIcon className="h-3.5 w-3.5" /> Completed {formatDate(log.returned_at ?? '')}</p></div>
-                  <span className="shrink-0 rounded-full bg-parch/35 px-3 py-1.5 text-[10px] font-900 text-rust">{log.total_reading_minutes ?? 0} min</span>
-                </div>;
-              })}</div> : <div className="px-6 py-10 text-center"><HistoryIcon className="mx-auto h-7 w-7 text-gold/60" /><p className="mt-3 text-sm font-700 text-umber/60">Finished books will appear here.</p><p className="mt-1 text-xs text-umber/45">Scan a book again after reading to add it to your history.</p></div>}
-            </div>
-          </section>
+          <ReadingJournal history={history} volumeById={volumeById} browseBooks={() => setSection('catalog')} />
       </div>
       {returning && <ReturnBookPrompt title={volumeById(String(returning.book_id))?.title ?? `Book #${returning.book_id}`} busy={busy} close={() => setReturning(null)} confirm={async barcode => {
         const ok = await giveBack(returning.reading_log_id, barcode);

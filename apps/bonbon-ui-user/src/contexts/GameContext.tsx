@@ -5,7 +5,7 @@ import type { Commission, SectionId, Toast, Volume } from '../types/library';
 import { database, errorMessage, readRows, setupMessage, supabase } from '../lib/supabase';
 import { volumes as demoVolumes } from '../data/manga';
 import { bookToVolume, questToCommission, type BookRow, type QuestRow } from '../lib/library-mappers';
-import { loadReplacementLibrary, replacementApi, requireReaderAccount, usesReplacementSchema, type RedemptionReceipt } from '../lib/replacement-library';
+import { loadReplacementLibrary, replacementApi, requireReaderAccount, usesReplacementSchema } from '../lib/replacement-library';
 import { useReaderAccess } from '../lib/use-reader-access';
 
 export interface Profile { user_id: string; first_name: string; last_name: string; birthday: string | null; bio: string | null; }
@@ -232,13 +232,6 @@ function useLibraryState() {
     logSession: (_id: string) => { message('Reading time is recorded automatically', 'Finish reading and return the book to complete your session.'); },
     claim: (q: Commission) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('claim_quest', { p_quest_id: Number(q.id) }), 'Quest points claimed'),
     joinQuest: (id: string) => run(() => (usesReplacementSchema ? replacementApi() : database()).rpc('join_quest', { p_quest_id: Number(id) }), 'Quest joined'),
-    redeemReward: async (rewardId:number,requestKey:string):Promise<RedemptionReceipt|null> => {
-      if(!usesReplacementSchema||mutation.current)return null;
-      mutation.current=true;setBusy(true);
-      try{const result=await replacementApi().rpc('reader_redeem_shop_reward',{p_reward_id:rewardId,p_request_key:requestKey});if(result.error)throw result.error;await refresh();message('Redemption reserved','Show the confirmation to a librarian to claim your item.');return result.data as RedemptionReceipt;}
-      catch(err){message('Redemption could not be completed',errorMessage(err));return null;}
-      finally{mutation.current=false;setBusy(false);}
-    },
     toggleEvent: (_id: string, _name: string, _xp: number) => message('Event registration unavailable', 'Ask library staff about current events.'),
     toggleClub: (_id: string, _name: string) => message('Club registration unavailable', 'Ask library staff about current clubs.'),
     dismissToast,
