@@ -64,18 +64,37 @@ function Pagination({ page, size, count, setPage, setSize, busy }: {
   setSize?: (value: number) => void; busy?: boolean;
 }) {
   const pages = Math.max(1, Math.ceil(count / size));
-  return <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[#e8dbce] px-4 py-3 text-xs">
-    <span aria-live="polite">{count ? `${Math.min((page - 1) * size + 1, count).toLocaleString()}–${Math.min(page * size, count).toLocaleString()} of ${count.toLocaleString()}` : "0 results"}</span>
+  return <nav aria-label="Results pagination" className="catalogue-pagination flex flex-wrap items-center justify-between gap-3 border-t border-[#e8dbce] px-4 py-4 text-sm">
+    <span aria-live="polite" className="font-semibold tabular-nums">{count ? `${Math.min((page - 1) * size + 1, count).toLocaleString()}–${Math.min(page * size, count).toLocaleString()} of ${count.toLocaleString()} records` : "0 records"}</span>
     <div className="flex flex-wrap items-center gap-2">
       {setSize && <label className="flex items-center gap-2">Rows per page
         <select className="catalogue-control" value={size} onChange={event => setSize(Number(event.target.value))}>
           {[25, 50, 100].map(value => <option key={value}>{value}</option>)}
         </select>
       </label>}
+      <PageJump page={page} pages={pages} busy={busy} setPage={setPage} />
+      <button type="button" className="catalogue-control" disabled={busy || page <= 1} onClick={() => setPage(1)}>First</button>
       <button type="button" className="catalogue-control" disabled={busy || page <= 1} onClick={() => setPage(page - 1)}>Previous</button>
       <button type="button" className="catalogue-control" disabled={busy || page >= pages} onClick={() => setPage(page + 1)}>Next</button>
+      <button type="button" className="catalogue-control" disabled={busy || page >= pages} onClick={() => setPage(pages)}>Last</button>
     </div>
-  </div>;
+  </nav>;
+}
+
+function PageJump({ page, pages, busy, setPage }: { page: number; pages: number; busy?: boolean; setPage: (value: number) => void }) {
+  const [draft, setDraft] = useState(String(page));
+  useEffect(() => setDraft(String(page)), [page]);
+  const submit = () => {
+    const target = Number(draft);
+    if (Number.isInteger(target) && target >= 1 && target <= pages) setPage(target);
+    else setDraft(String(page));
+  };
+  return <form className="flex items-center gap-2" onSubmit={event => { event.preventDefault(); submit(); }}>
+    <label htmlFor="catalogue-page-number">Page</label>
+    <input id="catalogue-page-number" type="number" min={1} max={pages} value={draft} disabled={busy || pages === 1}
+      onChange={event => setDraft(event.target.value)} onBlur={submit} className="catalogue-control w-16 text-center tabular-nums" />
+    <span className="whitespace-nowrap tabular-nums">of {pages.toLocaleString()}</span>
+  </form>;
 }
 
 export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelveCopy }: Props) {
@@ -86,7 +105,7 @@ export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelv
   const [sort, setSort] = useState("title");
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(25);
-  const [covers, setCovers] = useState(true);
+  const [covers, setCovers] = useState(false);
   const [selection, setSelection] = useState<Selection | null>(null);
   const [action, setAction] = useState<Action | null>(null);
   const [cartOpen, setCartOpen] = useState(false);
@@ -149,7 +168,7 @@ export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelv
         </dl>}
         <div className="ml-auto flex flex-wrap gap-2">
           <button type="button" className="catalogue-control" onClick={() => { summary.retry(); result.retry(); }}>Refresh</button>
-          <button type="button" className="catalogue-control" onClick={() => setCartOpen(true)}>
+          <button type="button" className="catalogue-control" aria-expanded={cartOpen} onClick={() => setCartOpen(value => !value)}>
             <PackageOpen size={15} aria-hidden="true" /> Return Cart{stats ? ` (${stats.returns.toLocaleString()})` : ""}
           </button>
           <button type="button" className="catalogue-control" onClick={() => setBulkDrawer(true)}>Bulk Add</button>
@@ -180,7 +199,7 @@ export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelv
         <label className="flex items-center gap-1.5 text-xs">Sort by
           <select className="catalogue-control" value={sort} onChange={event => { setSort(event.target.value); setPage(1); }}><option value="title">Title</option><option value="author">Author</option></select>
         </label>
-        {view === "catalog" && <label className="flex items-center gap-1.5 text-xs"><input type="checkbox" checked={covers} onChange={event => setCovers(event.target.checked)} /> Show covers</label>}
+        {view === "catalog" && <label className="flex min-h-10 items-center gap-2 rounded-lg border border-[#dac7b2] bg-white px-3 text-xs font-semibold"><input type="checkbox" checked={covers} onChange={event => setCovers(event.target.checked)} /> Show covers</label>}
         {(Boolean(query) || filterCount > 0) && <button type="button" className="catalogue-control" onClick={() => {
           setQuery(""); setSearch(""); setFilters(emptyFilters); setPage(1);
         }}>Clear all{filterCount ? ` (${filterCount})` : ""}</button>}
@@ -189,9 +208,9 @@ export function CatalogueEditor({ revision, run, setDrawer, setBulkDrawer, shelv
       <div className="catalogue-table-wrap" aria-busy={pending} tabIndex={0} role="region" aria-label={`${catalogueViews[view]} results`}>
         <table className="catalogue-table">
           <thead><tr>
-            <th scope="col">Title / author</th>
+            <th scope="col">{view === "catalog" ? "Title / author" : "Volume / author"}</th>
             {view === "catalog" ? <><th scope="col">Volumes</th><th scope="col">Copies</th><th scope="col">Inventory summary</th></>
-              : <><th scope="col">Copy barcode</th><th scope="col">Status</th><th scope="col">Condition notes</th><th scope="col">Location</th></>}
+              : <><th scope="col">Copy barcode</th><th scope="col">{view === "attention" ? "Needs attention" : "Status"}</th><th scope="col">Condition notes</th><th scope="col">Location</th></>}
             <th scope="col"><span className="sr-only">Details</span></th>
           </tr></thead>
           <tbody>
@@ -243,7 +262,7 @@ function RecordRow({ row, covers, selected, pending, onOpen }: {
       <button ref={button} type="button" className="catalogue-title-button" disabled={pending} aria-haspopup="dialog"
         aria-expanded={row.kind === "copy" ? undefined : selected}
         onClick={event => onOpen(row, event.currentTarget)}>
-        {row.kind === "group" && covers && (row.cover ? <img src={row.cover} alt="" loading="lazy" className="catalogue-thumb" /> : <span className="catalogue-thumb"><BookOpen size={14} aria-hidden="true" /></span>)}
+        {row.kind === "group" && covers && (row.cover ? <CoverThumbnail url={row.cover} /> : <span className="catalogue-thumb"><BookOpen size={14} aria-hidden="true" /></span>)}
         <span className="min-w-0"><strong className="block truncate" title={row.title}>{row.title}</strong>
           <small className="block truncate text-[#735843]">{row.author || "Unknown author"}{row.kind === "copy" && row.volume !== null ? ` · Vol. ${row.volume}` : ""}</small></span>
       </button>
@@ -265,6 +284,15 @@ function RecordRow({ row, covers, selected, pending, onOpen }: {
 function CopyStatus({ status }: { status: string }) {
   const label = statusLabel(status);
   return <span className={`inline-flex rounded-full border px-2.5 py-0.5 font-semibold ${statusStyle(label)}`}>{label}</span>;
+}
+
+function CoverThumbnail({ url }: { url: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) return <span className="catalogue-thumb"><BookOpen size={14} aria-hidden="true" /></span>;
+  const sized = url.includes('/storage/v1/object/public/')
+    ? url.replace('/storage/v1/object/public/', '/storage/v1/render/image/public/') + (url.includes('?') ? '&' : '?') + 'width=80&height=112&resize=contain&quality=65'
+    : url;
+  return <img src={sized} alt="" loading="lazy" decoding="async" width={40} height={56} onError={() => setFailed(true)} className="catalogue-thumb" />;
 }
 
 function DetailsDrawer({ selection, revision, close, onAction }: {
