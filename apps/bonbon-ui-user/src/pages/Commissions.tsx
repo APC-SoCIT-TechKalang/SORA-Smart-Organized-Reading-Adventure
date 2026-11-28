@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpenIcon, ChevronDownIcon, HistoryIcon, ShieldCheckIcon, SparklesIcon, SwordsIcon, TrophyIcon } from 'lucide-react';
+import { BookOpenIcon, ChevronDownIcon, GiftIcon, HistoryIcon, ShieldCheckIcon, SparklesIcon, SwordsIcon, TrophyIcon } from 'lucide-react';
 import { useGame } from '../contexts/GameContext';
 import { CommissionCard } from '../components/CommissionCard';
 import { GuestPrompt } from '../components/GuestPrompt';
@@ -8,7 +8,7 @@ import { RewardsGallery } from './RewardsGallery';
 import './quest-board.css';
 
 export function Commissions() {
-  const [fullRewards, setFullRewards] = useState(false);
+  const [rewardsOpen, setRewardsOpen] = useState(false);
   const { commissions, session, rank, rankPoints, coins, error, loading, questUpdatedAt, nextRank, rewards } = useGame();
   const active = commissions.filter(quest => quest.status === 'IN PROGRESS');
   const history = commissions.filter(quest => quest.status !== 'IN PROGRESS');
@@ -32,6 +32,7 @@ export function Commissions() {
               <h2 className="quest-rank-name">{loading && !hasProgress ? 'Loading rank…' : rank}</h2>
             </div>
           </div>
+          <div className="quest-rank-actions"><span>{coins.toLocaleString()} reading points</span><button type="button" onClick={() => setRewardsOpen(true)} aria-haspopup="dialog"><GiftIcon size={17} aria-hidden="true" /> View Rewards</button></div>
           {hasProgress && <>
             <div className="quest-rank-meter" role="progressbar" aria-label="Reader rank progress"
               aria-valuemin={0} aria-valuemax={nextThreshold || 100} aria-valuenow={nextThreshold ? meterValue : 100}
@@ -49,7 +50,7 @@ export function Commissions() {
 
     {!session ? <GuestPrompt title="Your quests await" detail="Sign in to see your reader rank, active quests, and rewards." /> : <>
       {error && hasProgress && <p role="status" className="quest-notice">Showing your last saved quest progress. The board will retry automatically.</p>}
-      {!fullRewards && <div className="quest-board-layout quest-board-layout-single">
+      <div className="quest-board-layout quest-board-layout-single">
         <section aria-labelledby="active-quests-title" className="quest-active-panel min-w-0">
           <div className="quest-section-heading">
             <span className="quest-section-icon"><SwordsIcon size={20} aria-hidden="true" /></span>
@@ -65,9 +66,9 @@ export function Commissions() {
           <p className="quest-verification"><ShieldCheckIcon size={17} aria-hidden="true" /> Progress updates when you return the physical copy from a verified reading session.</p>
         </section>
 
-      </div>}
+      </div>
 
-      {history.length > 0 && <details className="quest-history" hidden={fullRewards}>
+      {history.length > 0 && <details className="quest-history">
         <summary className="quest-section-heading">
           <span className="quest-section-icon"><HistoryIcon size={20} aria-hidden="true" /></span>
           <span className="quest-history-title">Quest history</span><span className="quest-count">{history.length}</span>
@@ -75,7 +76,7 @@ export function Commissions() {
         </summary>
         <div className="quest-card-grid">{history.map(quest => <CommissionCard key={quest.assignmentId ?? quest.id} commission={quest} />)}</div>
       </details>}
-      <RewardsGallery rewards={rewards} points={coins} loading={loading} onFullViewChange={setFullRewards} />
+      {rewardsOpen && <RewardsGallery rewards={rewards} points={coins} loading={loading} onClose={() => setRewardsOpen(false)} />}
       {questUpdatedAt && <p className="quest-updated"><SparklesIcon size={13} aria-hidden="true" /> Updated <time dateTime={questUpdatedAt}>{new Date(questUpdatedAt).toLocaleString()}</time></p>}
     </>}
   </div>;

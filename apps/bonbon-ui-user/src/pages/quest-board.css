@@ -34,7 +34,7 @@
 
 .quest-hero-content {
   max-width: 39rem;
-  padding: clamp(1.2rem, 4.2cqi, 2.5rem);
+  padding: clamp(1rem, 3cqi, 1.8rem);
 }
 
 .quest-kicker {
@@ -64,11 +64,11 @@
 }
 
 .quest-rank {
-  margin-top: 1.15rem;
+  margin-top: .85rem;
   border: 1px solid #e4ab6266;
   border-radius: .9rem;
   background: linear-gradient(135deg, #351e16f5, #462718ed);
-  padding: .9rem 1rem;
+  padding: .7rem .9rem;
   box-shadow: inset 0 1px #fae8c12c, 0 10px 28px #180b0660;
 }
 
@@ -147,6 +147,9 @@
 }
 
 .quest-rank-caption strong { color: #ffdb8f; }
+.quest-rank-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-top: .65rem; color: #f4ddc6; font-size: .78rem; font-weight: 750; }
+.quest-rank-actions button { display: inline-flex; min-height: 2.5rem; align-items: center; justify-content: center; gap: .45rem; border: 1px solid #ffdc8a; border-radius: .65rem; background: #e8ad50; padding: .4rem .85rem; color: #351e16; font-size: .83rem; font-weight: 850; }
+.quest-rank-actions button:hover { background: #ffdc8a; }
 
 .quest-board-layout {
   display: grid;
@@ -198,13 +201,13 @@
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: .75rem;
+  gap: .55rem;
   overflow: hidden;
   border: 1px solid var(--quest-line);
   border-top: 3px solid var(--quest-card-accent);
   border-radius: .9rem;
   background: radial-gradient(ellipse at top right, #f4dcae66, transparent 55%), var(--quest-paper);
-  padding: clamp(.85rem, 2.3cqi, 1.35rem);
+  padding: clamp(.8rem, 1.7cqi, 1.05rem);
   box-shadow: 0 8px 24px #47281513;
 }
 
@@ -227,8 +230,8 @@
 
 .quest-difficulty { color: var(--quest-card-accent); }
 .quest-objective-icon {
-  width: 2.85rem;
-  height: 2.85rem;
+  width: 2.35rem;
+  height: 2.35rem;
   border: 1px solid #debe8b;
   border-radius: .75rem;
   background: #f6e6cc;
@@ -325,7 +328,7 @@
     background-image: linear-gradient(180deg, #22130d72, #22130df7 59%), url('/quest-board-reading-hall.jpg');
     background-position: right center;
   }
-  .quest-hero-content { padding-top: clamp(2.1rem, 12cqi, 3.5rem); }
+  .quest-hero-content { padding-top: clamp(1.4rem, 7cqi, 2.2rem); }
   .quest-card-top .min-w-0 { flex-basis: 55%; }
 }
 
